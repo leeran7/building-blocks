@@ -1,4 +1,5 @@
 import type { ReactNode, Ref } from "react";
+import { BackButton } from "./ui";
 
 /**
  * A small live status pill under the title (Ranks: the reset countdown or the
@@ -26,18 +27,24 @@ export interface HubHeaderProps {
   headingRef?: Ref<HTMLHeadingElement>;
   /** Status pill under the title. Independent of `subtitle`; Profile passes only a subtitle. */
   status?: HubStatus;
+  /** Pushed (not a tab root): a back button at the top left. Leaderboard, opened from Modes. */
+  onBack?: () => void;
 }
 
 /**
- * Centered header for the tab-bar hub screens (Ranks, Profile): the lime
+ * Centered header for the hub screens (Profile, and the pushed Leaderboard): the lime
  * DOOMSTACK eyebrow between two rules, the metal page title, and an optional
- * subtitle and/or status pill. One component so the hub headers cannot drift apart. Pushed
- * screens with a back button use PushHeader. Home is the title screen and has
- * its own wordmark.
+ * subtitle and/or status pill. One component so the hub headers cannot drift apart. A pushed
+ * hub (Leaderboard) passes `onBack`; other pushed screens use PushHeader. Modes
+ * has its own wordmark.
  */
-export function HubHeader({ title, subtitle, trailing, headingRef, status }: HubHeaderProps) {
+export function HubHeader({ title, subtitle, trailing, headingRef, status, onBack }: HubHeaderProps) {
   return (
-    <header className="flex flex-col items-center pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] text-center">
+    // With Back, equal 3.5rem gutters keep the centred title clear of the 48px button.
+    <header
+      className={`relative flex flex-col items-center pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] text-center ${onBack ? "px-14" : ""}`}
+    >
+      {onBack && <BackButton onBack={onBack} className="absolute left-0 top-[calc(env(safe-area-inset-top)+1rem)]" />}
       <div className="flex items-center gap-3">
         <span aria-hidden className="h-px w-8 bg-signal/70" />
         <span className="pl-(--tracking-eyebrow) font-mono text-label font-bold uppercase tracking-eyebrow text-signal">

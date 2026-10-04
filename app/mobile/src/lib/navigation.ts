@@ -14,6 +14,7 @@ const PARENT_ROUTES: ReadonlyMap<string, string> = new Map([
   ["/profile/edit", "/profile"],
   ["/profile/avatar", "/profile"],
   ["/challenge", HOME_ROUTE],
+  ["/leaderboard", "/modes"],
 ]);
 
 export function parentRoute(pathname: string): string {
