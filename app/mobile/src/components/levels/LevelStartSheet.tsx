@@ -20,6 +20,15 @@ import { Accordion, HeartIcon, StarRow, livesLabel, useNow } from "./LevelBits";
 import { ArrowRight, TowerIcon } from "./LevelIcons";
 import { GemIcon } from "../store/GemIcon";
 
+/** The slide-up and fade for `.ls-sheet` and `.ls-scrim`, shared by the map's sheets. */
+export const SHEET_MOTION_CSS = `
+  .ls-sheet { animation: lsUp 0.28s cubic-bezier(0.16,1,0.3,1) both; }
+  .ls-scrim { animation: lsFade 0.2s ease-out both; }
+  @keyframes lsUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  @keyframes lsFade { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .ls-sheet, .ls-scrim { animation: none; } }
+`;
+
 /** What a refused start or retry says, in the player's words. */
 export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string> = {
   LOCKED: "Clear the level before this one first.",
@@ -229,13 +238,7 @@ export function LevelStartSheet({
           )}
         </div>
       </div>
-      <style>{`
-        .ls-sheet { animation: lsUp 0.28s cubic-bezier(0.16,1,0.3,1) both; }
-        .ls-scrim { animation: lsFade 0.2s ease-out both; }
-        @keyframes lsUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        @keyframes lsFade { from { opacity: 0; } to { opacity: 1; } }
-        @media (prefers-reduced-motion: reduce) { .ls-sheet, .ls-scrim { animation: none; } }
-      `}</style>
+      <style>{SHEET_MOTION_CSS}</style>
     </div>,
     document.body,
   );
@@ -371,7 +374,7 @@ export function OutOfLives({
  * and refuses a full player, so a double tap never pays twice. Without enough
  * gems the price and balance still show, so the player knows what it costs.
  */
-function RefillLives({ offer }: { offer: RefillOffer }) {
+export function RefillLives({ offer }: { offer: RefillOffer }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const affordable = offer.gems >= offer.cost;

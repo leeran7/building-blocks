@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatGems } from "@app/lib/avatars";
 import { GEM_PACKS, formatUsd, type GemPack } from "@app/lib/gemPacks";
 import { useShop } from "../../contexts/ShopContext";
@@ -93,7 +94,9 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
   const selected = GEM_PACKS.find((p) => p.id === selectedId) ?? GEM_PACKS[0];
   const storeBuy = usesAppStore();
 
-  return (
+  // Portalled to the body: screens sit in a stacking context under the tab
+  // bar, which would cover the sheet's buy button.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end">
       <div ref={scrimRef} aria-hidden className="absolute inset-0 bg-void/70 backdrop-blur-sm" onClick={onClose} />
       <section
@@ -247,6 +250,7 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
           />
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

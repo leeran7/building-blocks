@@ -16,7 +16,7 @@ export const MAP_TOUR: readonly TourStep[] = [
   {
     target: "lives",
     title: "Lives",
-    body: `Levels 1 to ${FREE_LIVES_THROUGH_LEVEL} are free. After that, a lost run costs a life and a clear keeps it. You hold up to ${MAX_LIVES}, and one comes back every ${LIFE_REFILL_MS / 60_000} minutes.`,
+    body: `Levels 1 to ${FREE_LIVES_THROUGH_LEVEL} are free. After that, a lost run costs a life and a clear keeps it. You hold up to ${MAX_LIVES}, and one comes back every ${LIFE_REFILL_MS / 60_000} minutes. Tap here to refill them with gems.`,
   },
   {
     target: "xp",
@@ -27,6 +27,11 @@ export const MAP_TOUR: readonly TourStep[] = [
     target: "chest",
     title: "Star chest",
     body: "A fast finish earns up to 3 stars. Stars fill this chest, and a full chest gives you boosters: power-ups you can start a level with.",
+  },
+  {
+    target: "gems",
+    title: "Gems",
+    body: "Gems buy lives refills and character skins. Tap + to get more.",
   },
   {
     target: "play",
@@ -51,7 +56,7 @@ export const MAP_TOUR: readonly TourStep[] = [
   {
     target: "tab-shop",
     title: "Shop",
-    body: "Tap + next to your gems to buy a gem pack. Spend gems on character skins here, or on a lives refill when a level says you are out.",
+    body: "Character skins, paid for with gems. Tap + next to your gems to buy a gem pack.",
   },
   {
     target: "tab-profile",

@@ -4,6 +4,9 @@ import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
 import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
+import { LivesSheet } from "../components/levels/LivesSheet";
+import { GemBalance } from "../components/store/GemBalance";
+import { useOptionalShop } from "../contexts/ShopContext";
 import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelStartExtras } from "../components/levels/LevelStartExtras";
 import { BoosterPicker, ChestMeter } from "../components/levels/LevelChests";
@@ -60,6 +63,9 @@ export function LevelMapScreen() {
   const location = useLocation();
   const { client, season, loading, error, refresh, setPlayer } = useLevels();
   const refill = useLivesRefillOffer();
+  // The gem pill needs the Shop's balance; without a ShopProvider it is left out.
+  const hasShop = useOptionalShop() !== null;
+  const [livesOpen, setLivesOpen] = useState(false);
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
   const [booster, setBooster] = useState<BoosterType | null>(null);
@@ -179,7 +185,18 @@ export function LevelMapScreen() {
       <header className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         <div className="flex items-center justify-between gap-2">
           <span data-tour="lives" className="inline-flex">
-            <LivesPill player={season.player} />
+            <LivesPill
+              player={season.player}
+              // Only a client that sells refills makes the pill a button.
+              onPress={
+                refill.offer
+                  ? () => {
+                      void tapLight();
+                      setLivesOpen(true);
+                    }
+                  : undefined
+              }
+            />
           </span>
           <span data-tour="xp" className="inline-flex">
             <XpBar player={season.player} compact />
@@ -188,9 +205,20 @@ export function LevelMapScreen() {
         <p className="mt-2.5 text-center font-mono text-label uppercase tracking-eyebrow text-text-secondary">
           {season.name} · Episode {episode}
         </p>
-        {season.chests && (
-          <div data-tour="chest" className="mx-auto mt-2 flex w-fit justify-center">
-            <ChestMeter chests={season.chests} boosters={season.boosters} />
+        {/* The economy row: the star chest and the gem balance. A third pill
+            in the row above does not fit a 375pt-wide phone. Wraps on narrower ones. */}
+        {(season.chests || hasShop) && (
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            {season.chests && (
+              <div data-tour="chest" className="flex w-fit justify-center">
+                <ChestMeter chests={season.chests} boosters={season.boosters} />
+              </div>
+            )}
+            {hasShop && (
+              <span data-tour="gems" className="inline-flex">
+                <GemBalance compact />
+              </span>
+            )}
           </div>
         )}
       </header>
@@ -302,6 +330,9 @@ export function LevelMapScreen() {
             />
           }
         />
+      )}
+      {livesOpen && refill.offer && (
+        <LivesSheet player={season.player} offer={refill.offer} onClose={() => setLivesOpen(false)} />
       )}
       {refill.overlays}
       {touring && <AppTour steps={MAP_TOUR} onClose={endTour} finishLabel={`Play level ${current.level}`} />}

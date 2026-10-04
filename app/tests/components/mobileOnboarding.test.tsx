@@ -29,10 +29,18 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
   notifySuccess: vi.fn(async () => {}),
   notifyError: vi.fn(async () => {}),
 }));
+// The map's gem pill reads the Shop: a fixed balance, no server.
+vi.mock("../../mobile/src/lib/shop", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../mobile/src/lib/shop")>()),
+  fetchShop: async () => ({ gems: 300, ownedIds: [], appleAccountToken: null, webCheckout: false }),
+  settleUnfinishedPurchases: async () => null,
+  watchAppleTransactions: () => () => {},
+}));
 // The canvas painter needs a real 2D context; the training's engine still runs.
 vi.mock("@app/components/Game/ClimbCanvas", () => ({ ClimbCanvas: () => null }));
 
 import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
+import { ShopProvider } from "../../mobile/src/contexts/ShopContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
 import type { LevelsClient } from "../../mobile/src/lib/levels/model";
 import { LevelMapScreen } from "../../mobile/src/screens/LevelMapScreen";
@@ -101,12 +109,14 @@ async function render(client: LevelsClient, path: string, { nav = true }: { nav?
     root.render(
       <MemoryRouter initialEntries={[path]}>
         <LevelsProvider client={client}>
-          <Where />
-          <Routes>
-            <Route path="/" element={<LevelMapScreen />} />
-            <Route path="/tutorial" element={<TrainingScreen />} />
-          </Routes>
-          {nav && <BottomNav />}
+          <ShopProvider>
+            <Where />
+            <Routes>
+              <Route path="/" element={<LevelMapScreen />} />
+              <Route path="/tutorial" element={<TrainingScreen />} />
+            </Routes>
+            {nav && <BottomNav />}
+          </ShopProvider>
         </LevelsProvider>
       </MemoryRouter>,
     );

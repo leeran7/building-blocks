@@ -72,7 +72,7 @@ describe("gem pack payoff", () => {
   it("plays when a pack is credited, counting from the old balance to the new, and closes the sheet after", async () => {
     const onClose = await render();
     expect(reveal()).toBeNull();
-    await press(container.querySelector("[data-gem-pack-buy]"));
+    await press(document.querySelector("[data-gem-pack-buy]"));
     expect(reveal()?.getAttribute("aria-label")).toBe("Gems added: +1,200 gems");
     expect(reveal()?.textContent).toContain("1,450 gems");
     expect(shopState.apply).toHaveBeenCalledWith({ gems: 1450 });
@@ -84,9 +84,9 @@ describe("gem pack payoff", () => {
   it("plays nothing while payment is still in the browser", async () => {
     lib.result = { kind: "checkout" };
     await render();
-    await press(container.querySelector("[data-gem-pack-buy]"));
+    await press(document.querySelector("[data-gem-pack-buy]"));
     expect(reveal()).toBeNull();
-    expect(container.textContent).toContain("Finish paying in the browser.");
+    expect(document.body.textContent).toContain("Finish paying in the browser.");
   });
 
   it("plays when Refresh balance finds gems that arrived, and not when it finds none", async () => {
