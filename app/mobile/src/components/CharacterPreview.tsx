@@ -39,6 +39,9 @@ const AMBIENT_FRAME_MS = 1000 / AMBIENT_FPS - 2;
  * character standing idle), otherwise redraws at most AMBIENT_FPS times a
  * second, and pauses while the page is hidden. Without it the preview redraws
  * every animation frame, as the picker and detail screens expect.
+ *
+ * `still` is for a wall of figures (the Shop grid): it paints the idle frame
+ * once the character's sheets decode, then stops, like reduced motion.
  */
 export function CharacterPreview({
   avatarId,
@@ -47,6 +50,7 @@ export function CharacterPreview({
   figurePx = FIGURE_PX,
   sizePx = SIZE_PX,
   ambient = false,
+  still = false,
 }: {
   avatarId: string | null;
   pose: PreviewPose;
@@ -57,6 +61,8 @@ export function CharacterPreview({
   sizePx?: number;
   /** Save frames on a screen that stays open: see above. */
   ambient?: boolean;
+  /** Paint one idle frame and stop: see above. */
+  still?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const live = useRef({ avatarId, pose });
@@ -69,7 +75,7 @@ export function CharacterPreview({
     const dpr = Math.min(3, window.devicePixelRatio || 1);
     canvas.width = sizePx * dpr;
     canvas.height = sizePx * dpr;
-    const reduce = prefersReducedMotion();
+    const reduce = still || prefersReducedMotion();
     const state: ClimberSpriteState = { pose: "idle", x: 0, y: 0, vx: 0, vy: 0, slot: 0, avatarId: null };
     let raf = 0;
     let last = performance.now();
@@ -80,8 +86,8 @@ export function CharacterPreview({
     /** True once the loop has stopped for good: the frame on screen is final. */
     let done = false;
 
-    /** Paints one frame. `drew` is false until a sprite's sheets decode; `still` when the frame would never change. */
-    const paint = (now: number): { drew: boolean; still: boolean } => {
+    /** Paints one frame. `drew` is false until a sprite's sheets decode; `static` when the frame would never change. */
+    const paint = (now: number): { drew: boolean; static: boolean } => {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       clock += dt;
@@ -103,11 +109,11 @@ export function CharacterPreview({
         const tick = reduce ? 0 : clock * TICKS_PER_SEC;
         drawClimber(ctx, fx, fy, figurePx / STICK_H_IN_S, 1, shown, tick, stick, reduce);
         // drawClimber's idle pose ignores the tick: a standing stick figure never moves.
-        return { drew: true, still: shown === "idle" };
+        return { drew: true, static: shown === "idle" };
       }
       // False until the character's sheets decode: draw nothing meanwhile.
       const drew = drawClimberSprite(ctx, fx, fy, figurePx / DISPLAY_H_IN_S, 1, state, reduce, null, clock);
-      return { drew, still: false };
+      return { drew, static: false };
     };
 
     const frame = (now: number) => {
@@ -117,9 +123,9 @@ export function CharacterPreview({
         return;
       }
       lastPaint = now;
-      const { drew, still } = paint(now);
-      // Reduced motion, and an ambient figure that cannot move, stop once a frame is on screen.
-      if (drew && (reduce || (ambient && still))) {
+      const painted = paint(now);
+      // Reduced motion, `still`, and an ambient figure that cannot move stop once a frame is on screen.
+      if (painted.drew && (reduce || (ambient && painted.static))) {
         done = true;
         return;
       }
@@ -146,7 +152,7 @@ export function CharacterPreview({
       cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [avatarId, pose, figurePx, sizePx, ambient]);
+  }, [avatarId, pose, figurePx, sizePx, ambient, still]);
 
   return (
     <canvas

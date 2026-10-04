@@ -81,10 +81,16 @@ describe("CharacterPreview frame loop", () => {
     vi.restoreAllMocks();
   });
 
-  function mount(avatarId: string | null, opts: { pose?: PreviewPose; ambient?: boolean } = {}) {
+  function mount(avatarId: string | null, opts: { pose?: PreviewPose; ambient?: boolean; still?: boolean } = {}) {
     act(() => {
       root.render(
-        <CharacterPreview avatarId={avatarId} pose={opts.pose ?? "idle"} locked={false} ambient={opts.ambient} />,
+        <CharacterPreview
+          avatarId={avatarId}
+          pose={opts.pose ?? "idle"}
+          locked={false}
+          ambient={opts.ambient}
+          still={opts.still}
+        />,
       );
     });
   }
@@ -249,6 +255,34 @@ describe("CharacterPreview frame loop", () => {
       refresh(10);
       expect(queue.size).toBe(0);
       root = createRoot(container);
+    });
+  });
+
+  describe("still (the Shop grid)", () => {
+    it("paints a sprite once and stops, though a sprite otherwise breathes", () => {
+      mount(SPRITE_ID, { still: true });
+      refresh(DISPLAY_HZ);
+      expect(painted.sprites).toBe(1);
+      expect(queue.size).toBe(0);
+    });
+
+    it("stops a walking figure after one frame too", () => {
+      mount(STICK_ID, { still: true, pose: "walk" });
+      refresh(DISPLAY_HZ);
+      expect(painted.sticks).toBe(1);
+      expect(queue.size).toBe(0);
+    });
+
+    it("keeps trying until a sprite's sheets decode, then stops", () => {
+      painted.spritesDecoded = false;
+      mount(SPRITE_ID, { still: true });
+      refresh(10);
+      expect(painted.sprites).toBe(10);
+      expect(queue.size).toBe(1);
+      painted.spritesDecoded = true;
+      refresh(DISPLAY_HZ);
+      expect(painted.sprites).toBe(11);
+      expect(queue.size).toBe(0);
     });
   });
 
