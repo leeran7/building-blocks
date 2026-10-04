@@ -9,7 +9,9 @@ import sys
 import tempfile
 
 import numpy as np
-from PIL import Image, ImageFilter
+import itertools
+
+from PIL import Image, ImageFilter, ImageOps
 
 IDS = ('kestrel', 'lynx', 'raven', 'panther', 'wolf', 'otter', 'heron', 'yak',
        'mantis', 'cobra', 'badger', 'falcon', 'marmot', 'bison', 'ibex', 'sentinel', 'viking', 'gecko')
@@ -206,6 +208,50 @@ def stabilise_climb(frames: list[Image.Image]) -> tuple[list[Image.Image], list[
     return result, [{**move, 'dy': move['dy'] + sole} for move in moves]
 
 
+def alpha_diff(first: np.ndarray, second: np.ndarray) -> int:
+    return int(np.count_nonzero(first ^ second))
+
+
+def smoothest_cycle(frames: list[Image.Image]) -> tuple[list[Image.Image], dict]:
+    """Re-sequence the six climb frames into the loop with the smallest steps.
+
+    A generated climb grid is a set of poses, not a sequence: its rows repeat
+    poses and jump between them in no order. The loop the engine plays uses
+    every frame once, each either as drawn or mirrored (a rear-view
+    hand-over-hand is symmetric, so a mirrored frame is the other hand's
+    reach), in the order that keeps every consecutive pair as close as
+    possible, measured as the silhouette (visible-alpha) difference, while
+    every pair in the loop stays distinct by the repeat guard's pixel measure
+    (MIN_FRAME_DIFF). Frame 1 keeps its place and its side, so the output is
+    deterministic and the stabiliser's reference body is unchanged.
+    """
+    pool = frames + [ImageOps.mirror(frame) for frame in frames]
+    masks = [np.asarray(frame)[:, :, 3] > VISIBLE_ALPHA for frame in pool]
+    diffs = np.array([[alpha_diff(a, b) for b in masks] for a in masks])
+    # Distinctness uses the same measure as the repeat guard, so a loop that
+    # passes here is one compile_sheet would also accept.
+    same = np.array([[frame_diff(a, b) <= MIN_FRAME_DIFF for b in pool] for a in pool])
+    before = [int(diffs[i, (i + 1) % 6]) for i in range(6)]
+    best: tuple[tuple[int, int], tuple[int, ...]] | None = None
+    for rest in itertools.permutations(range(1, 6), 5):
+        for flips in itertools.product((0, 6), repeat=5):
+            order = (0, *(index + flip for index, flip in zip(rest, flips)))
+            if any(same[a, b] for a, b in itertools.combinations(order, 2)):
+                continue
+            steps = [int(diffs[order[i], order[(i + 1) % 6]]) for i in range(6)]
+            key = (max(steps), sum(steps))
+            if best is None or key < best[0]:
+                best = (key, order)
+    if best is None:
+        raise InvalidArt('climb frames cannot form a loop of six distinct frames')
+    _, order = best
+    after = [int(diffs[order[i], order[(i + 1) % 6]]) for i in range(6)]
+    return [pool[index] for index in order], {
+        'order': [f'{index % 6 + 1}{"m" if index >= 6 else ""}' for index in order],
+        'stepPixelsBefore': before, 'stepPixelsAfter': after,
+    }
+
+
 def stabilise_run(frames: list[Image.Image]) -> tuple[list[Image.Image], list[dict]]:
     """Match both run strides to the idle's mass and head column, then re-ground them.
 
@@ -276,8 +322,12 @@ def normalize_pair(compiled: dict) -> tuple[dict, float]:
             normalized.append(frame.transform(frame.size, Image.Transform.AFFINE, transform,
                                               Image.Resampling.BICUBIC)
                               if scale < 1 or shift else frame)
-        normalized, moves = stabilise_climb(normalized) if kind == 'climb' else stabilise_run(normalized)
         report = dict(compiled[kind][1])
+        if kind == 'climb':
+            normalized, report['cycle'] = smoothest_cycle(normalized)
+            normalized, moves = stabilise_climb(normalized)
+        else:
+            normalized, moves = stabilise_run(normalized)
         report['wholeSheetShiftY'] = shifts[kind]
         report['stabilised'] = moves
         report['frames'] = [{**frame_summary(frame, i),

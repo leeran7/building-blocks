@@ -122,8 +122,10 @@ Approved masters live in `paid-characters/art/<id>-void/`. Compile them with
 the reviewed snapshot before replacing runtime PNGs. Each pair shares one
 scale and the foot anchor `(96,172.5)`; standing poses are grounded, the
 falling pose keeps its authored position, and the run and climb cycles are
-stabilised (each frame's body pinned onto the cycle's first) so the crossfades
-read like the Wraith's: limbs move, the figure does not.
+stabilised (the climb re-sequenced into its smoothest loop, mirroring frames
+where that is the other hand's reach, then each frame's body pinned onto the
+cycle's first) so the crossfades read like the Wraith's: limbs move, the
+figure does not.
 
 `VOID_SKIN_SHEETS` in `climberCharacters.ts` registers all 18 pairs with the
 reviewed idle skull-top estimate (excluding horns, ears and crests). Its

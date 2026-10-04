@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-from process_paid import InvalidArt, compile_sheet, grounded, key_alpha, process_character, parser, visible_bounds, frame_summary
+from process_paid import InvalidArt, compile_sheet, grounded, key_alpha, process_character, parser, stabilise_climb, visible_bounds, frame_summary
 
 
 def atlas(cols, rows, varied=False, size=192):
@@ -168,28 +168,67 @@ class PaidArtTests(unittest.TestCase):
 
     def test_climb_frames_are_pinned_onto_the_first_body(self):
         # Frames 4-6 come from a second generated row: same body, drawn 12px right, 7px up and 8% larger.
+        climb = Image.new('RGBA', (6 * 192, 192), (255, 0, 255, 255))
+        draw = ImageDraw.Draw(climb)
+        for i in range(6):
+            dx, dy, grow = (12, -7, 4) if i >= 3 else (0, 0, 0)
+            x = i * 192 + 60 + dx
+            draw.rectangle((x - grow, 40 + dy - grow, x + 70 + grow, 174 + dy), fill=(20, 90, 210, 255))
+            # A hand that climbs the body's side a step per frame, so every frame differs.
+            hand = (x - 30, 20 + dy + 44 * (i % 3)) if i % 2 else (x + 74, 20 + dy + 44 * (i % 3))
+            draw.rectangle((hand[0], hand[1], hand[0] + 26, hand[1] + 40), fill=(240, 200, 30, 255))
+        frames = [key_alpha(climb.crop((i * 192, 0, (i + 1) * 192, 192)), 'magenta') for i in range(6)]
+        pinned, moves = stabilise_climb(frames)
+        self.assertTrue(all(abs(m['dx']) <= 1 for m in moves[:3]), moves)
+        self.assertTrue(all(-14 <= m['dx'] <= -10 for m in moves[3:]), moves)
+        self.assertTrue(all(m['scale'] < 1 for m in moves[3:]), moves)
+        # Even frames carry the hand on the right, so their left edge is the body's.
+        lefts = [visible_bounds(frame)[0] for frame in pinned[::2]]
+        self.assertLessEqual(max(lefts) - min(lefts), 4, lefts)
+        self.assertEqual(max(visible_bounds(frame)[3] for frame in pinned), 172)
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp) / 'kestrel-void'
+            folder.mkdir()
+            atlas(4, 2).save(folder / 'kestrel-void-poses.png')
+            climb.save(folder / 'kestrel-void-climb.png')
+            report = process_character('kestrel', Path(temp), Path(temp) / 'out', check_only=True)
+            climbed = report['sheets']['climb']
+            # Through the whole pipeline (re-sequenced, possibly mirrored) every frame is pinned
+            # within the row offset and the soles no longer stagger.
+            self.assertEqual(len(climbed['stabilised']), 6)
+            self.assertTrue(all(abs(m['dx']) <= 14 and m['scale'] <= 1 for m in climbed['stabilised']), climbed['stabilised'])
+            soles = [f['bounds'][3] for f in climbed['frames']]
+            self.assertLessEqual(max(soles) - min(soles), 3, soles)
+
+    def test_climb_loop_is_the_smallest_step_sequence_of_distinct_frames(self):
+        # Six poses of one body with a hand at ranks 0,3,1,4,5,2 (28px apart), odd ranks on the
+        # other side: the generated order jumps, the smoothest loop climbs the hand one rank at
+        # a time (mirroring frames so the hand stays on one side, as a rear view allows).
         with tempfile.TemporaryDirectory() as temp:
             folder = Path(temp) / 'kestrel-void'
             folder.mkdir()
             atlas(4, 2).save(folder / 'kestrel-void-poses.png')
             climb = Image.new('RGBA', (6 * 192, 192), (255, 0, 255, 255))
             draw = ImageDraw.Draw(climb)
-            for i in range(6):
-                dx, dy, grow = (12, -7, 4) if i >= 3 else (0, 0, 0)
-                x = i * 192 + 60 + dx
-                draw.rectangle((x - grow, 40 + dy - grow, x + 70 + grow, 174 + dy), fill=(20, 90, 210, 255))
-                # A hand that climbs the body's side a step per frame, so every frame differs.
-                hand = (x - 30, 20 + dy + 44 * (i % 3)) if i % 2 else (x + 74, 20 + dy + 44 * (i % 3))
-                draw.rectangle((hand[0], hand[1], hand[0] + 26, hand[1] + 40), fill=(240, 200, 30, 255))
+            ranks = [0, 3, 1, 4, 5, 2]
+            for i, rank in enumerate(ranks):
+                x = i * 192 + 60
+                # Body and hand slots mirror onto themselves about the cell axis (x -> 191 - x).
+                draw.rectangle((x + 1, 20, x + 70, 174), fill=(20, 90, 210, 255))
+                hand_x = x - 33 if rank % 2 else x + 74
+                top = 2 + rank * 28
+                draw.rectangle((hand_x, top, hand_x + 30, top + 40), fill=(240, 200, 30, 255))
             climb.save(folder / 'kestrel-void-climb.png')
             report = process_character('kestrel', Path(temp), Path(temp) / 'out', check_only=True)
-            moves = report['sheets']['climb']['stabilised']
-            self.assertTrue(all(abs(m['dx']) <= 1 for m in moves[:3]), moves)
-            self.assertTrue(all(-14 <= m['dx'] <= -10 for m in moves[3:]), moves)
-            self.assertTrue(all(m['scale'] < 1 for m in moves[3:]), moves)
-            # Even frames carry the hand on the right, so their left edge is the body's.
-            lefts = [f['bounds'][0] for f in report['sheets']['climb']['frames'][::2]]
-            self.assertLessEqual(max(lefts) - min(lefts), 4, lefts)
+            cycle = report['sheets']['climb']['cycle']
+            self.assertLess(sum(cycle['stepPixelsAfter']), sum(cycle['stepPixelsBefore']), cycle)
+            self.assertEqual(cycle['order'][0], '1')
+            self.assertEqual(len(set(cycle['order'])), 6)
+            chosen = [ranks[int(name[0]) - 1] for name in cycle['order']]
+            self.assertEqual(sorted(chosen), [0, 1, 2, 3, 4, 5], cycle)
+            # Every step is one rank apart; the loop closes over the one long gap.
+            steps = sorted(abs(chosen[(i + 1) % 6] - chosen[i]) for i in range(6))
+            self.assertEqual(steps, [1, 1, 1, 1, 1, 5], cycle)
 
     def test_run_strides_match_the_idle_mass_and_head_column(self):
         with tempfile.TemporaryDirectory() as temp:

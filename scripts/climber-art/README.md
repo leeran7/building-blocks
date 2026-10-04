@@ -65,11 +65,17 @@ The crouch retains its relative height and all14 cells keep one shared scale.
 After that, each cycle is stabilised so the engine's crossfades move limbs
 rather than the whole figure: both run strides are scaled about the anchor to
 the idle's visible mass (0.9 to 1.2) and their head column is moved onto the
-idle's, then re-grounded; climb frames 2 to 6 are scaled to frame 1's mass
-(0.9 to 1.1) and translated onto its body (the cross-correlation peak of the
-blurred alpha, up to 24px), then the strip is grounded as a whole. The report's
-`stabilised` lists each move. Generated climb rows otherwise drift by 5 to
-25px between renders, which ghosted every Void climb loop.
+idle's, then re-grounded. The climb strip is first re-sequenced into the
+smoothest loop: every frame is used once, as drawn or mirrored (a rear-view
+hand-over-hand is symmetric, so a mirrored frame is the other hand's reach),
+in the order with the smallest silhouette change between consecutive frames,
+frame 1 staying first; the report's `cycle` lists the order (`4m` = frame 4
+mirrored) and the per-step pixel change before and after. Then climb frames
+2 to 6 are scaled to frame 1's mass (0.9 to 1.1) and translated onto its body
+(the cross-correlation peak of the blurred alpha, up to 24px), and the strip
+is grounded as a whole. The report's `stabilised` lists each move. Generated
+climb grids are otherwise a bag of poses in no order, drifting 5 to 25px
+between renders, which ghosted and jolted every Void climb loop.
 Factors below0.65 or shifts over24px fail. Empty frames, clipped
 edges, wrong aspect, and climb pairs with <=1000 visibly different pixels
 fail the character without writing either output. JSON reports record the shared factor, whole-sheet shifts, individual grounding
