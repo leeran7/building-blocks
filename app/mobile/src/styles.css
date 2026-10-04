@@ -105,7 +105,7 @@ body,
 body {
   font-family: var(--font-sans);
   /* Safe areas are handled per-screen (ScreenHeader top, ScreenBody bottom,
-     HomeScreen inset props) — no body-level padding needed. */
+     the level map's own insets) — no body-level padding needed. */
 }
 
 /*
@@ -156,10 +156,26 @@ textarea {
   display: none; /* WebKit — iOS/Android WebView, Safari, Chrome */
 }
 
+/*
+  Motion tokens: the CSS face of lib/motion.ts (keep the two in step). Hand-
+  written keyframes use these so CSS and Motion-driven surfaces share timing.
+*/
+:root {
+  --motion-duration-exit: 140ms;
+  --motion-duration-fast: 180ms;
+  --motion-duration-base: 320ms;
+  --motion-duration-slow: 440ms;
+  --motion-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  /* An overshooting curve for pops (badges, stars, counters landing). */
+  --motion-ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 /* Reusable soft fade-in for root-level swaps (auth splash → sign in → app) so
    the first launch never hard-cuts. Reduced-motion users get it instantly. */
 .app-fade {
-  animation: appFade 0.3s ease-out both;
+  animation: appFade var(--motion-duration-base) var(--motion-ease-out) both;
 }
 @keyframes appFade {
   from {

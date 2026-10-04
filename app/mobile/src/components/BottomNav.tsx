@@ -1,10 +1,11 @@
 import { useNavigate, useLocation } from "react-router-dom";
+import { useRef } from "react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { tapLight } from "../lib/haptics";
+import { duration, ease, spring } from "../lib/motionTokens";
 
 const TABS = [
-  { label: "Levels", path: "/", icon: MapIcon },
-  { label: "Modes", path: "/modes", icon: ModesIcon },
-  { label: "Ranks", path: "/leaderboard", icon: TrophyIcon },
+  { label: "Play", path: "/", icon: MapIcon },
   { label: "Shop", path: "/shop", icon: ShopIcon },
   { label: "Profile", path: "/profile", icon: UserIcon },
 ] as const;
@@ -12,7 +13,7 @@ const TABS = [
 const TAB_PATHS: ReadonlySet<string> = new Set(TABS.map((t) => t.path));
 
 /**
- * True for a bottom-nav tab root (Levels, Modes, Ranks, Shop, Profile), taken from TABS so a
+ * True for a bottom-nav tab root (Play, Shop, Profile), taken from TABS so a
  * new tab cannot be missed. The tabs are peers, not a stack: App shows the nav
  * on them, RouteTransition fades them in with no swipe-back, and Android back
  * leaves the app from any of them instead of popping to another tab.
@@ -21,9 +22,51 @@ export function isTabRoot(pathname: string): boolean {
   return TAB_PATHS.has(pathname);
 }
 
-export function BottomNav() {
-  const navigate = useNavigate();
+/**
+ * The tab bar's slot in the App column. Leaving a tab for a pushed screen, the
+ * bar lifts out of the layout (the screen gets the full height at once) and
+ * slides down behind it; coming back, it takes its slot and slides up. It
+ * keeps highlighting the tab it was on while it slides away.
+ */
+export function BottomNavDock({ show }: { show: boolean }) {
   const { pathname } = useLocation();
+  const lastTab = useRef(pathname);
+  if (show) lastTab.current = pathname;
+  return (
+    <AnimatePresence initial={false}>
+      {show && <DockBar key="dock" activePath={lastTab.current} />}
+    </AnimatePresence>
+  );
+}
+
+/** How the bar arrives and leaves. Exported for tests. */
+export const DOCK_MOTION = {
+  initial: { y: "100%", opacity: 0 },
+  animate: { y: 0, opacity: 1, transition: { ...spring.smooth, opacity: { duration: duration.fast } } },
+  exit: { y: "100%", opacity: 0, transition: { duration: duration.fast, ease: ease.in } },
+} as const;
+
+function DockBar({ activePath }: { activePath: string }) {
+  const present = useIsPresent();
+  return (
+    <motion.div
+      {...DOCK_MOTION}
+      className={present ? "nav-dock" : "nav-dock nav-dock-out"}
+      data-dock={present ? "in" : "out"}
+      inert={!present}
+    >
+      <BottomNav activePath={activePath} />
+      <style>{`
+        .nav-dock-out { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; pointer-events: none; }
+      `}</style>
+    </motion.div>
+  );
+}
+
+export function BottomNav({ activePath }: { activePath?: string } = {}) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const pathname = activePath ?? location.pathname;
 
   return (
     <div
@@ -44,6 +87,7 @@ export function BottomNav() {
                 navigate(path);
               }}
               aria-label={label}
+              data-tour={`tab-${label.toLowerCase()}`}
               aria-current={active ? "page" : undefined}
               className={`relative flex flex-1 flex-col items-center gap-1.5 pb-3.5 pt-3 transition-[transform,color] active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-signal rounded-[22px] ${active ? "text-signal" : "text-text-secondary"}`}
             >
@@ -51,10 +95,16 @@ export function BottomNav() {
               <span className="font-mono text-label font-bold uppercase tracking-label">
                 {label}
               </span>
-              <span
-                aria-hidden
-                className={`absolute bottom-1.5 h-1 w-14 rounded-full bg-signal shadow-[0_0_12px_rgba(203,242,77,0.7)] transition-opacity duration-200 ${active ? "opacity-100" : "opacity-0"}`}
-              />
+              {/* One highlight that slides to the tab you pick. */}
+              {active && (
+                <motion.span
+                  aria-hidden
+                  layoutId="tab-highlight"
+                  data-tab-highlight
+                  transition={spring.snappy}
+                  className="absolute bottom-1.5 h-1 w-14 rounded-full bg-signal shadow-[0_0_12px_rgba(203,242,77,0.7)]"
+                />
+              )}
             </button>
           );
         })}
@@ -77,30 +127,6 @@ function ShopIcon({ active }: { active: boolean }) {
     <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} fillOpacity={0.25} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z" />
       <path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
-    </svg>
-  );
-}
-
-function ModesIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} fillOpacity={0.25} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="3.5" y="3.5" width="7" height="7" rx="2" />
-      <rect x="13.5" y="3.5" width="7" height="7" rx="2" />
-      <rect x="3.5" y="13.5" width="7" height="7" rx="2" />
-      <rect x="13.5" y="13.5" width="7" height="7" rx="2" />
-    </svg>
-  );
-}
-
-function TrophyIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} fillOpacity={0.25} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-      <path d="M4 22h16" />
-      <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22" />
-      <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22" />
-      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
     </svg>
   );
 }

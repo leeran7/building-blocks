@@ -4,7 +4,7 @@
  *
  * There is one store, src/lib/daily.ts (RV-DC-4). Runs the same behaviour
  * through both entry points: the Capacitor app's "@app/lib/daily" alias
- * (ClimbScreen, HomeScreen, ProfileScreen) and the web page's relative
+ * (ClimbScreen, ModeRail, ProfileScreen) and the web page's relative
  * import (DailyClimbClient). Only Date is faked; localStorage is happy-dom's.
  *
  * @vitest-environment happy-dom

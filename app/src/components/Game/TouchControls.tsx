@@ -22,7 +22,7 @@ import "./expedition.css";
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { NO_TOUCH, type TouchInput } from "../../game/useClimb";
-import { useControlScheme, type ControlScheme } from "../../lib/controlScheme";
+import { useControlScheme } from "../../lib/controlScheme";
 import { JOYSTICK_CENTERED, withJoystick, type JoystickDirection } from "./joystick";
 import { JOYSTICK_LAYOUT_HEIGHT, JOYSTICK_SIZE, TouchJoystick } from "./TouchJoystick";
 import {
@@ -44,7 +44,7 @@ const TouchButton = memo(function TouchButton({
   control: Control;
   held: boolean;
   onEvent: (event: HoldEvent) => void;
-  /** Joystick layout's jump: a solid signal pad with an arrow over the label. */
+  /** Joystick layout's jump: a solid signal pad with the word in large type. */
   pad?: boolean;
 }) {
   const { id, label, glyph, sub, accent, wordGlyph } = control;
@@ -91,23 +91,10 @@ const TouchButton = memo(function TouchButton({
       }}
     >
       {pad ? (
-        <>
-          {/* Drawn, not the ↑ character: at this size the font's glyph was
-              clipped by its line box and lost the top of the arrowhead. */}
-          <svg aria-hidden="true" viewBox="0 0 24 24" width="40" height="40">
-            <path
-              d="M12 20V5M5 11l7-7 7 7"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span aria-hidden="true" className="mt-2 text-lg uppercase tracking-[0.16em] leading-none">
-            {sub}
-          </span>
-        </>
+        // A word, not an arrow: ↑ means climb in every guide and tutorial.
+        <span aria-hidden="true" className="text-2xl uppercase tracking-[0.16em] leading-none">
+          {glyph}
+        </span>
       ) : (
       <>
       <span
@@ -146,7 +133,7 @@ interface Control {
   sub?: string;
   /** Signal-coloured treatment for the primary action. */
   accent?: boolean;
-  /** Glyph is a word ("JMP"), not a single arrow — needs a smaller type size. */
+  /** Glyph is a word ("Jump"), not a single arrow — needs a smaller type size. */
   wordGlyph?: boolean;
 }
 
@@ -154,11 +141,11 @@ const ALL_CONTROLS: readonly Control[] = [
   { id: "left", label: "Move left", glyph: "←" },
   { id: "right", label: "Move right", glyph: "→" },
   { id: "climb", label: "Climb up ladder", glyph: "↑", sub: "climb" },
-  { id: "jump", label: "Jump", glyph: "JMP", accent: true, wordGlyph: true },
+  { id: "jump", label: "Jump", glyph: "Jump", accent: true, wordGlyph: true },
 ];
 
-/** Jump in the joystick layout: arrow glyph over a "Jump" label. */
-const JUMP_PAD: Control = { id: "jump", label: "Jump", glyph: "↑", sub: "Jump", accent: true };
+/** Jump in the joystick layout: the same word as the button row, on a bigger pad. */
+const JUMP_PAD: Control = { id: "jump", label: "Jump", glyph: "Jump", accent: true };
 
 export function TouchControls({
   active,
@@ -263,7 +250,9 @@ export function TouchControls({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-2.5">
+        // As tall as the joystick column, so switching layouts leaves the game
+        // view where it was.
+        <div className="grid grid-cols-4 gap-2.5" style={{ height: JOYSTICK_LAYOUT_HEIGHT }}>
           {ALL_CONTROLS.map((control) => (
             <TouchButton
               key={control.id}
@@ -279,32 +268,24 @@ export function TouchControls({
 }
 
 /**
- * Height these controls cover ABOVE the safe area: the `min-h-[104px]` button
- * plus the 8px top gutter. Callers add the bottom padding —
- * `max(10px, safe-area-inset-bottom)` — themselves, because the safe-area part
- * is only known at runtime (see ClimbScene). The sum is passed to ClimbCanvas as
- * `bottomInset` so the camera keeps the climber above the buttons.
+ * Height these controls cover ABOVE the safe area: the layout (the joystick
+ * column, which the button row matches) plus the 8px top gutter. Both layouts
+ * share it so switching between them doesn't move the camera. Callers add the
+ * bottom padding, `max(10px, safe-area-inset-bottom)`, themselves, because the
+ * safe-area part is only known at runtime (see ClimbScene). The sum is passed to
+ * ClimbCanvas as `bottomInset` so the camera keeps the climber above the controls.
  *
- * Button height and padding are deliberately breakpoint-free. When they varied
- * by breakpoint this constant matched only the phone case and understated the
- * bar, drawing the climber inside the buttons on tablets and in landscape.
+ * Heights and padding are deliberately breakpoint-free. When they varied by
+ * breakpoint this constant matched only the phone case and understated the bar,
+ * drawing the climber inside the buttons on tablets and in landscape.
  */
-export const TOUCH_CONTROLS_INSET = 112;
-/** Same, for the joystick layout: the stick column plus the 8px top gutter. */
-export const JOYSTICK_CONTROLS_INSET = JOYSTICK_LAYOUT_HEIGHT + 8;
+export const TOUCH_CONTROLS_INSET = JOYSTICK_LAYOUT_HEIGHT + 8;
 /** Minimum bottom gutter under the buttons, matched to the container padding. */
 export const TOUCH_CONTROLS_MIN_BOTTOM = 10;
 
-/** Camera clearance for the controls: the layout's height plus the bottom gutter. */
-export function touchControlsInset(scheme: ControlScheme, safeAreaBottom: number): number {
-  const layout = scheme === "joystick" ? JOYSTICK_CONTROLS_INSET : TOUCH_CONTROLS_INSET;
-  return layout + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeAreaBottom);
-}
-
-/** touchControlsInset for the scheme chosen in settings. */
-export function useTouchControlsInset(safeAreaBottom: number): number {
-  const [scheme] = useControlScheme();
-  return touchControlsInset(scheme, safeAreaBottom);
+/** Camera clearance for the controls: their height plus the bottom gutter. */
+export function touchControlsInset(safeAreaBottom: number): number {
+  return TOUCH_CONTROLS_INSET + Math.max(TOUCH_CONTROLS_MIN_BOTTOM, safeAreaBottom);
 }
 
 /** Responsive presentation alias; the established input reducer is unchanged. */

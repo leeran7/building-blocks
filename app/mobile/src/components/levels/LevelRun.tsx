@@ -7,7 +7,7 @@ import { encodeRunReplay } from "@app/game/runReplay";
 import { hazardPhase } from "@app/game/hazard";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud } from "@app/components/Game/ExpeditionHud";
-import { TouchControls, useTouchControlsInset } from "@app/components/Game/TouchControls";
+import { TouchControls, touchControlsInset } from "@app/components/Game/TouchControls";
 import { usePowerUpFeedback } from "@app/components/Game/usePowerUpFeedback";
 import { lavaMusicIntensity } from "@app/components/Game/powerUpCues";
 import { isLavaInProximity } from "@app/components/Game/lava";
@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 
 import { tapLight, tapMedium, notifyError } from "../../lib/haptics";
+import { useHapticsSetting } from "../../lib/hapticsSetting";
 import { useGameHaptics } from "../../lib/useGameHaptics";
 import {
   formatClock,
@@ -92,7 +93,7 @@ export function LevelRun({
   const myAvatarId = useSettings().data?.avatarId ?? null;
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });
   const safeArea = useSafeAreaInsets();
-  const bottomInset = useTouchControlsInset(safeArea.bottom);
+  const bottomInset = touchControlsInset(safeArea.bottom);
 
   const phase = state.phase;
   const ended = useRef(false);
@@ -115,6 +116,7 @@ export function LevelRun({
   const lavaFill = lavaThreatFill(state.hazardY, camY, view.viewH, bottomInsetM);
   const lavaNear = isLavaInProximity(lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM));
   const musicActive = running && (phase === "countdown" || phase === "climb");
+  const vibration = useHapticsSetting();
   const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
     state.tick,
@@ -199,6 +201,7 @@ export function LevelRun({
         lavaPhaseProgress={lavaPhaseInfo.progress}
         muted={muted}
         onToggleMute={() => setMuted(!muted)}
+        vibration={vibration}
         announcement={announcement}
         runId={runId}
         topInset={safeArea.top}

@@ -54,6 +54,8 @@ export function TowerMap({
   height,
   avatar,
   onOpen,
+  signInLocked,
+  onSignIn,
 }: {
   seasonName: string;
   levels: LevelNode[];
@@ -62,6 +64,9 @@ export function TowerMap({
   height: number;
   avatar: EquippedAvatar;
   onOpen: (node: LevelNode) => void;
+  /** A guest's floors above the taster: locked, and a tap asks them to sign in. */
+  signInLocked?: (level: number) => boolean;
+  onSignIn?: (node: LevelNode) => void;
 }) {
   const top = levels.length;
   const playerFloor = avatar.loading ? null : frontier;
@@ -87,10 +92,12 @@ export function TowerMap({
           <Floor
             key={node.level}
             node={node}
-            state={floorState(node, frontier)}
+            state={signInLocked?.(node.level) ? "locked" : floorState(node, frontier)}
             hasPlayer={node.level === playerFloor}
+            tour={node.level === frontier}
             avatarId={avatarId}
             onOpen={onOpen}
+            onSignIn={signInLocked?.(node.level) ? onSignIn : undefined}
           />
         ))}
         {floorsAbove > 0 && (
@@ -111,8 +118,8 @@ function floorState(node: LevelNode, frontier: number): FloorState {
   return node.level === frontier && node.stars === 0 ? "current" : "open";
 }
 
-function floorLabel(node: LevelNode, state: FloorState, hard: boolean): string {
-  if (state === "locked") return `Level ${node.level}, locked`;
+function floorLabel(node: LevelNode, state: FloorState, hard: boolean, signIn: boolean): string {
+  if (state === "locked") return `Level ${node.level}, ${signIn ? "sign in to unlock" : "locked"}`;
   const progress = node.stars > 0 ? `, ${node.stars} of 3 stars` : state === "current" ? ", next to play" : "";
   return `Level ${node.level}${hard ? ", hard" : ""}${progress}`;
 }
@@ -145,14 +152,20 @@ function Floor({
   node,
   state,
   hasPlayer,
+  tour,
   avatarId,
   onOpen,
+  onSignIn,
 }: {
   node: LevelNode;
   state: FloorState;
   hasPlayer: boolean;
+  /** The floor the first-run tour points at. */
+  tour: boolean;
   avatarId: string | null;
   onOpen: (node: LevelNode) => void;
+  /** Set on a guest's locked floor above the taster: tapping it asks them to sign in. */
+  onSignIn?: (node: LevelNode) => void;
 }) {
   const hard = isHardLevel(node.level);
   const locked = state === "locked";
@@ -187,10 +200,11 @@ function Floor({
       )}
       <button
         type="button"
-        disabled={locked}
-        aria-label={floorLabel(node, state, hard)}
+        disabled={locked && !onSignIn}
+        data-tour={tour ? "next-level" : undefined}
+        aria-label={floorLabel(node, state, hard, Boolean(onSignIn))}
         aria-current={current ? "step" : undefined}
-        onClick={() => onOpen(node)}
+        onClick={() => (locked ? onSignIn?.(node) : onOpen(node))}
         className={`relative flex h-full w-full items-center justify-center gap-1.5 border pb-1 font-display font-black tabular-nums transition-transform active:scale-[0.97] disabled:active:scale-100 ${current ? "text-headline" : "text-lead"} ${slabFace(state, hard)}`}
       >
         {locked ? (

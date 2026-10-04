@@ -10,10 +10,12 @@ import {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { createMockLevelsClient } from "../lib/levels/mockClient";
+import { createGuestLevelsClient } from "../lib/levels/guestClient";
 import { createHttpLevelsClient } from "../lib/levels/httpClient";
 import { season1Catalog } from "../lib/levels/catalog";
 import { withMockFallback } from "../lib/levels/fallbackClient";
 import { createBestFailStore, type BestFailStore } from "../lib/levels/nearMiss";
+import { createRunNoteStore, type RunNoteStore } from "../lib/levels/runNote";
 import type { BuyLivesResult, LevelsClient, PlayerStats, SeasonView } from "../lib/levels/model";
 
 /**
@@ -33,6 +35,8 @@ interface LevelsValue {
   setPlayer: (player: PlayerStats) => void;
   /** Best failed height per level, on this device (near-miss markers, §6.2). */
   bestFails: BestFailStore;
+  /** The run in progress on this device, so an interrupted run is mentioned on the map. */
+  runNotes: RunNoteStore;
   /**
    * Top lives up to full with gems, and apply the new lives and balance. Null
    * when no refill can be sold (the client or the season has no price).
@@ -46,25 +50,37 @@ export function LevelsProvider({
   children,
   client: injected,
   bestFails: injectedBestFails,
+  guest = false,
+  runNotes: injectedRunNotes,
 }: {
   children: ReactNode;
   /** Tests and the screenshot harness pass their own client. */
   client?: LevelsClient;
   bestFails?: BestFailStore;
+  /**
+   * The guest taster (GuestShell): the device-only client capped at
+   * GUEST_LEVEL_CAP, loaded with no account. Never the server client.
+   */
+  guest?: boolean;
+  runNotes?: RunNoteStore;
 }) {
   const { user, loading: authLoading, isAnonymous } = useAuth();
-  const uid = user && !isAnonymous ? user.uid : null;
-  const client = useMemo(
-    () =>
-      injected ??
-      withMockFallback(createHttpLevelsClient({ catalog: season1Catalog() }), () =>
-        createMockLevelsClient({ accountId: uid ?? undefined }),
-      ),
-    [injected, uid],
-  );
+  // A guest has no account here, whatever the auth state says.
+  const uid = !guest && user && !isAnonymous ? user.uid : null;
+  const client = useMemo(() => {
+    if (injected) return injected;
+    if (guest) return createGuestLevelsClient();
+    return withMockFallback(createHttpLevelsClient({ catalog: season1Catalog() }), () =>
+      createMockLevelsClient({ accountId: uid ?? undefined }),
+    );
+  }, [injected, guest, uid]);
   const bestFails = useMemo(
     () => injectedBestFails ?? createBestFailStore({ accountId: uid }),
     [injectedBestFails, uid],
+  );
+  const runNotes = useMemo(
+    () => injectedRunNotes ?? createRunNoteStore({ accountId: uid }),
+    [injectedRunNotes, uid],
   );
   const [season, setSeason] = useState<SeasonView | null>(null);
   const [loading, setLoading] = useState(false);
@@ -87,13 +103,13 @@ export function LevelsProvider({
 
   useEffect(() => {
     if (authLoading) return;
-    if (!uid) {
+    if (!uid && !guest) {
       request.current += 1;
       setSeason(null);
       return;
     }
     void refresh();
-  }, [authLoading, uid, refresh]);
+  }, [authLoading, uid, guest, refresh]);
 
   const setPlayer = useCallback((player: PlayerStats) => {
     setSeason((s) => (s ? { ...s, player } : s));
@@ -123,9 +139,10 @@ export function LevelsProvider({
       refresh,
       setPlayer,
       bestFails,
+      runNotes,
       buyLives: canBuyLives ? buyLives : null,
     }),
-    [client, season, loading, error, refresh, setPlayer, bestFails, canBuyLives, buyLives],
+    [client, season, loading, error, refresh, setPlayer, bestFails, runNotes, canBuyLives, buyLives],
   );
   return <LevelsContext.Provider value={value}>{children}</LevelsContext.Provider>;
 }

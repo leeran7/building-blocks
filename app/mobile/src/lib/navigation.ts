@@ -13,10 +13,14 @@ const HOME_ROUTE = "/";
 const PARENT_ROUTES: ReadonlyMap<string, string> = new Map([
   ["/profile/edit", "/profile"],
   ["/profile/avatar", "/profile"],
+  ["/settings", "/profile"],
   ["/challenge", HOME_ROUTE],
+  ["/leaderboard", HOME_ROUTE],
 ]);
 
 export function parentRoute(pathname: string): string {
+  // Skin Details (/shop/<character>) sits under the Shop tab.
+  if (pathname.startsWith("/shop/")) return "/shop";
   return PARENT_ROUTES.get(pathname) ?? HOME_ROUTE;
 }
 
@@ -27,7 +31,7 @@ export function parentRoute(pathname: string): string {
  * going back to it leaves the app.
  *
  * The browser and hash routers store their own 0-based `idx` in
- * `history.state`; a `replace` (the /settings redirect) keeps it at 0 while
+ * `history.state`; a `replace` (the catch-all redirect home) keeps it at 0 while
  * minting a new key, so `idx` is checked first. The memory router keeps
  * nothing in `history.state`, and its first entry has the "default" key.
  */

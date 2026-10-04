@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "../lib/motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -11,7 +12,7 @@ import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud } from "@app/components/Game/ExpeditionHud";
 import {
   TouchControls,
-  useTouchControlsInset,
+  touchControlsInset,
 } from "@app/components/Game/TouchControls";
 import { usePowerUpFeedback } from "@app/components/Game/usePowerUpFeedback";
 import { lavaMusicIntensity } from "@app/components/Game/powerUpCues";
@@ -33,7 +34,10 @@ import { useInvalidateAppData, useSettings, type SliceKey } from "../contexts/Ap
 import { hasLeaderboardConsent } from "../lib/consent";
 import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
+import { GuestSignInSheet } from "../components/GuestSignInSheet";
+import { GUEST_NUDGE_AFTER_RUNS, recordGuestEndlessRun } from "../lib/guestMode";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
+import { useHapticsSetting } from "../lib/hapticsSetting";
 import { useGameHaptics } from "../lib/useGameHaptics";
 import { commitDailyRun, msUntilReset, formatReset, type DailyRunResult } from "@app/lib/daily";
 import {
@@ -80,8 +84,8 @@ const RUN_STALE_SLICES: SliceKey[] = [
  */
 export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const navigate = useNavigate();
-  // Back to wherever the climb was opened from: the level map (Endless) or
-  // the Modes tab (Endless, Daily). Cold-opened, it falls back to home.
+  // Back to wherever the climb was opened from: the level map (Endless, or
+  // Daily on its mode rail). Cold-opened, it falls back to home.
   const goBack = useBackOr("/");
   const { user, isAnonymous } = useAuth();
   const isAuthed = Boolean(user) && !isAnonymous;
@@ -161,6 +165,10 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const [consentBusy, setConsentBusy] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
   const saveConsent = useAcceptLeaderboardConsent();
+  // A guest's third finished Endless run brings a one-time sign-in sheet,
+  // on top of the result card's own "Sign in to save".
+  const [runNudge, setRunNudge] = useState(false);
+  const countedRun = useRef(false);
 
   const player = state.players[0];
   const phase = state.phase;
@@ -173,7 +181,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     if (countdownValue != null) void tapLight();
   }, [countdownValue]);
 
-  const bottomInset = useTouchControlsInset(safeArea.bottom);
+  const bottomInset = touchControlsInset(safeArea.bottom);
 
   // Camera + lava-threat feed the audio one-shots (see ClimbScene for rationale).
   const musicActive = !finished && (phase === "countdown" || phase === "climb");
@@ -187,6 +195,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const lavaNear = isLavaInProximity(
     lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM)
   );
+  const vibration = useHapticsSetting();
   const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
     state.tick,
@@ -225,6 +234,16 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     setDailyResult(null);
     start();
   }, [start, unlockAudio, isDaily, dailyInfo]);
+
+  useEffect(() => {
+    if (!finished) {
+      countedRun.current = false;
+      return;
+    }
+    if (countedRun.current || isAuthed || isDaily || !onSignIn) return;
+    countedRun.current = true;
+    if (recordGuestEndlessRun()) setRunNudge(true);
+  }, [finished, isAuthed, isDaily, onSignIn]);
 
   // Runs after the render that locked the new seed, so start() uses it.
   useEffect(() => {
@@ -388,7 +407,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
 
         <ExpeditionHud player={player} hazardY={state.hazardY} tick={state.tick}
           lavaPhase={lavaPhaseInfo.phase} lavaPhaseProgress={lavaPhaseInfo.progress}
-          muted={muted} onToggleMute={() => setMuted(!muted)} announcement={announcement} runId={runId}
+          muted={muted} onToggleMute={() => setMuted(!muted)} vibration={vibration} announcement={announcement} runId={runId}
           topInset={safeArea.top} leftInset={safeArea.left} rightInset={safeArea.right}
           backControl={<button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); goBack(); }}>←</button>}
         />
@@ -468,7 +487,9 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
               isDaily && isAuthed
                 ? () => {
                     void tapLight();
-                    navigate(TODAY_BOARD_PATH);
+                    // Replace the finished run: Back from the board must not
+                    // land on a fresh Daily lobby (the board is a pushed screen).
+                    navigate(TODAY_BOARD_PATH, { replace: true });
                   }
                 : undefined
             }
@@ -485,14 +506,28 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
           />
         )}
 
-        {showConsent && (
-          <LeaderboardConsentModal
-            onAccept={handleConsentAccept}
-            onDecline={handleConsentDecline}
-            busy={consentBusy}
-            error={consentError}
-          />
-        )}
+        <AnimatePresence>
+          {runNudge && onSignIn && (
+            <GuestSignInSheet
+              eyebrow={`${GUEST_NUDGE_AFTER_RUNS} climbs in`}
+              title="Save your climbs"
+              body="Sign in to save your scores to the leaderboard, keep your stars, play all 300 levels and race your friends."
+              onSignIn={onSignIn}
+              onClose={() => setRunNudge(false)}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showConsent && (
+            <LeaderboardConsentModal
+              onAccept={handleConsentAccept}
+              onDecline={handleConsentDecline}
+              busy={consentBusy}
+              error={consentError}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
       {touchActive && <TouchControls active={touchActive} onInput={setTouch} />}

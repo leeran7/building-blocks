@@ -88,9 +88,10 @@ import { AppDataProvider, useDashboard } from "../../mobile/src/contexts/AppData
 import { EditProfileScreen } from "../../mobile/src/screens/EditProfileScreen";
 import { AvatarPickerScreen } from "../../mobile/src/screens/AvatarPickerScreen";
 import { LeaderboardScreen } from "../../mobile/src/screens/LeaderboardScreen";
-import { HomeScreen } from "../../mobile/src/screens/HomeScreen";
+import { ModeRail } from "../../mobile/src/components/modes/ModeRail";
 import { ProfileScreen } from "../../mobile/src/screens/ProfileScreen";
 import { hasInAppHistory } from "../../mobile/src/lib/navigation";
+import { clearDailyStore, commitDailyRun } from "../../src/lib/daily";
 
 const row = (rank: number, userId: string, peakY: number) => ({
   rank,
@@ -109,7 +110,7 @@ const routes = () =>
   createElement(
     Routes,
     null,
-    createElement(Route, { path: "/", element: createElement(HomeScreen) }),
+    createElement(Route, { path: "/", element: createElement(ModeRail) }),
     createElement(Route, { path: "/leaderboard", element: createElement(LeaderboardScreen) }),
     createElement(Route, { path: "/profile", element: createElement(ProfileScreen) }),
     createElement(Route, { path: "/profile/edit", element: createElement(EditProfileScreen) }),
@@ -332,7 +333,7 @@ describe("Back on a push screen", () => {
   });
 
   it("reads the hash router's history index before the location key", () => {
-    // A cold start redirected with `replace` (/settings -> /profile/edit): new key, still index 0.
+    // A cold start redirected with `replace` (an unknown path -> /): new key, still index 0.
     window.history.replaceState({ usr: null, key: "k1", idx: 0 }, "");
     expect(hasInAppHistory("k1")).toBe(false);
     window.history.replaceState({ usr: null, key: "k2", idx: 2 }, "");
@@ -475,18 +476,99 @@ describe.each([
 });
 
 describe("dashboard failure is not 'no record'", () => {
-  it("Home's Best card shows a dash, not Unranked, when the dashboard fails", async () => {
+  const leaderboardRow = () => container.querySelector<HTMLButtonElement>('button[aria-label="Ranks"]');
+
+  it("The rail's Ranks button does not say Unranked when the dashboard fails", async () => {
     net.status["/api/dashboard"] = 500;
     await mount(["/"]);
-    const best = container.querySelector('[aria-live="polite"]');
-    expect(best?.textContent).toContain("Couldn't load your best climb");
-    expect(best?.textContent).not.toContain("Unranked");
+    expect(leaderboardRow()?.textContent).toContain("World and friends rankings");
+    expect(leaderboardRow()?.textContent).not.toContain("Unranked");
   });
 
-  it("Home still says Unranked for a player with no record", async () => {
+  it("The rail's Ranks button still says Unranked for a player with no record", async () => {
     net.dash = { ...RANKED_DASH, freeClimb: null };
     await mount(["/"]);
-    expect(container.querySelector('[aria-live="polite"]')?.textContent).toContain("Unranked");
+    expect(leaderboardRow()?.textContent).toContain("Unranked");
+  });
+
+  it("The rail's Ranks button shows the rank, badges it, and opens the leaderboard", async () => {
+    await mount(["/"]);
+    expect(leaderboardRow()?.textContent).toContain("#5 · best 3,400");
+    expect(leaderboardRow()?.querySelector("[data-badge]")?.textContent).toBe("#5");
+    await click(leaderboardRow());
+    expect(path()).toBe("/leaderboard");
+  });
+
+  it("the rail offers exactly Daily, Versus and Ranks (Endless lives on the Play bar)", async () => {
+    await mount(["/"]);
+    expect([...container.querySelectorAll('[data-tour="modes"] button')].map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Daily Climb",
+      "Versus",
+      "Ranks",
+    ]);
+  });
+
+  it("Versus opens a sheet with Quick Play and Challenge, and Challenge opens the challenge screen", async () => {
+    await mount(["/"]);
+    await click(container.querySelector('button[aria-label="Versus"]'));
+    const sheet = document.querySelector('[role="dialog"][aria-labelledby="versus-sheet-title"]');
+    expect(sheet).toBeTruthy();
+    expect([...sheet!.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Close",
+      "Quick play, find a random opponent",
+      "Challenge a friend to a race",
+    ]);
+    await click(sheet!.querySelector('button[aria-label="Challenge a friend to a race"]'));
+    expect(path()).toBe("/challenge");
+    expect(document.querySelector('[aria-labelledby="versus-sheet-title"]')).toBeNull();
+  });
+
+  it("Profile's rank opens the leaderboard", async () => {
+    await mount(["/profile"]);
+    const rank = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes("see the leaderboard"));
+    expect(rank?.textContent).toContain("#5 of 40");
+    await click(rank);
+    expect(path()).toBe("/leaderboard");
+  });
+
+  it("no Profile button starts a climb: the Daily is played from the map's rail", async () => {
+    await mount(["/profile"]);
+    const count = container.querySelectorAll("main button").length;
+    expect(count).toBeGreaterThan(0);
+    for (let i = 0; i < count; i++) {
+      const r = root;
+      if (r) act(() => r.unmount());
+      await mount(["/profile"]);
+      await click(container.querySelectorAll("main button")[i]);
+      expect(path()).not.toBe("/climb");
+    }
+  });
+
+  it("a played-today streak card is status only, not a button", async () => {
+    commitDailyRun(1200);
+    try {
+      await mount(["/profile"]);
+      expect(container.textContent).toContain("Done for today");
+      const card = [...container.querySelectorAll("section")].find((el) => el.textContent?.includes("Done for today"));
+      expect(card).toBeTruthy();
+      expect(card?.closest("button")).toBeNull();
+    } finally {
+      clearDailyStore();
+    }
+  });
+
+  it("a cold-opened Leaderboard's Back goes to the map", async () => {
+    await mount(["/leaderboard"]);
+    await click(container.querySelector('button[aria-label="Back"]'));
+    expect(path()).toBe("/");
+  });
+
+  it("an unplayed streak card leads to the map, where the Daily lives", async () => {
+    await mount(["/profile"]);
+    const streak = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes("Start your streak"));
+    expect(streak).toBeTruthy();
+    await click(streak);
+    expect(path()).toBe("/");
   });
 
   it("Profile says it couldn't load the climb, and Try again loads it", async () => {

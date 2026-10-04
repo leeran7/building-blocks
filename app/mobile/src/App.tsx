@@ -1,35 +1,40 @@
-import { useState } from "react";
+import { useEffect } from "react";
+import { MotionConfig } from "motion/react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { HomeScreen } from "./screens/HomeScreen";
 import { ClimbScreen } from "./screens/ClimbScreen";
 import { SignInScreen } from "./screens/SignInScreen";
 import { LeaderboardScreen } from "./screens/LeaderboardScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { EditProfileScreen } from "./screens/EditProfileScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
 import { AvatarPickerScreen } from "./screens/AvatarPickerScreen";
 import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { ChallengeScreen } from "./screens/ChallengeScreen";
 import { LevelMapScreen } from "./screens/LevelMapScreen";
 import { LevelPlayScreen } from "./screens/LevelPlayScreen";
 import { ShopScreen } from "./screens/ShopScreen";
+import { TrainingScreen } from "./screens/TrainingScreen";
 import { SkinDetailsScreen } from "./screens/SkinDetailsScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
-import { BottomNav, isTabRoot } from "./components/BottomNav";
+import { BottomNavDock, isTabRoot } from "./components/BottomNav";
 import { useNativeShell } from "./lib/useNativeShell";
 import { useAuth } from "./contexts/AuthContext";
 import { useLevels } from "./contexts/LevelsContext";
 import { launchReady, useLaunchSplash } from "./lib/launchSplash";
 import { GuestShell } from "./components/GuestShell";
 import { LogoMark } from "./components/LogoMark";
+import { useGuestMode } from "./lib/guestMode";
 
 /**
  * Root of the native game shell. The animated backdrop is persistent behind
  * every route — screens push over it as overlays so it always feels like
  * you're "inside the game," never navigating web pages.
  *
- * The app is fully auth-gated: until a real (non-anonymous) account is signed
- * in, the only reachable screen is Sign In. There is no guest play.
+ * Until a real (non-anonymous) account is signed in, the app shows Sign In,
+ * or the guest shell (Endless, the training climb and levels 1 to 3 on the
+ * device) once the player chose "Continue as Guest". Guest mode is kept on
+ * the device across launches until the guest taps Sign In.
  */
 export function App() {
   useNativeShell();
@@ -47,25 +52,23 @@ export function App() {
     }),
   );
 
-  const [guestMode, setGuestMode] = useState(() => {
-    try { return sessionStorage.getItem("doomstack:guest") === "1"; } catch { return false; }
-  });
-  const enterGuest = () => {
-    setGuestMode(true);
-    try { sessionStorage.setItem("doomstack:guest", "1"); } catch {}
-  };
-  const exitGuest = () => {
-    setGuestMode(false);
-    try { sessionStorage.removeItem("doomstack:guest"); } catch {}
-  };
+  const { guestMode, enterGuest, exitGuest } = useGuestMode();
+  // Signed in: guest mode is over, so a later sign-out lands on Sign In.
+  useEffect(() => {
+    if (authed && guestMode) exitGuest();
+  }, [authed, guestMode, exitGuest]);
 
   // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();
-  const onClimb = authed && (location.pathname === "/climb" || isLevelPlay(location.pathname));
+  const onClimb =
+    authed && (location.pathname === "/climb" || location.pathname === "/tutorial" || isLevelPlay(location.pathname));
   const showNav = authed && isTabRoot(location.pathname);
   const guestActive = guestMode && !authed;
 
   return (
+    // One motion policy for the app: Motion drops movement (keeps fades) when
+    // the OS asks for reduced motion.
+    <MotionConfig reducedMotion="user">
     <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-void">
       {!onClimb && !guestActive && <AnimatedBackdrop />}
       <div className="relative z-10 flex-1 overflow-hidden">
@@ -77,15 +80,17 @@ export function App() {
             {/* Keyed by entry so "Practice this level" from a result starts fresh. */}
             <Route path="/levels/:level/play" element={<LevelPlayScreen key={location.key} />} />
             <Route path="/duel/:id" element={<DuelRoomScreen />} />
+            {/* First-run tutorial: opened by the map on a first launch, and from Profile. */}
+            <Route path="/tutorial" element={<TrainingScreen />} />
             <Route
               path="*"
               element={
                 <RouteTransition>
-                  <Routes>
+                  {(routeLocation) => (
+                  <Routes location={routeLocation}>
                     {/* Levels are the main game: the map is home (design doc §2).
-                        Endless, Daily, Quick Play and Challenge live on Modes. */}
+                        Endless sits on its Play bar; Daily, Versus and Ranks on its mode rail. */}
                     <Route path="/" element={<LevelMapScreen />} />
-                    <Route path="/modes" element={<HomeScreen />} />
                     <Route path="/leaderboard" element={<LeaderboardScreen />} />
                     <Route path="/profile" element={<ProfileScreen />} />
                     <Route path="/profile/edit" element={<EditProfileScreen />} />
@@ -93,11 +98,10 @@ export function App() {
                     <Route path="/challenge" element={<ChallengeScreen />} />
                     <Route path="/shop" element={<ShopScreen />} />
                     <Route path="/shop/:characterId" element={<SkinDetailsScreen />} />
-                    {/* Settings live on Edit Profile — keep the path as a redirect
-                        for any stray deep links / bookmarks. */}
-                    <Route path="/settings" element={<Navigate to="/profile/edit" replace />} />
+                    <Route path="/settings" element={<SettingsScreen />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
+                  )}
                 </RouteTransition>
               }
             />
@@ -108,9 +112,11 @@ export function App() {
           <SignInScreen onGuestContinue={enterGuest} />
         )}
       </div>
-      {/* Single BottomNav instance — never unmounts on hub route changes */}
-      {showNav && <BottomNav />}
+      {/* Single BottomNav instance — never unmounts on hub route changes, and
+          slides away (or back) with the screen when leaving a tab. */}
+      {authed && <BottomNavDock show={showNav} />}
     </div>
+    </MotionConfig>
   );
 }
 

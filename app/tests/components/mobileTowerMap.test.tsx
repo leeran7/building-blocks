@@ -88,6 +88,7 @@ vi.mock("@app/components/Game/climberSprite", async (importOriginal) => {
   };
 });
 
+import { apiFetch } from "../../mobile/src/lib/api";
 import { AppDataProvider, useEquippedAvatar, type EquippedAvatar } from "../../mobile/src/contexts/AppDataContext";
 import { LevelsProvider, useLevels } from "../../mobile/src/contexts/LevelsContext";
 import { PREVIEW_FOOT_PAD } from "../../mobile/src/components/CharacterPreview";
@@ -341,6 +342,62 @@ describe("tower map", () => {
       .find((b) => b.getAttribute("aria-label") === label)
       ?.closest("li");
 
+  const railButtons = () =>
+    [...container.querySelectorAll('[data-tour="modes"] button')].map((b) => b.getAttribute("aria-label"));
+
+  it("puts the mode rail (Daily, Versus, Ranks) on a player's map", async () => {
+    await renderMap(memoryClient(), (el) => createElement(AppDataProvider, null, el));
+    expect(railButtons()).toEqual(["Daily Climb", "Versus", "Ranks"]);
+  });
+
+  it("leaves the mode rail off a map with no app data behind it (the guest taster)", async () => {
+    await renderMap(memoryClient());
+    expect(container.querySelector("ol button")).not.toBeNull();
+    expect(container.querySelector('[data-tour="modes"]')).toBeNull();
+  });
+
+  it("keeps the mode rail reachable when the level map fails to load", async () => {
+    const client = memoryClient();
+    client.getSeason = async () => {
+      throw new Error("down");
+    };
+    await renderMap(client, (el) => createElement(AppDataProvider, null, el));
+    expect(container.textContent).toContain("Couldn’t load the level map.");
+    expect(railButtons()).toEqual(["Daily Climb", "Versus", "Ranks"]);
+  });
+
+  it("keeps a Quick Play search running when the level map loads behind it", async () => {
+    const client = memoryClient();
+    const realSeason = client.getSeason.bind(client);
+    let down = true;
+    client.getSeason = async () => {
+      if (down) throw new Error("down");
+      return realSeason();
+    };
+    await renderMap(client, (el) => createElement(AppDataProvider, null, el));
+    const press = async (el: Element | null | undefined) => {
+      if (!el) throw new Error("nothing to press");
+      await act(async () => (el as HTMLElement).click());
+      await settle();
+    };
+    const matchmaking = () => document.querySelector('[role="dialog"][aria-label="Matchmaking"]');
+    const joins = () =>
+      vi.mocked(apiFetch).mock.calls.filter(([path, init]) => path === "/api/duel/queue" && init?.method === "POST").length;
+    const joinsBefore = joins();
+
+    await press(container.querySelector('button[aria-label="Versus"]'));
+    await press(document.querySelector('button[aria-label="Quick play, find a random opponent"]'));
+    expect(matchmaking()).not.toBeNull();
+    expect(joins()).toBe(joinsBefore + 1);
+
+    down = false;
+    await press([...container.querySelectorAll("button")].find((b) => b.textContent === "Try again"));
+    // The map is up, and the same search is still on screen: no new join, no dropped overlay.
+    expect(container.querySelector("ol button")).not.toBeNull();
+    expect(matchmaking()).not.toBeNull();
+    expect(joins()).toBe(joinsBefore + 1);
+  });
+
   it("stands the character on the frontier floor and on no other", async () => {
     const client = memoryClient();
     await clearLevels(client, 3);
@@ -373,6 +430,16 @@ describe("tower map", () => {
     expect(container.querySelectorAll("[data-character-preview]").length).toBe(1);
     expect(floor("Level 2, next to play")?.querySelector("[data-character-preview]")).toBeTruthy();
     expect(floor("Level 1, 3 of 3 stars")?.querySelector("[data-character-preview]")).toBeNull();
+  });
+
+  it("points the first-run tour's level step at the frontier floor and no other", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 3);
+    await renderMap(client);
+
+    const targets = container.querySelectorAll('[data-tour="next-level"]');
+    expect(targets.length).toBe(1);
+    expect(targets[0].getAttribute("aria-label")).toBe("Level 4, next to play");
   });
 
   it("draws the saved character, idle, with its feet on the slab's top edge", async () => {

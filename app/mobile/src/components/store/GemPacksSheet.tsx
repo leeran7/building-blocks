@@ -16,6 +16,7 @@ import { notifyError, tapLight } from "../../lib/haptics";
 import { GemPile, RewardReveal } from "../RewardReveal";
 import { GemIcon } from "./GemIcon";
 import { useSwipeToDismiss } from "../../hooks/useSwipeToDismiss";
+import { SheetPortal } from "../SheetPortal";
 
 const DEFAULT_PACK_ID = "gems-1200";
 
@@ -46,6 +47,8 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
   const webGain = refreshedFrom !== null && shop !== null && shop.gems > refreshedFrom ? shop.gems - refreshedFrom : 0;
 
   useEffect(() => {
+    // Hand focus back to what opened the sheet (it can open over another sheet).
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
     let live = true;
     void appStorePrices().then((p) => {
@@ -53,6 +56,7 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
     });
     return () => {
       live = false;
+      opener?.focus();
     };
   }, []);
 
@@ -93,9 +97,14 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
   const selected = GEM_PACKS.find((p) => p.id === selectedId) ?? GEM_PACKS[0];
   const storeBuy = usesAppStore();
 
+  // Portalled to the body: screens sit in a stacking context under the tab
+  // bar, which would cover the sheet's buy button.
   return (
-    <div className="fixed inset-0 z-50 flex items-end">
-      <div ref={scrimRef} aria-hidden className="absolute inset-0 bg-void/70 backdrop-blur-sm" onClick={onClose} />
+    <SheetPortal centered={false}
+      scrim={
+        <div ref={scrimRef} aria-hidden className="absolute inset-0 bg-void/70 backdrop-blur-sm" onClick={onClose} />
+      }
+    >
       <section
         ref={sheetRef}
         role="dialog"
@@ -103,7 +112,11 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
         aria-labelledby="gem-packs-title"
         data-gem-packs
         onKeyDown={(e) => {
-          if (e.key === "Escape") onClose();
+          if (e.key !== "Escape") return;
+          // Close this sheet only, not a sheet it was opened over.
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
         }}
         className="relative max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] w-full overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl"
       >
@@ -247,6 +260,6 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
           />
         </div>
       )}
-    </div>
+    </SheetPortal>
   );
 }

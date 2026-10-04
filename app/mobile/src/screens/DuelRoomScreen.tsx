@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { apiFetch, API_BASE } from "../lib/api";
 import { tapLight, tapMedium, notifySuccess } from "../lib/haptics";
+import { useHapticsSetting } from "../lib/hapticsSetting";
 import { useGameHaptics } from "../lib/useGameHaptics";
 
 import { useRace, RaceParticipant } from "@app/game/useRace";
@@ -11,7 +12,7 @@ import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud, type DuelHudInfo } from "@app/components/Game/ExpeditionHud";
 import {
   TouchControls,
-  useTouchControlsInset,
+  touchControlsInset,
 } from "@app/components/Game/TouchControls";
 import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
@@ -300,7 +301,7 @@ function WaitingLobby({
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });
   const safeArea = useSafeAreaInsets();
-  const bottomInset = useTouchControlsInset(safeArea.bottom);
+  const bottomInset = touchControlsInset(safeArea.bottom);
 
   const phase = state.phase;
   const touchActive = phase === "countdown" || phase === "climb";
@@ -475,7 +476,7 @@ function DuelGame({
   const canvasBoxRef = useRef<HTMLDivElement>(null);
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });
   const safeArea = useSafeAreaInsets();
-  const bottomInset = useTouchControlsInset(safeArea.bottom);
+  const bottomInset = touchControlsInset(safeArea.bottom);
 
   const navigate = useNavigate();
   const startedRef = useRef(false);
@@ -484,6 +485,7 @@ function DuelGame({
   const phase = state.phase;
   const touchActive = phase === "countdown" || phase === "climb";
   const [muted, setMuted] = useState(false);
+  const vibration = useHapticsSetting();
 
   // Leaving mid-race forfeits (opponent wins immediately, not stranded on a
   // ghost); mirrors the beforeunload forfeit. After the match it's just nav.
@@ -880,6 +882,7 @@ function DuelGame({
           lavaPhaseProgress={lavaPhaseInfo.progress}
           muted={muted}
           onToggleMute={() => setMuted(!muted)}
+          vibration={vibration}
           announcement=""
           runId={0}
           topInset={safeArea.top}

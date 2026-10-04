@@ -14,9 +14,10 @@ export type ControlScheme = "buttons" | "joystick";
 
 export const CONTROL_SCHEMES: readonly ControlScheme[] = ["buttons", "joystick"];
 
-// Joystick while it is being play-tested. Screen-reader users cannot operate
-// the stick, so revisit before this ships as the permanent default.
-export const DEFAULT_CONTROL_SCHEME: ControlScheme = "joystick";
+// Buttons: every control is a real button a screen reader can operate, which
+// the stick is not. The first-run tutorial asks touch players to pick, and the
+// joystick stays one tap away there and in settings.
+export const DEFAULT_CONTROL_SCHEME: ControlScheme = "buttons";
 
 export const CONTROL_SCHEME_KEY = "doomstack:control-scheme";
 
