@@ -8,11 +8,11 @@ import { isTabRoot } from "./BottomNav";
 /**
  * iOS-style navigation feel over the persistent game backdrop.
  *
- * Hub (the bottom-nav tab roots: Levels, Modes, Ranks, Profile — see isTabRoot):
+ * Hub (the bottom-nav tab roots: Levels, Modes, Shop, Profile — see isTabRoot):
  *   - Fades in with a 6px settle, the same on every tab switch. The tabs are
  *     peers, not a stack, so there is no slide and no edge-swipe back.
  *
- * Push (hub → screen: Edit Profile, Avatar, Challenge):
+ * Push (hub → screen: Edit Profile, Avatar, Challenge, Leaderboard):
  *   - Entering screen slides in from right, on top of the static hub.
  *   - Hub unmounts cleanly once the push finishes. No overlay needed —
  *     the animated backdrop is always visible underneath, so there's no
