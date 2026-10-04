@@ -26,15 +26,10 @@ import { GuestShell } from "./components/GuestShell";
 import { LogoMark } from "./components/LogoMark";
 import { useGuestMode } from "./lib/guestMode";
 import { isGameRoute } from "./lib/navigation";
-import { duration, ease } from "./lib/motionTokens";
+import { fade } from "./lib/motionTokens";
 
 /** How the backdrop and the app's top-level states (splash, Sign In, guest, the app) come and go. */
-const SHELL_FADE = {
-  className: "absolute inset-0",
-  initial: { opacity: 0 },
-  animate: { opacity: 1, transition: { duration: duration.base, ease: ease.out } },
-  exit: { opacity: 0, transition: { duration: duration.fast, ease: ease.in } },
-} as const;
+const SHELL_FADE = { className: "absolute inset-0", ...fade } as const;
 
 /**
  * Root of the native game shell. The animated backdrop is persistent behind

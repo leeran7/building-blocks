@@ -164,7 +164,8 @@ export function ModeRail() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {queue.state.status !== "idle" && (
+        {/* Matched: the overlay fades out as the duel zooms in (ModeRail navigates). */}
+        {queue.state.status !== "idle" && queue.state.status !== "matched" && (
           <SearchingOverlay
             status={queue.state.status}
             errorMessage={queue.state.errorMessage}

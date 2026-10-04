@@ -40,6 +40,8 @@ const saved = vi.hoisted(() => ({
 }));
 
 /** Who is signed in: a real account by default; the verifier's hook tests switch it. */
+/** Quick Play finds an opponent on the first join. */
+const queue = vi.hoisted(() => ({ matchNow: false }));
 const auth = vi.hoisted(() => ({ kind: "account" as "account" | "anonymous" | "signedOut" }));
 
 vi.mock("../../mobile/src/contexts/AuthContext", () => ({
@@ -63,7 +65,12 @@ vi.mock("../../mobile/src/lib/api", () => ({
     if (path === "/api/settings") saved.requests++;
     if (path === "/api/settings" && saved.hold) await new Promise<void>((done) => void (saved.release = done));
     if (path === "/api/settings" && saved.fail) return { ok: false, status: 500, json: () => Promise.resolve({}) } as Response;
-    const body = path === "/api/settings" ? { leaderboardConsent: true, avatarId: saved.avatarId } : {};
+    const body =
+      path === "/api/settings"
+        ? { leaderboardConsent: true, avatarId: saved.avatarId }
+        : path === "/api/duel/queue" && queue.matchNow
+          ? { status: "matched", duelId: "d1" }
+          : {};
     return { ok: true, status: 200, json: () => Promise.resolve(body) } as Response;
   }),
   API_BASE: "https://example.test",
@@ -406,6 +413,24 @@ describe("tower map", () => {
     expect(container.querySelector("ol button")).not.toBeNull();
     expect(matchmaking()).not.toBeNull();
     expect(joins()).toBe(joinsBefore + 1);
+  });
+
+  it("lets the search overlay go as soon as Quick Play is matched, so the duel's zoom shows", async () => {
+    queue.matchNow = true;
+    try {
+      await renderMap(memoryClient(), (el) => createElement(AppDataProvider, null, el));
+      const press = async (el: Element | null | undefined) => {
+        if (!el) throw new Error("nothing to press");
+        await act(async () => (el as HTMLElement).click());
+        await settle();
+      };
+      await press(container.querySelector('button[aria-label="Versus"]'));
+      await press(document.querySelector('button[aria-label="Quick play, find a random opponent"]'));
+      expect(vi.mocked(apiFetch).mock.calls.some(([path]) => path === "/api/duel/queue")).toBe(true);
+      expect(document.querySelector('[role="dialog"][aria-label="Matchmaking"]')).toBeNull();
+    } finally {
+      queue.matchNow = false;
+    }
   });
 
   it("stands the character on the frontier floor and on no other", async () => {

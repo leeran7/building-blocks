@@ -53,6 +53,13 @@ export const zoom = {
   far: 0.96,
 } as const;
 
+/** A plain cross-fade: overlays and the app's top-level states (splash, Sign In, the app). */
+export const fade = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: duration.base, ease: ease.out } },
+  exit: { opacity: 0, transition: { duration: duration.fast, ease: ease.in } },
+} as const;
+
 /** A press: the scale a tappable surface dips to, and how it springs back. */
 export const press = {
   whileTap: { scale: 0.96 },

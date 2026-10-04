@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { motion, useIsPresent } from "motion/react";
-import { duration, ease } from "../../lib/motionTokens";
+import { fade } from "../../lib/motionTokens";
 
 /**
  * Full-screen overlay shown while the player is in the matchmaking queue.
@@ -25,9 +25,7 @@ export function SearchingOverlay({
   const present = useIsPresent();
   return createPortal(
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1, transition: { duration: duration.fast, ease: ease.out } }}
-      exit={{ opacity: 0, transition: { duration: duration.fast, ease: ease.in } }}
+      {...fade}
       inert={!present}
       className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-void/95 px-6 text-center backdrop-blur-sm"
       role="dialog"

@@ -169,6 +169,29 @@ const settle = () =>
     for (let i = 0; i < 5; i++) await Promise.resolve();
   });
 
+function touch(target: Element, type: string, clientX: number, clientY: number) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "touches", { value: type === "touchend" ? [] : [{ clientX, clientY }] });
+  target.dispatchEvent(event);
+}
+
+/** A finger down at the first point, through the rest, then lifted. */
+async function swipe(target: Element, points: Array<[number, number]>) {
+  const [[x0, y0], ...rest] = points;
+  await act(async () => {
+    touch(target, "touchstart", x0, y0);
+  });
+  for (const [x, y] of rest) {
+    await act(async () => {
+      touch(target, "touchmove", x, y);
+    });
+  }
+  await act(async () => {
+    touch(target, "touchend", 0, 0);
+  });
+  await settle();
+}
+
 async function click(el: Element | null | undefined) {
   if (!el) throw new Error("element to click not found");
   await act(async () => {
@@ -218,7 +241,8 @@ const tab = (id: string) => $(`#${id}`) as HTMLButtonElement | null;
 const tablistOf = (id: string) => tab(id)?.closest('[role="tablist"]') ?? null;
 const tabIds = (list: Element | null) => [...(list?.querySelectorAll('[role="tab"]') ?? [])].map((t) => t.id);
 /** The accent underline bar rendered inside a period tab. */
-const underline = (id: string) => tab(id)?.querySelector("span[aria-hidden]") ?? null;
+/** The one accent bar, which slides to sit under the selected period. */
+const underline = (id: string) => tab(id)?.querySelector<HTMLElement>("[data-tab-bar]") ?? null;
 const header = () => $("header")?.textContent ?? "";
 /** What the header shows on screen (screen-reader-only text removed). */
 const headerVisible = () => {
@@ -279,7 +303,7 @@ describe("Ranks: Global | Friends pill, then All-time | Today underline tabs (AC
     expect(tab("lb-period-alltime")?.tabIndex).toBe(0);
     expect(tab("lb-period-today")?.tabIndex).toBe(-1);
     expect(underline("lb-period-alltime")?.className).toContain("bg-accent");
-    expect(underline("lb-period-today")?.className).not.toContain("bg-accent");
+    expect(underline("lb-period-today")).toBeNull();
     expect(tab("lb-period-alltime")?.className).toContain("text-accent");
     expect(tab("lb-period-today")?.className).toContain("text-text-secondary");
 
@@ -287,8 +311,41 @@ describe("Ranks: Global | Friends pill, then All-time | Today underline tabs (AC
     expect(tab("lb-period-today")?.tabIndex).toBe(0);
     expect(tab("lb-period-alltime")?.tabIndex).toBe(-1);
     expect(underline("lb-period-today")?.className).toContain("bg-accent");
-    expect(underline("lb-period-alltime")?.className).not.toContain("bg-accent");
+    expect(underline("lb-period-alltime")).toBeNull();
     expect(tab("lb-period-today")?.className).toContain("text-accent");
+  });
+
+  it("a sideways swipe on the board steps between All-time and Today, both ways", async () => {
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    const board = $("[data-board-swipe]");
+    if (!board) throw new Error("board not found");
+    // Leftwards: the next period, Today.
+    await swipe(board, [[300, 400], [290, 402], [150, 410]]);
+    expect(tab("lb-period-today")?.getAttribute("aria-selected")).toBe("true");
+    expect(text()).toContain("Climber b");
+    // Rightwards: back to All-time.
+    await swipe(board, [[100, 400], [110, 402], [260, 410]]);
+    expect(tab("lb-period-alltime")?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("leaves the board on its period for a short drag, a scroll, past the first tab, and from the swipe-back edge", async () => {
+    await render("/leaderboard", createElement(LeaderboardScreen));
+    const board = $("[data-board-swipe]");
+    if (!board) throw new Error("board not found");
+    const alltime = () => tab("lb-period-alltime")?.getAttribute("aria-selected");
+    // Short.
+    await swipe(board, [[300, 400], [294, 400], [288, 400]]);
+    expect(alltime()).toBe("true");
+    // Mostly down: a scroll.
+    await swipe(board, [[300, 300], [292, 312], [140, 600]]);
+    expect(alltime()).toBe("true");
+    // Rightwards from All-time: nothing to its left.
+    await swipe(board, [[100, 400], [110, 402], [300, 410]]);
+    expect(alltime()).toBe("true");
+    // From the left edge, on Today: that is the screen's swipe-back, not the board's.
+    await click(tab("lb-period-today"));
+    await swipe(board, [[10, 400], [20, 400], [260, 400]]);
+    expect(tab("lb-period-today")?.getAttribute("aria-selected")).toBe("true");
   });
 
   it("the Today tab opens today's board and the status pill follows: Resets in", async () => {

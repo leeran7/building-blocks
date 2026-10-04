@@ -1,4 +1,4 @@
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useRef, useState, type ReactNode, type Ref } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -25,8 +25,10 @@ import { HubHeader } from "../components/HubHeader";
 import { useRanksBoards } from "../hooks/useRanksBoards";
 import {
   PANEL_ID,
+  PERIODS,
   PERIOD_PANEL_ID,
   PeriodTabs,
+  SCOPES,
   ScopeTabs,
   periodTabId,
   tabId,
@@ -35,6 +37,7 @@ import {
 } from "../components/ranks/RanksTabs";
 import { ClockIcon, PeopleIcon } from "../components/ranks/icons";
 import { useUtcDay } from "../hooks/useUtcDay";
+import { useSlideSwap } from "../hooks/useSlideSwap";
 import { prefersReducedMotion } from "../lib/motion";
 import { parentRoute, useBackOr } from "../lib/navigation";
 
@@ -127,6 +130,17 @@ export function LeaderboardScreen() {
     setPeriod(periodFromBoardParam(board));
   }
   const [scope, setScope] = useState<Scope>("global");
+  // The boards sit in a row along each tab bar: switching slides the board in
+  // from that side, and a sideways swipe on it steps between All-time and Today.
+  const periodIndex = PERIODS.findIndex((p) => p.id === period);
+  const boardSwap = useSlideSwap({
+    canStep: (step) => PERIODS[periodIndex + step] !== undefined,
+    step: (step) => setPeriod(PERIODS[periodIndex + step].id),
+  });
+  const changeScope = (next: Scope) =>
+    boardSwap.slide(SCOPES.findIndex((o) => o.id === next) > SCOPES.findIndex((o) => o.id === scope) ? 1 : -1, () => setScope(next));
+  const changePeriod = (next: Period) =>
+    boardSwap.slide(PERIODS.findIndex((o) => o.id === next) > periodIndex ? 1 : -1, () => setPeriod(next));
   const clock = useUtcDay();
   const isToday = period === "today";
   const isFriends = scope === "friends";
@@ -209,12 +223,19 @@ export function LeaderboardScreen() {
           headingRef={headingRef}
           onBack={goBack}
         />
-        <ScopeTabs scope={scope} onChange={setScope} />
+        <ScopeTabs scope={scope} onChange={changeScope} />
 
         <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(scope)}>
-          <PeriodTabs period={period} onChange={setPeriod} />
+          <PeriodTabs period={period} onChange={changePeriod} />
 
-          <div role="tabpanel" id={PERIOD_PANEL_ID} aria-labelledby={periodTabId(period)}>
+          <motion.div
+            role="tabpanel"
+            id={PERIOD_PANEL_ID}
+            aria-labelledby={periodTabId(period)}
+            data-board-swipe
+            style={{ x: boardSwap.x, opacity: boardSwap.opacity, touchAction: "pan-y" }}
+            {...boardSwap.bind}
+          >
             {view === "loading" && <LoadingState />}
 
             {view === "error" && (
@@ -259,7 +280,7 @@ export function LeaderboardScreen() {
                 )}
               </>
             )}
-          </div>
+          </motion.div>
         </div>
       </PullToRefresh>
 

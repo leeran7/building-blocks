@@ -478,35 +478,35 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
         )}
 
         <AnimatePresence>
-        {finished && (
-          <ResultsCard
-            peakY={player?.peakY ?? 0}
-            saveInfo={saveInfo}
-            dailyResult={isDaily ? dailyResult : null}
-            dailySave={isDaily ? dailySave : null}
-            onRetryDaily={retryDailySave}
-            onSeeBoard={
-              isDaily && isAuthed
-                ? () => {
-                    void tapLight();
-                    // Replace the finished run: Back from the board must not
-                    // land on a fresh Daily lobby (the board is a pushed screen).
-                    navigate(TODAY_BOARD_PATH, { replace: true });
-                  }
-                : undefined
-            }
-            shareable={shareReady}
-            isGuest={!isAuthed}
-            onPlayAgain={handleStart}
-            playAgainState={playAgainState}
-            onShare={share}
-            onHome={() => {
-              void tapLight();
-              goBack();
-            }}
-            onSignIn={onSignIn}
-          />
-        )}
+          {finished && (
+            <ResultsCard
+              peakY={player?.peakY ?? 0}
+              saveInfo={saveInfo}
+              dailyResult={isDaily ? dailyResult : null}
+              dailySave={isDaily ? dailySave : null}
+              onRetryDaily={retryDailySave}
+              onSeeBoard={
+                isDaily && isAuthed
+                  ? () => {
+                      void tapLight();
+                      // Replace the finished run: Back from the board must not
+                      // land on a fresh Daily lobby (the board is a pushed screen).
+                      navigate(TODAY_BOARD_PATH, { replace: true });
+                    }
+                  : undefined
+              }
+              shareable={shareReady}
+              isGuest={!isAuthed}
+              onPlayAgain={handleStart}
+              playAgainState={playAgainState}
+              onShare={share}
+              onHome={() => {
+                void tapLight();
+                goBack();
+              }}
+              onSignIn={onSignIn}
+            />
+          )}
         </AnimatePresence>
 
         <AnimatePresence>
