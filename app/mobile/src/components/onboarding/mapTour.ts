@@ -16,7 +16,7 @@ export const MAP_TOUR: readonly TourStep[] = [
   {
     target: "lives",
     title: "Lives",
-    body: `Levels 1 to ${FREE_LIVES_THROUGH_LEVEL} are free. After that, a lost run costs a life and a clear keeps it. You hold up to ${MAX_LIVES}, and one comes back every ${LIFE_REFILL_MS / 60_000} minutes. Tap here to refill them with gems.`,
+    body: `Levels 1 to ${FREE_LIVES_THROUGH_LEVEL} are free. After that, a lost run costs a life and a clear keeps it. You hold up to ${MAX_LIVES}, and one comes back every ${LIFE_REFILL_MS / 60_000} minutes.`,
   },
   {
     target: "xp",
