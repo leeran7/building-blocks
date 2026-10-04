@@ -138,7 +138,17 @@ describe("registry", () => {
       rootX: 96,
       rootY: 172.5,
       refH: 120.5, // anchor 172.5 to the skull top (row 52) inside the hood
+      cycleBlend: { walk: 0.14, climb: 0.14 },
     });
+  });
+
+  it("sheets() takes a per-cycle crossfade window, clamped to a half frame, defaulting to CYCLE_BLEND", async () => {
+    const { sheets, CYCLE_BLEND } = await import("../../src/components/Game/climberCharacters");
+    expect(CYCLE_BLEND).toBe(0.14);
+    expect(sheets("x").cycleBlend).toEqual({ walk: CYCLE_BLEND, climb: CYCLE_BLEND });
+    expect(sheets("x", { cycleBlend: { climb: 0.5 } }).cycleBlend).toEqual({ walk: CYCLE_BLEND, climb: 0.5 });
+    expect(sheets("x", { cycleBlend: { walk: 0.9, climb: -1 } }).cycleBlend).toEqual({ walk: 0.5, climb: 0 });
+    expect(sheets("x", { cycleBlend: { walk: NaN } }).cycleBlend.walk).toBe(CYCLE_BLEND);
   });
 
   it("makes each stick avatar a stick entry in its catalogue colour, and nothing else a stick", async () => {
@@ -193,6 +203,8 @@ describe("registry", () => {
         kind: "sheets", poses: `/climb/${id}-poses-192.png`, climb: `/climb/${id}-climb-192.png`,
         cell: 192, rootX: 96, rootY: 172.5,
         refH: 172.5 - VOID_SKIN_SHEETS[id].headTop!,
+        // Generated climb poses dissolve continuously; the walk strides keep the crisp default.
+        cycleBlend: { walk: 0.14, climb: 0.5 },
       });
     }
     for (const a of AVATARS.filter((a) => a.skinOf === "wraith")) {

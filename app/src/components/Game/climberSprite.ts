@@ -40,6 +40,7 @@ import { DEFAULT_STICK_ID, parseAvatarId } from "../../lib/avatars";
 import {
   BASE_CHARACTER_ID,
   CLIMBER_CHARACTERS,
+  CYCLE_BLEND,
   WRAITH,
   type ClimberCharacter,
   type SheetCharacter,
@@ -67,8 +68,9 @@ export const DISPLAY_H_IN_S = STICK_HEAD_TOP_IN_S;
 export const WALK_M_PER_STEP = 4.5;
 const CLIMB_M_PER_FRAME = 0.65; // vertical metres per climb-cycle frame
 
-/** Fraction of each step/frame (either side of a boundary) spent crossfading. */
-export const CYCLE_BLEND = 0.14;
+// Fraction of each step/frame (either side of a boundary) spent crossfading:
+// CYCLE_BLEND unless the character's sheets set their own (cycleBlend).
+export { CYCLE_BLEND };
 /** Seconds a pose change takes to crossfade from the previous frame. */
 export const POSE_BLEND_S = 0.08;
 
@@ -136,7 +138,7 @@ export type SpriteSource = HTMLImageElement | HTMLCanvasElement;
 /** A character's cell geometry. */
 export type ClimberGeometry = Pick<
   SheetCharacter,
-  "cell" | "rootX" | "rootY" | "refH"
+  "cell" | "rootX" | "rootY" | "refH" | "cycleBlend"
 >;
 
 interface TintCache {
@@ -365,17 +367,18 @@ export function climberFrame(
   if (!reducedMotion && n > 1) {
     const phase =
       pose === "climb" ? y / CLIMB_M_PER_FRAME : x / WALK_M_PER_STEP;
+    const window = geom.cycleBlend[pose === "climb" ? "climb" : "walk"];
     const whole = Math.floor(phase);
     const f = phase - whole;
     step = f;
     i = mod(whole, n);
     j = i;
-    if (f > 1 - CYCLE_BLEND) {
+    if (window > 0 && f > 1 - window) {
       j = mod(whole + 1, n);
-      blend = 0.5 * smooth((f - (1 - CYCLE_BLEND)) / CYCLE_BLEND);
-    } else if (f < CYCLE_BLEND) {
+      blend = 0.5 * smooth((f - (1 - window)) / window);
+    } else if (window > 0 && f < window) {
       j = mod(whole - 1, n);
-      blend = 0.5 * smooth(1 - f / CYCLE_BLEND);
+      blend = 0.5 * smooth(1 - f / window);
     }
   }
   const cols = COLS[cfg.sheet];

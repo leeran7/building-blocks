@@ -50,7 +50,22 @@ export interface SheetCharacter {
    * One scale for every pose.
    */
   readonly refH: number;
+  /** Crossfade fraction per cycle frame; see SheetOptions.cycleBlend. */
+  readonly cycleBlend: CycleBlend;
 }
+
+export interface CycleBlend {
+  readonly walk: number;
+  readonly climb: number;
+}
+
+/**
+ * Default fraction of each walk step / climb frame (either side of a
+ * boundary) spent crossfading into the neighbouring frame: crisp frames with
+ * a short dissolve, right for a cycle drawn as steps of one motion (the
+ * Wraith's).
+ */
+export const CYCLE_BLEND = 0.14;
 
 export interface TintCharacter {
   readonly kind: "tint";
@@ -87,6 +102,14 @@ export interface SheetOptions {
    * of the head without horns, ears, crests or a hood. Sets refH.
    */
   readonly headTop?: number;
+  /**
+   * Crossfade fraction per cycle, 0 to 0.5, default CYCLE_BLEND for both. A
+   * generated cycle whose frames are six poses rather than steps of one
+   * motion cuts between unrelated limb positions 14 times a second; at 0.5 it
+   * dissolves continuously instead (crisp at each frame's centre), which
+   * reads as limbs moving rather than flickering.
+   */
+  readonly cycleBlend?: Partial<CycleBlend>;
 }
 
 /**
@@ -97,6 +120,9 @@ export interface SheetOptions {
  * sits on the stick figure's head; without it the top of the 380 px idle
  * figure is used.
  */
+const clampBlend = (v: number | undefined): number =>
+  typeof v === "number" && Number.isFinite(v) ? Math.min(0.5, Math.max(0, v)) : CYCLE_BLEND;
+
 export function sheets(id: string, opts: SheetOptions = {}): SheetCharacter {
   return {
     kind: "sheets",
@@ -106,6 +132,10 @@ export function sheets(id: string, opts: SheetOptions = {}): SheetCharacter {
     rootX: opts.rootX ?? 256 * K,
     rootY: opts.rootY ?? 460 * K,
     refH: (opts.rootY ?? 460 * K) - (opts.headTop ?? (460 - 380) * K),
+    cycleBlend: {
+      walk: clampBlend(opts.cycleBlend?.walk),
+      climb: clampBlend(opts.cycleBlend?.climb),
+    },
   };
 }
 
@@ -176,30 +206,38 @@ export const RECOLOR_PALETTE: Readonly<Record<string, RecolorColors>> = {
 };
 
 /**
+ * The Void climb strips are six generated poses re-sequenced into a loop
+ * (scripts/climber-art), not steps of one motion, so they dissolve
+ * continuously; their walk strides are matched contact poses like the
+ * Wraith's and keep the default.
+ */
+export const VOID_BLEND: Partial<CycleBlend> = Object.freeze({ climb: 0.5 });
+
+/**
  * Every character's Void skin, with its own sheets in public/climb/
  * (`<id>-void-poses-192.png` and `-climb-192.png`) and its sheet options.
  * Skull tops exclude crests, ears and horns; calibrated from the approved
  * normalized idle cells. The Wraith's colour skins are tints, not listed here.
  */
 export const VOID_SKIN_SHEETS: Readonly<Record<string, SheetOptions>> = {
-  "kestrel-void": { headTop: 52 },
-  "lynx-void": { headTop: 46 },
-  "raven-void": { headTop: 50 },
-  "panther-void": { headTop: 39 },
-  "wolf-void": { headTop: 54 },
-  "otter-void": { headTop: 43 },
-  "heron-void": { headTop: 52 },
-  "yak-void": { headTop: 49 },
-  "mantis-void": { headTop: 55 },
-  "cobra-void": { headTop: 27 },
-  "badger-void": { headTop: 30 },
-  "falcon-void": { headTop: 49 },
-  "marmot-void": { headTop: 48 },
-  "bison-void": { headTop: 48 },
-  "ibex-void": { headTop: 55 },
-  "sentinel-void": { headTop: 48 },
-  "viking-void": { headTop: 35 },
-  "gecko-void": { headTop: 27 },
+  "kestrel-void": { headTop: 52, cycleBlend: VOID_BLEND },
+  "lynx-void": { headTop: 46, cycleBlend: VOID_BLEND },
+  "raven-void": { headTop: 50, cycleBlend: VOID_BLEND },
+  "panther-void": { headTop: 39, cycleBlend: VOID_BLEND },
+  "wolf-void": { headTop: 54, cycleBlend: VOID_BLEND },
+  "otter-void": { headTop: 43, cycleBlend: VOID_BLEND },
+  "heron-void": { headTop: 52, cycleBlend: VOID_BLEND },
+  "yak-void": { headTop: 49, cycleBlend: VOID_BLEND },
+  "mantis-void": { headTop: 55, cycleBlend: VOID_BLEND },
+  "cobra-void": { headTop: 27, cycleBlend: VOID_BLEND },
+  "badger-void": { headTop: 30, cycleBlend: VOID_BLEND },
+  "falcon-void": { headTop: 49, cycleBlend: VOID_BLEND },
+  "marmot-void": { headTop: 48, cycleBlend: VOID_BLEND },
+  "bison-void": { headTop: 48, cycleBlend: VOID_BLEND },
+  "ibex-void": { headTop: 55, cycleBlend: VOID_BLEND },
+  "sentinel-void": { headTop: 48, cycleBlend: VOID_BLEND },
+  "viking-void": { headTop: 35, cycleBlend: VOID_BLEND },
+  "gecko-void": { headTop: 27, cycleBlend: VOID_BLEND },
 };
 
 /** The near-black a tinted skin leans its body greys toward. */

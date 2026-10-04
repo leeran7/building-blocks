@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 import sys
 import tempfile
 
@@ -27,13 +28,14 @@ MIN_SHARED_SCALE = 0.65
 # Per-frame cycle stabilisation (see stabilise_climb / stabilise_run): how far a
 # frame's body may be scaled to match its cycle's reference mass, and how far it
 # may be translated onto the reference body.
-RUN_SCALE_RANGE = (0.9, 1.2)
+RUN_SCALE_RANGE = (0.85, 1.2)
 CLIMB_SCALE_RANGE = (0.9, 1.1)
 STABILISE_SHIFT = 24
 BODY_BLUR = 3
 HEAD_FRACTION = 0.35
 ROOT = (96, 172.5)
 GROUNDED_POSES = frozenset((0, 1, 2, 3, 4, 6, 7))
+FRAME_NAME = re.compile(r'^([1-6])(m?)$')
 REPO = Path(__file__).resolve().parents[2]
 
 
@@ -143,6 +145,12 @@ def visible_area(cell: Image.Image) -> int:
     return int(np.count_nonzero(np.asarray(cell)[:, :, 3] > VISIBLE_ALPHA))
 
 
+def visible_height(cell: Image.Image) -> int:
+    _, top, _, bottom = visible_bounds(cell)
+    return bottom - top + 1
+
+
+
 def scaled_about_root(cell: Image.Image, factor: float) -> Image.Image:
     """Uniformly scale one frame about the foot anchor (feet stay on the sole row)."""
     if abs(factor - 1) <= 0.02:
@@ -212,58 +220,110 @@ def alpha_diff(first: np.ndarray, second: np.ndarray) -> int:
     return int(np.count_nonzero(first ^ second))
 
 
-def smoothest_cycle(frames: list[Image.Image]) -> tuple[list[Image.Image], dict]:
+def cycle_overrides(folder: Path) -> dict:
+    """Per-character climb loop overrides from `<folder>/cycle.json`, validated.
+
+    `{"climb": {"mirror": false, "exclude": [3], "order": ["1", "2m", ...]}}`:
+    `mirror` false keeps every frame as drawn (a tail or marking that swaps
+    sides when mirrored); `exclude` drops frames whose pose does not belong
+    in the loop (their slots are filled by mirrors of the others); `order`
+    fixes the loop outright. Anything else in the file is an error, so a typo
+    cannot silently fall back to the search.
+    """
+    path = folder / 'cycle.json'
+    if not path.exists():
+        return {}
+    shape = 'expected {"climb": {"mirror": bool, "exclude": [1-6], "order": [6 names like "4m"]}}'
+    try:
+        data = json.loads(path.read_text())
+    except ValueError as error:
+        raise InvalidArt(f'{path}: {error}') from error
+    climb = data.get('climb') if isinstance(data, dict) else None
+    if not isinstance(climb, dict) or set(data) - {'climb'} or set(climb) - {'mirror', 'exclude', 'order'}:
+        raise InvalidArt(f'{path}: {shape}')
+    mirror, exclude, order = climb.get('mirror', True), climb.get('exclude', []), climb.get('order')
+    if not isinstance(mirror, bool) or not isinstance(exclude, list) or \
+            any(type(i) is not int or not 1 <= i <= 6 for i in exclude):
+        raise InvalidArt(f'{path}: {shape}')
+    if order is not None and (not isinstance(order, list) or len(order) != 6 or
+                              any(not isinstance(n, str) or not FRAME_NAME.match(n) for n in order)):
+        raise InvalidArt(f'{path}: {shape}')
+    return {'mirror': mirror, 'exclude': sorted(set(exclude)), 'order': order}
+
+
+def smoothest_cycle(frames: list[Image.Image], mirror: bool = True, exclude: tuple[int, ...] = (),
+                    order: list[str] | None = None) -> tuple[list[Image.Image], dict]:
     """Re-sequence the six climb frames into the loop with the smallest steps.
 
     A generated climb grid is a set of poses, not a sequence: its rows repeat
     poses and jump between them in no order. The loop the engine plays uses
-    every frame once, each either as drawn or mirrored (a rear-view
-    hand-over-hand is symmetric, so a mirrored frame is the other hand's
-    reach), in the order that keeps every consecutive pair as close as
-    possible, measured as the silhouette (visible-alpha) difference, while
-    every pair in the loop stays distinct by the repeat guard's pixel measure
-    (MIN_FRAME_DIFF). Frame 1 keeps its place and its side, so the output is
-    deterministic and the stabiliser's reference body is unchanged.
+    every kept frame at least once, each either as drawn or mirrored (a
+    rear-view hand-over-hand is symmetric, so a mirrored frame is the other
+    hand's reach) and no image twice, in the order that keeps every
+    consecutive pair as close as possible, measured as the silhouette
+    (visible-alpha) difference, while every pair in the loop stays distinct
+    by the repeat guard's pixel measure (MIN_FRAME_DIFF). The first kept
+    frame keeps its place and its side, so the output is deterministic and
+    the stabiliser's reference body is unchanged. `cycle_overrides` explains
+    `mirror`, `exclude` and `order`.
     """
     pool = frames + [ImageOps.mirror(frame) for frame in frames]
+    names = [f'{index % 6 + 1}{"m" if index >= 6 else ""}' for index in range(len(pool))]
     masks = [np.asarray(frame)[:, :, 3] > VISIBLE_ALPHA for frame in pool]
     diffs = np.array([[alpha_diff(a, b) for b in masks] for a in masks])
     # Distinctness uses the same measure as the repeat guard, so a loop that
     # passes here is one compile_sheet would also accept.
     same = np.array([[frame_diff(a, b) <= MIN_FRAME_DIFF for b in pool] for a in pool])
     before = [int(diffs[i, (i + 1) % 6]) for i in range(6)]
-    best: tuple[tuple[int, int], tuple[int, ...]] | None = None
-    for rest in itertools.permutations(range(1, 6), 5):
-        for flips in itertools.product((0, 6), repeat=5):
-            order = (0, *(index + flip for index, flip in zip(rest, flips)))
-            if any(same[a, b] for a, b in itertools.combinations(order, 2)):
+    if order is not None:
+        chosen: tuple[int, ...] = tuple(names.index(name) for name in order)
+        clashes = [(order[a], order[b]) for a, b in itertools.combinations(range(6), 2) if same[chosen[a], chosen[b]]]
+        if clashes:
+            raise InvalidArt(f'cycle order repeats frames: {clashes}')
+    else:
+        allowed = [i for i in range(len(pool)) if i % 6 + 1 not in exclude and (mirror or i < 6)]
+        if len(allowed) < 6:
+            raise InvalidArt('cycle overrides leave fewer than six frames to loop')
+        first = allowed[0]
+        sources = {i % 6 for i in allowed}
+        best: tuple[tuple[int, int], tuple[int, ...]] | None = None
+        for rest in itertools.permutations([i for i in allowed if i != first], 5):
+            candidate = (first, *rest)
+            if {i % 6 for i in candidate} != sources:
                 continue
-            steps = [int(diffs[order[i], order[(i + 1) % 6]]) for i in range(6)]
+            if any(same[a, b] for a, b in itertools.combinations(candidate, 2)):
+                continue
+            steps = [int(diffs[candidate[i], candidate[(i + 1) % 6]]) for i in range(6)]
             key = (max(steps), sum(steps))
             if best is None or key < best[0]:
-                best = (key, order)
-    if best is None:
-        raise InvalidArt('climb frames cannot form a loop of six distinct frames')
-    _, order = best
-    after = [int(diffs[order[i], order[(i + 1) % 6]]) for i in range(6)]
-    return [pool[index] for index in order], {
-        'order': [f'{index % 6 + 1}{"m" if index >= 6 else ""}' for index in order],
-        'stepPixelsBefore': before, 'stepPixelsAfter': after,
-    }
+                best = (key, candidate)
+        if best is None:
+            raise InvalidArt('climb frames cannot form a loop of six distinct frames')
+        chosen = best[1]
+    after = [int(diffs[chosen[i], chosen[(i + 1) % 6]]) for i in range(6)]
+    report = {'order': [names[index] for index in chosen],
+              'stepPixelsBefore': before, 'stepPixelsAfter': after}
+    if not mirror or exclude or order is not None:
+        report['overrides'] = {'mirror': mirror, 'exclude': list(exclude), 'order': order}
+    return [pool[index] for index in chosen], report
 
 
 def stabilise_run(frames: list[Image.Image]) -> tuple[list[Image.Image], list[dict]]:
-    """Match both run strides to the idle's mass and head column, then re-ground them.
+    """Match both run strides to the idle's height and head column, then re-ground them.
 
-    A stride rendered smaller than the idle reads as a hop every other step,
-    and one whose head sits off the anchor swings side to side. Feet stay on
-    the sole row, so the fix is a scale about the anchor plus a horizontal move.
+    A stride rendered larger than the idle grows the figure every other step,
+    and one whose head sits off the anchor swings side to side. Strides are
+    upright contact poses, so the visible height (sole to crest) tracks the
+    body's size whatever the limbs do; the visible mass does not (a stride
+    with its legs spread covers less, and matching it blew the figure up).
+    Feet stay on the sole row, so the fix is a scale about the anchor plus a
+    horizontal move.
     """
-    area, centre = visible_area(frames[0]), head_centre_x(frames[0])
+    height, centre = visible_height(frames[0]), head_centre_x(frames[0])
     result = list(frames)
     moves = []
     for index in (1, 2):
-        factor = float(np.clip(np.sqrt(area / visible_area(frames[index])), *RUN_SCALE_RANGE))
+        factor = float(np.clip(height / visible_height(frames[index]), *RUN_SCALE_RANGE))
         frame = scaled_about_root(frames[index], factor)
         frame, dx, _ = translated(frame, int(round(centre - head_centre_x(frame))), 0)
         frame, _ = grounded(frame, MAX_SHIFT)
@@ -287,7 +347,7 @@ def scale_limit(bounds: tuple[int, int, int, int]) -> float:
     return min([1.0] + [space / extent for extent, space in extents if extent > 0])
 
 
-def normalize_pair(compiled: dict) -> tuple[dict, float]:
+def normalize_pair(compiled: dict, overrides: dict | None = None) -> tuple[dict, float]:
     """One common factor about the shared foot anchor, then per-cycle stabilisation.
 
     The shared factor keeps every pose at the character's one body scale. The
@@ -324,7 +384,7 @@ def normalize_pair(compiled: dict) -> tuple[dict, float]:
                               if scale < 1 or shift else frame)
         report = dict(compiled[kind][1])
         if kind == 'climb':
-            normalized, report['cycle'] = smoothest_cycle(normalized)
+            normalized, report['cycle'] = smoothest_cycle(normalized, **(overrides or {}))
             normalized, moves = stabilise_climb(normalized)
         else:
             normalized, moves = stabilise_run(normalized)
@@ -363,7 +423,7 @@ def process_character(character: str, input_root: Path, output_root: Path, key: 
         if kind == 'climb' and grid.exists():
             path = grid
         compiled[kind] = compile_sheet(path, kind, chosen, max_shift, allow_tight=True, defer_grounding=True)
-    compiled, shared_scale = normalize_pair(compiled)
+    compiled, shared_scale = normalize_pair(compiled, cycle_overrides(input_root / skin))
     report = {'id': skin, 'status': 'validated', 'key': chosen, 'checkOnly': check_only,
               'sheets': {kind: details for kind, (_, details) in compiled.items()},
               'sharedScale': shared_scale, 'scaleAnchor': ROOT,

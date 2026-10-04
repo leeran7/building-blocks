@@ -201,24 +201,13 @@ class PaidArtTests(unittest.TestCase):
             self.assertLessEqual(max(soles) - min(soles), 3, soles)
 
     def test_climb_loop_is_the_smallest_step_sequence_of_distinct_frames(self):
-        # Six poses of one body with a hand at ranks 0,3,1,4,5,2 (28px apart), odd ranks on the
-        # other side: the generated order jumps, the smoothest loop climbs the hand one rank at
-        # a time (mirroring frames so the hand stays on one side, as a rear view allows).
+        # Hand ranks 0,3,1,4,5,2: the generated order jumps, the smoothest loop climbs the hand
+        # one rank at a time (mirroring frames so the hand stays on one side, as a rear view allows).
+        ranks = [0, 3, 1, 4, 5, 2]
         with tempfile.TemporaryDirectory() as temp:
             folder = Path(temp) / 'kestrel-void'
             folder.mkdir()
-            atlas(4, 2).save(folder / 'kestrel-void-poses.png')
-            climb = Image.new('RGBA', (6 * 192, 192), (255, 0, 255, 255))
-            draw = ImageDraw.Draw(climb)
-            ranks = [0, 3, 1, 4, 5, 2]
-            for i, rank in enumerate(ranks):
-                x = i * 192 + 60
-                # Body and hand slots mirror onto themselves about the cell axis (x -> 191 - x).
-                draw.rectangle((x + 1, 20, x + 70, 174), fill=(20, 90, 210, 255))
-                hand_x = x - 33 if rank % 2 else x + 74
-                top = 2 + rank * 28
-                draw.rectangle((hand_x, top, hand_x + 30, top + 40), fill=(240, 200, 30, 255))
-            climb.save(folder / 'kestrel-void-climb.png')
+            self.ranked_climb(folder, ranks)
             report = process_character('kestrel', Path(temp), Path(temp) / 'out', check_only=True)
             cycle = report['sheets']['climb']['cycle']
             self.assertLess(sum(cycle['stepPixelsAfter']), sum(cycle['stepPixelsBefore']), cycle)
@@ -230,27 +219,69 @@ class PaidArtTests(unittest.TestCase):
             steps = sorted(abs(chosen[(i + 1) % 6] - chosen[i]) for i in range(6))
             self.assertEqual(steps, [1, 1, 1, 1, 1, 5], cycle)
 
-    def test_run_strides_match_the_idle_mass_and_head_column(self):
+    def test_run_strides_match_the_idle_height_and_head_column(self):
         with tempfile.TemporaryDirectory() as temp:
             folder = Path(temp) / 'kestrel-void'
             folder.mkdir()
             poses = atlas(4, 2)
             draw = ImageDraw.Draw(poses)
-            # run-b (cell 2) drawn 15% shorter and narrower, and its head 14px to the right.
+            # run-b (cell 2) drawn 12% taller and narrower (legs together) with its head 14px right:
+            # by mass it looks smaller than the idle, by height it is the bigger figure.
             draw.rectangle((2 * 192, 0, 3 * 192 - 1, 191), fill=(255, 0, 255, 255))
-            draw.rectangle((2 * 192 + 69, 52, 2 * 192 + 137, 174), fill=(20, 90, 210, 255))
+            draw.rectangle((2 * 192 + 83, 12, 2 * 192 + 123, 174), fill=(20, 90, 210, 255))
             poses.save(folder / 'kestrel-void-poses.png')
             atlas(6, 1, varied=True).save(folder / 'kestrel-void-climb.png')
             report = process_character('kestrel', Path(temp), Path(temp) / 'out', check_only=True)
             moves = report['sheets']['poses']['stabilised']
             self.assertEqual([m['frame'] for m in moves], [2, 3])
             self.assertAlmostEqual(moves[0]['scale'], 1.0, delta=0.02)
-            self.assertGreater(moves[1]['scale'], 1.1)
-            self.assertLess(moves[1]['dx'], -8)
+            self.assertAlmostEqual(moves[1]['scale'], 145 / 163, delta=0.02)
+            # 14px right in the source is ~12px after the scale; the head column comes back onto the idle's.
+            self.assertLess(moves[1]['dx'], -5)
             frames = report['sheets']['poses']['frames']
             self.assertIn(frames[2]['bounds'][3], range(170, 176))
             heights = [f['bounds'][3] - f['bounds'][1] for f in frames[:3]]
             self.assertLessEqual(max(heights) - min(heights), 3, heights)
+
+    def ranked_climb(self, folder, ranks=(0, 3, 1, 4, 5, 2)):
+        # The loop test's fixture: one body, a hand climbing one rank (28px) a frame, odd ranks on
+        # the other side; body and hand slots mirror onto themselves about the cell axis.
+        atlas(4, 2).save(folder / 'kestrel-void-poses.png')
+        climb = Image.new('RGBA', (6 * 192, 192), (255, 0, 255, 255))
+        draw = ImageDraw.Draw(climb)
+        for i, rank in enumerate(ranks):
+            x = i * 192 + 60
+            draw.rectangle((x + 1, 20, x + 70, 174), fill=(20, 90, 210, 255))
+            hand_x = x - 33 if rank % 2 else x + 74
+            top = 2 + rank * 28
+            draw.rectangle((hand_x, top, hand_x + 30, top + 40), fill=(240, 200, 30, 255))
+        climb.save(folder / 'kestrel-void-climb.png')
+
+    def test_cycle_overrides_exclude_frames_keep_sides_or_fix_the_order(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp) / 'kestrel-void'
+            folder.mkdir()
+            self.ranked_climb(folder)
+            (folder / 'cycle.json').write_text('{"climb": {"exclude": [3]}}')
+            cycle = process_character('kestrel', Path(temp), Path(temp) / 'out', check_only=True)['sheets']['climb']['cycle']
+            self.assertNotIn('3', [name[0] for name in cycle['order']], cycle)
+            self.assertEqual(len(set(cycle['order'])), 6)
+            # Five sources fill six slots: one frame appears as drawn and mirrored.
+            self.assertEqual(sorted(set(name[0] for name in cycle['order'])), ['1', '2', '4', '5', '6'])
+            self.assertEqual(cycle['overrides'], {'mirror': True, 'exclude': [3], 'order': None})
+            (folder / 'cycle.json').write_text('{"climb": {"mirror": false}}')
+            cycle = process_character('kestrel', Path(temp), Path(temp) / 'out', check_only=True)['sheets']['climb']['cycle']
+            self.assertTrue(all(not name.endswith('m') for name in cycle['order']), cycle)
+            self.assertEqual(sorted(cycle['order']), ['1', '2', '3', '4', '5', '6'])
+            (folder / 'cycle.json').write_text('{"climb": {"order": ["1", "4", "2m", "6", "3", "5m"]}}')
+            cycle = process_character('kestrel', Path(temp), Path(temp) / 'out', check_only=True)['sheets']['climb']['cycle']
+            self.assertEqual(cycle['order'], ['1', '4', '2m', '6', '3', '5m'])
+            for bad in ('{"climb": {"order": ["1", "1", "2", "3", "4", "5"]}}',
+                        '{"climb": {"mirror": false, "exclude": [2]}}',
+                        '{"climb": {"exclude": [7]}}', '{"climb": {"flip": true}}', '{"walk": {}}', '[]', '{'):
+                (folder / 'cycle.json').write_text(bad)
+                with self.assertRaises(InvalidArt, msg=bad):
+                    process_character('kestrel', Path(temp), Path(temp) / 'out', check_only=True)
 
     def test_standing_grounding_is_fused_before_shared_scale_without_clipping(self):
         with tempfile.TemporaryDirectory() as temp:
