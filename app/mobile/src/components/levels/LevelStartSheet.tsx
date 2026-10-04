@@ -43,6 +43,7 @@ export function LevelStartSheet({
   onClose,
   extras,
   refill,
+  notice = null,
 }: {
   node: LevelNode;
   player: PlayerStats;
@@ -55,6 +56,8 @@ export function LevelStartSheet({
   extras?: ReactNode;
   /** The paid lives refill, offered when out of lives; absent when none can be sold. */
   refill?: RefillOffer | null;
+  /** One line about this level's last run, e.g. that it was interrupted. */
+  notice?: string | null;
 }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<StartRefusal | null>(null);
@@ -148,6 +151,12 @@ export function LevelStartSheet({
             </svg>
           </button>
         </div>
+
+        {notice && (
+          <p role="status" className="mt-3 rounded-2xl border border-ember/40 bg-ember/10 px-3.5 py-2 text-meta text-text-primary">
+            {notice}
+          </p>
+        )}
 
         <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
           <div className="flex items-baseline justify-between gap-3">
