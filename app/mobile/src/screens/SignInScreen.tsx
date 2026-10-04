@@ -171,21 +171,21 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
       </div>
 
       {onGuestContinue && (
-        <>
+        <div className="-mt-6 flex flex-col items-center">
           <button
             onClick={() => { void tapMedium(); onGuestContinue(); }}
             aria-describedby="guest-continue-note"
-            className="mt-2 inline-flex min-h-[44px] items-center px-4 font-mono text-[11px] uppercase tracking-[0.15em] text-white underline underline-offset-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)] transition-colors active:text-white/70"
+            className="inline-flex min-h-[44px] items-center px-4 font-mono text-[11px] uppercase tracking-[0.15em] text-white underline underline-offset-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)] transition-colors active:text-white/70"
           >
             Continue as Guest
           </button>
           <p
             id="guest-continue-note"
-            className="max-w-[280px] text-center text-xs leading-relaxed text-white/80 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]"
+            className="max-w-[300px] text-center text-xs leading-snug text-white/80 [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]"
           >
-            Guests play Endless and the first {GUEST_LEVEL_CAP} levels. Sign in to keep stars, play every level, add friends and save scores.
+            Guests play Endless and the first {GUEST_LEVEL_CAP} levels. Sign in for the rest.
           </p>
-        </>
+        </div>
       )}
     </main>
   );

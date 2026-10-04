@@ -69,9 +69,9 @@ describe("Sign In: Continue as Guest", () => {
     expect(note).not.toBeNull();
     const text = note?.textContent ?? "";
     expect(text).toContain(`Guests play Endless and the first ${GUEST_LEVEL_CAP} levels.`);
-    for (const perk of ["keep stars", "play every level", "add friends", "save scores"]) expect(text).toContain(perk);
-    // Short: one line of help, not a paragraph.
-    expect(text.length).toBeLessThanOrEqual(140);
+    expect(text).toContain("Sign in for the rest.");
+    // Short: it sits between the button and the lava band, so it must fit in two lines.
+    expect(text.length).toBeLessThanOrEqual(90);
 
     await act(async () => button?.click());
     expect(onGuest).toHaveBeenCalledTimes(1);
