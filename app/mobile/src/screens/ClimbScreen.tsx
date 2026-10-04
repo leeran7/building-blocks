@@ -500,7 +500,9 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
               isDaily && isAuthed
                 ? () => {
                     void tapLight();
-                    navigate(TODAY_BOARD_PATH);
+                    // Replace the finished run: Back from the board must not
+                    // land on a fresh Daily lobby (the board is a pushed screen).
+                    navigate(TODAY_BOARD_PATH, { replace: true });
                   }
                 : undefined
             }

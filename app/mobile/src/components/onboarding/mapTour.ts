@@ -46,12 +46,7 @@ export const MAP_TOUR: readonly TourStep[] = [
   {
     target: "tab-modes",
     title: "Modes",
-    body: "The Daily Climb, Quick Play against other climbers, and Challenges with your friends.",
-  },
-  {
-    target: "tab-ranks",
-    title: "Ranks",
-    body: "Leaderboards for the whole world or just your friends, all-time or today.",
+    body: "The Daily Climb, Quick Play against other climbers, Challenges with your friends, and the leaderboards.",
   },
   {
     target: "tab-shop",

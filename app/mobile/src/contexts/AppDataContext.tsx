@@ -215,6 +215,8 @@ interface AppDataState {
   invalidate: (keys: SliceKey[]) => void;
   /** Drop all cached data (sign-out, account delete, account switch). */
   clearAll: () => void;
+  /** A signed-in, non-anonymous player: the only one the slices fetch for. */
+  authed: boolean;
 }
 
 const Ctx = createContext<AppDataState | null>(null);
@@ -523,6 +525,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setSettings,
       invalidate,
       clearAll,
+      authed,
     }),
     [
       dashboard,
@@ -545,6 +548,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setSettings,
       invalidate,
       clearAll,
+      authed,
     ],
   );
 
@@ -590,6 +594,39 @@ export function useSettings() {
     ensureSettings();
   }, [ensureSettings]);
   return { ...settings, refreshSettings, setSettings };
+}
+
+/**
+ * The player's saved character, as far as it is known: `loading` until the
+ * settings slice first resolves, then the saved id (null: none saved, or the
+ * fetch failed; both draw the default climber).
+ */
+export type EquippedAvatar = { loading: true } | { loading: false; avatarId: string | null };
+
+const AVATAR_LOADING: EquippedAvatar = { loading: true };
+const AVATAR_NONE: EquippedAvatar = { loading: false, avatarId: null };
+
+/**
+ * The saved character for screens that only draw the player (the level map's
+ * "you are here" figure). It is `loading` while a signed-in player's settings
+ * have neither arrived nor failed, so the screen can draw no figure rather
+ * than the default climber first and the player's own a moment later.
+ *
+ * Without an AppDataProvider it resolves at once to no character. No
+ * production screen takes that path (main.tsx mounts the provider above the
+ * map); it exists for the test harnesses that mount the map on its own.
+ */
+export function useEquippedAvatar(): EquippedAvatar {
+  const ctx = useContext(Ctx);
+  const ensureSettings = ctx?.ensureSettings;
+  useEffect(() => {
+    ensureSettings?.();
+  }, [ensureSettings]);
+  if (!ctx) return AVATAR_NONE;
+  const { data, fetchedAt } = ctx.settings;
+  if (data) return { loading: false, avatarId: data.avatarId };
+  // Guests never fetch settings; for a player, nothing has settled yet.
+  return ctx.authed && fetchedAt === null ? AVATAR_LOADING : AVATAR_NONE;
 }
 
 /** Cached leaderboard slice; fetches on mount if cold, revalidates if stale. */
