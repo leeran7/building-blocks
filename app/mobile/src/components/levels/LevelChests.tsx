@@ -2,7 +2,7 @@ import { POWER_UP_SPECS } from "@app/game/powerups";
 import { BOOSTER_TYPES, type BoosterInventory, type BoosterType } from "@app/levels/engagement";
 import { tapLight } from "../../lib/haptics";
 import type { ChestProgress } from "../../lib/levels/model";
-import { Accordion, StarIcon } from "./LevelBits";
+import { Accordion, ProgressRing } from "./LevelBits";
 import { BoltIcon, BoosterGlyph, CheckBadge, NoneIcon } from "./LevelIcons";
 
 /**
@@ -20,8 +20,9 @@ export function boosterCount(inventory: BoosterInventory): number {
 }
 
 /**
- * The map's chest meter, a cell of the map header (MapHeader): stars toward
- * the next chest, and a badge on the chest with the boosters owned.
+ * The map's chest meter, a cell of the map header (MapHeader): a ring of
+ * stars toward the next chest, the count beside it from 360px up, and a badge
+ * on the ring with the boosters owned.
  */
 export function ChestMeter({ chests, boosters }: { chests: ChestProgress; boosters: BoosterInventory }) {
   const { starsIntoChest, perChest } = chests;
@@ -31,22 +32,21 @@ export function ChestMeter({ chests, boosters }: { chests: ChestProgress; booste
     <div
       role="group"
       aria-label={`Star chest: ${starsIntoChest} of ${perChest} stars, ${left} to go.${owned > 0 ? ` ${owned} ${owned === 1 ? "booster" : "boosters"} owned.` : ""}`}
-      className="flex h-12 w-full items-center justify-center gap-2 px-2"
+      className="flex h-14 w-full items-center justify-center gap-1.5 px-1.5"
     >
       <span aria-hidden className="relative inline-flex shrink-0">
-        <ChestIcon size={22} />
+        <ProgressRing pct={(starsIntoChest / perChest) * 100} size={40}>
+          <ChestIcon size={18} />
+        </ProgressRing>
         {owned > 0 && (
-          <span className="absolute -right-2.5 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-signal px-1 ring-2 ring-surface font-mono text-[11px] font-bold leading-none tabular-nums text-void">
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-signal px-1 font-mono text-[11px] font-bold leading-none tabular-nums text-void ring-2 ring-surface">
             {owned}
           </span>
         )}
       </span>
-      <span aria-hidden className="flex items-center gap-1 font-mono text-label font-bold tabular-nums text-text-primary">
-        <StarIcon filled size={11} />
-        <span>
-          {starsIntoChest}
-          <span className="text-text-secondary">/{perChest}</span>
-        </span>
+      <span aria-hidden className="hidden font-mono text-label font-bold tabular-nums text-text-primary min-[360px]:inline">
+        {starsIntoChest}
+        <span className="text-text-secondary">/{perChest}</span>
       </span>
     </div>
   );
