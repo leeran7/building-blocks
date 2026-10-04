@@ -6,6 +6,7 @@ import { SignInScreen } from "./screens/SignInScreen";
 import { LeaderboardScreen } from "./screens/LeaderboardScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { EditProfileScreen } from "./screens/EditProfileScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
 import { AvatarPickerScreen } from "./screens/AvatarPickerScreen";
 import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { ChallengeScreen } from "./screens/ChallengeScreen";
@@ -94,9 +95,7 @@ export function App() {
                     <Route path="/challenge" element={<ChallengeScreen />} />
                     <Route path="/shop" element={<ShopScreen />} />
                     <Route path="/shop/:characterId" element={<SkinDetailsScreen />} />
-                    {/* Settings live on Edit Profile — keep the path as a redirect
-                        for any stray deep links / bookmarks. */}
-                    <Route path="/settings" element={<Navigate to="/profile/edit" replace />} />
+                    <Route path="/settings" element={<SettingsScreen />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </RouteTransition>

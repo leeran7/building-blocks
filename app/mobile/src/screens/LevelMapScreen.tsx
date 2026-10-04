@@ -4,17 +4,17 @@ import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
 import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
+import { LivesSheet } from "../components/levels/LivesSheet";
+import { GemBalance } from "../components/store/GemBalance";
+import { useOptionalShop } from "../contexts/ShopContext";
 import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelStartExtras } from "../components/levels/LevelStartExtras";
 import { BoosterPicker, ChestMeter } from "../components/levels/LevelChests";
-import { LivesPill, StarRow, XpBar, useWhenDue } from "../components/levels/LevelBits";
-import {
-  EPISODE_SIZE,
-  episodeOf,
-  isHardLevel,
-  type LevelNode,
-  type StartResult,
-} from "../lib/levels/model";
+import { LivesPill, XpBar, useWhenDue } from "../components/levels/LevelBits";
+import { TowerMap } from "../components/levels/TowerMap";
+import { pinBottom, towerHeight } from "../components/levels/towerGeometry";
+import { useEquippedAvatar } from "../contexts/AppDataContext";
+import { episodeOf, type LevelNode, type StartResult } from "../lib/levels/model";
 import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
 import { isTicketLive, mapLanding, noteRunStarted, runNoticeFor, type RunNotice } from "../lib/levels/runNote";
 import { accountOnboarding, guestOnboarding, wantsTour } from "../lib/onboarding";
@@ -24,48 +24,33 @@ import { useGuest, GUEST_MAP_PATH } from "../contexts/GuestContext";
 import { GUEST_LEVEL_CAP, isGuestLocked } from "../lib/levels/guestClient";
 import { GuestSignInSheet } from "../components/GuestSignInSheet";
 
-/** Vertical distance between two pins, px. */
-const ROW = 92;
-/** Extra room at each episode boundary for its banner, px. */
-const EPISODE_GAP = 60;
-/** Space under level 1 for the Play bar, px. */
-const BOTTOM_PAD = 150;
-/** Space above the last shown pin for the "more levels" fade, px. */
-const TOP_PAD = 140;
-/** Locked levels shown above the frontier before the map fades out. */
+// The map's geometry lives with its drawing; this stays importable from the screen.
+export { pinBottom } from "../components/levels/towerGeometry";
+
+/** Locked floors shown above the frontier before the map fades out. */
 const LOOKAHEAD = 10;
 /** Height of the Play bar: pb-3 (12px) under the 56px buttons, px. */
 const PLAY_BAR_HEIGHT = 68;
 /** Gap between the Play bar and the run notice banner above it, px. */
 const NOTICE_GAP = 16;
 /**
- * Fades the map out behind the Play bar, so pins never run under Play and the
- * bar needs no dark scrim of its own: the backdrop's lava shows through down
- * to the tab bar. Clear under the 68px bar (pb-3 + the 56px buttons), solid
- * from 112px up, which keeps level 1 (BOTTOM_PAD) fully visible.
+ * Fades the map out behind the Play bar, so floors never run under Play and
+ * the bar needs no dark scrim of its own: the backdrop's lava shows through
+ * down to the tab bar. Clear under the 68px bar (pb-3 + the 56px buttons),
+ * solid from 112px up, which keeps floor 1 (BOTTOM_PAD) fully visible.
  */
 export const MAP_FADE = "linear-gradient(to top, transparent 56px, #000 112px)";
 
-/** Pin centre from the map's bottom edge, px. */
-export function pinBottom(level: number): number {
-  return BOTTOM_PAD + (level - 1) * ROW + (episodeOf(level) - 1) * EPISODE_GAP;
-}
-
-/** Pin centre across the map, % of its width: a gentle winding trail. */
-export function pinX(level: number): number {
-  return 50 + 28 * Math.sin((level - 1) * 0.85);
-}
-
 /**
- * The home screen: a Candy Crush style map of numbered levels, climbing from
- * level 1 at the bottom. Cleared levels show their stars, the frontier pin
- * pulses, Hard levels glow ember, and later levels are locked. Tapping an
- * open pin opens the level start card; Endless (the endless climb) sits
- * beside the Play bar.
+ * The home screen: the season's levels drawn as the tower (TowerMap), climbing
+ * from level 1 at the bottom. This screen owns the data, the scroll position
+ * and the layout around the map: the header, the Play bar and the level start
+ * card. Tapping an open floor opens its start card; Endless (the endless
+ * climb) sits beside Play.
  *
  * A guest gets the same map for the taster (GuestShell): levels above
  * GUEST_LEVEL_CAP stay locked and ask them to sign in, and the account-only
- * parts (star chest, friends board, tab tour) are left out.
+ * parts (star chest, gems, friends board, tab tour) are left out.
  */
 export function LevelMapScreen() {
   const navigate = useNavigate();
@@ -75,6 +60,10 @@ export function LevelMapScreen() {
   const lockedForGuest = useCallback((level: number) => guest !== null && isGuestLocked(level), [guest]);
   const [signInPrompt, setSignInPrompt] = useState(false);
   const refill = useLivesRefillOffer();
+  // The gem pill needs the Shop's balance; without a ShopProvider it is left out.
+  const hasShop = useOptionalShop() !== null;
+  const [livesOpen, setLivesOpen] = useState(false);
+  const avatar = useEquippedAvatar();
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
   const [booster, setBooster] = useState<BoosterType | null>(null);
@@ -87,21 +76,38 @@ export function LevelMapScreen() {
   }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrolledFor = useRef<number | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  // The fixed header's height (notch inset included), px; null until measured.
+  // The map is padded by it so the top of the tower scrolls clear of it.
+  const [headerH, setHeaderH] = useState<number | null>(null);
 
   const refreshQuietly = useCallback(() => void refresh(), [refresh]);
   useWhenDue(season?.player.nextLifeAt ?? null, refreshQuietly);
 
   const frontier = season?.frontier ?? 1;
   const shownTop = season ? Math.min(season.levels.length, frontier + LOOKAHEAD) : 0;
-  const height = shownTop > 0 ? pinBottom(shownTop) + TOP_PAD : 0;
+  const height = towerHeight(shownTop);
 
-  // Open on the frontier, once per frontier, so a new clear scrolls to the next pin.
+  // Measured before the first scroll below, so the frontier lands where it would without the pad.
+  const hasHeader = season !== null;
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const measure = () => setHeaderH(el.offsetHeight);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasHeader]);
+
+  // Open on the frontier, once per frontier, so a new clear scrolls to the next floor.
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el || !season || scrolledFor.current === frontier) return;
+    if (!el || !season || headerH === null || scrolledFor.current === frontier) return;
     scrolledFor.current = frontier;
-    el.scrollTop = Math.max(0, height - pinBottom(frontier) - el.clientHeight * 0.55);
-  }, [season, frontier, height]);
+    el.scrollTop = Math.max(0, headerH + height - pinBottom(frontier) - el.clientHeight * 0.55);
+  }, [season, frontier, height, headerH]);
 
   // "Next level" on a result card lands here with the next level's card open,
   // and so does a level run that lost its ticket (marked `interrupted`).
@@ -226,11 +232,22 @@ export function LevelMapScreen() {
 
   return (
     <main className="relative flex h-full flex-col">
-      <header className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+      <header ref={headerRef} className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         {guest && <GuestMapBar onHome={() => navigate("/")} onSignIn={guest.onSignIn} />}
         <div className="flex items-center justify-between gap-2">
           <span data-tour="lives" className="inline-flex">
-            <LivesPill player={season.player} />
+            <LivesPill
+              player={season.player}
+              // Only a client that sells refills makes the pill a button.
+              onPress={
+                refill.offer
+                  ? () => {
+                      void tapLight();
+                      setLivesOpen(true);
+                    }
+                  : undefined
+              }
+            />
           </span>
           <span data-tour="xp" className="inline-flex">
             <XpBar player={season.player} compact />
@@ -239,9 +256,20 @@ export function LevelMapScreen() {
         <p className="mt-2.5 text-center font-mono text-label uppercase tracking-eyebrow text-text-secondary">
           {season.name} · Episode {episode}
         </p>
-        {season.chests && !guest && (
-          <div data-tour="chest" className="mx-auto mt-2 flex w-fit justify-center">
-            <ChestMeter chests={season.chests} boosters={season.boosters} />
+        {/* The economy row: the star chest and the gem balance. A third pill
+            in the row above does not fit a 375pt-wide phone. Wraps on narrower ones. */}
+        {!guest && (season.chests || hasShop) && (
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            {season.chests && (
+              <div data-tour="chest" className="flex w-fit justify-center">
+                <ChestMeter chests={season.chests} boosters={season.boosters} />
+              </div>
+            )}
+            {hasShop && (
+              <span data-tour="gems" className="inline-flex">
+                <GemBalance compact />
+              </span>
+            )}
           </div>
         )}
       </header>
@@ -254,41 +282,20 @@ export function LevelMapScreen() {
           WebkitOverflowScrolling: "touch",
           maskImage: MAP_FADE,
           WebkitMaskImage: MAP_FADE,
+          paddingTop: headerH ?? 0,
         }}
       >
-        <div className="relative mx-auto w-full max-w-md" style={{ height }}>
-          <Trail levels={shown.length} frontier={frontier} height={height} />
-          <ol aria-label={`${season.name} levels`} className="absolute inset-0">
-          {Array.from({ length: Math.floor((shownTop - 1) / EPISODE_SIZE) }, (_, i) => {
-            const first = (i + 1) * EPISODE_SIZE + 1;
-            return <EpisodeBanner key={first} episode={i + 2} bottom={pinBottom(first) - ROW / 2 - EPISODE_GAP / 2} />;
-          })}
-          {shown.map((node) => (
-            <LevelPin
-              key={node.level}
-              node={node}
-              tour={node.level === frontier}
-              state={
-                node.level === frontier && node.stars === 0 && !lockedForGuest(node.level)
-                  ? "current"
-                  : node.level > frontier || lockedForGuest(node.level)
-                    ? "locked"
-                    : "open"
-              }
-              onOpen={() => openNext(node)}
-              onSignIn={lockedForGuest(node.level) ? () => openNext(node) : undefined}
-            />
-          ))}
-          {shownTop < season.levels.length && (
-            <li
-              aria-hidden
-              className="absolute inset-x-0 top-0 flex h-32 items-start justify-center bg-gradient-to-b from-void to-transparent pt-24 font-mono text-label uppercase tracking-label text-text-muted"
-            >
-              {season.levels.length - shownTop} more levels
-            </li>
-          )}
-          </ol>
-        </div>
+        <TowerMap
+          seasonName={season.name}
+          levels={shown}
+          frontier={frontier}
+          floorsAbove={season.levels.length - shownTop}
+          height={height}
+          avatar={avatar}
+          onOpen={openNext}
+          signInLocked={guest ? lockedForGuest : undefined}
+          onSignIn={openNext}
+        />
       </div>
 
       {notice && (notice.level === null || selected?.level !== notice.level) && (
@@ -296,7 +303,7 @@ export function LevelMapScreen() {
       )}
 
       {/* Clear bar: no scrim, so the lava crest shows behind it. MAP_FADE
-          fades the pins out before they reach it. */}
+          fades the floors out before they reach it. */}
       <div data-play-bar className="absolute inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 px-4 pb-3">
         <button
           type="button"
@@ -360,6 +367,9 @@ export function LevelMapScreen() {
           }
         />
       )}
+      {livesOpen && refill.offer && (
+        <LivesSheet player={season.player} offer={refill.offer} onClose={() => setLivesOpen(false)} />
+      )}
       {refill.overlays}
       {touring && (
         <AppTour
@@ -418,104 +428,6 @@ function MapNotice({ text, onDismiss }: { text: string; onDismiss: () => void })
   );
 }
 
-type PinState = "open" | "current" | "locked";
-
-function LevelPin({
-  node,
-  state,
-  tour,
-  onOpen,
-  onSignIn,
-}: {
-  node: LevelNode;
-  state: PinState;
-  /** The pin the first-run tour points at. */
-  tour: boolean;
-  onOpen: () => void;
-  /** A guest's locked pin above the taster: tapping it asks them to sign in. */
-  onSignIn?: () => void;
-}) {
-  const hard = isHardLevel(node.level);
-  const locked = state === "locked";
-  const current = state === "current";
-  const size = current ? 72 : 60;
-  const label = locked
-    ? `Level ${node.level}, ${onSignIn ? "sign in to unlock" : "locked"}`
-    : `Level ${node.level}${hard ? ", hard" : ""}${node.stars > 0 ? `, ${node.stars} of 3 stars` : current ? ", next to play" : ""}`;
-
-  const face = locked
-    ? "border-white/10 bg-surface/80 text-text-disabled"
-    : current
-      ? "border-signal bg-signal text-void shadow-[0_0_0_6px_rgba(203,242,77,0.18),0_10px_30px_-6px_rgba(203,242,77,0.55)]"
-      : hard
-        ? "border-ember bg-[#2a1410] text-text-primary shadow-ember"
-        : "border-signal/60 bg-elevated text-text-primary";
-
-  return (
-    <li
-      className="absolute flex -translate-x-1/2 translate-y-1/2 flex-col items-center"
-      style={{ left: `${pinX(node.level)}%`, bottom: pinBottom(node.level) }}
-    >
-      <button
-        type="button"
-        disabled={locked && !onSignIn}
-        data-tour={tour ? "next-level" : undefined}
-        aria-label={label}
-        aria-current={current ? "step" : undefined}
-        onClick={locked ? onSignIn : onOpen}
-        style={{ width: size, height: size }}
-        className={`relative flex items-center justify-center rounded-full border-[3px] font-display font-black tabular-nums transition-transform active:scale-90 disabled:active:scale-100 ${current ? "lm-pulse text-headline" : "text-lead"} ${face}`}
-      >
-        {locked ? <LockIcon /> : node.level}
-        {hard && !locked && (
-          <span aria-hidden className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-void bg-ember">
-            <SkullIcon />
-          </span>
-        )}
-      </button>
-      {locked ? (
-        <span aria-hidden className="mt-1 font-mono text-label font-bold tabular-nums text-text-disabled">{node.level}</span>
-      ) : node.stars > 0 ? (
-        <StarRow count={node.stars} size={15} className="mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" />
-      ) : null}
-      <style>{`
-        .lm-pulse { animation: lmPulse 1.6s ease-in-out infinite; }
-        @keyframes lmPulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.07); }
-        }
-        @media (prefers-reduced-motion: reduce) { .lm-pulse { animation: none; } }
-      `}</style>
-    </li>
-  );
-}
-
-/** The path joining the pins: lit up to the frontier, dashed beyond it. */
-function Trail({ levels, frontier, height }: { levels: number; frontier: number; height: number }) {
-  const point = (n: number) => `${pinX(n).toFixed(2)} ${(height - pinBottom(n)).toFixed(1)}`;
-  const path = (from: number, to: number) => {
-    const parts: string[] = [];
-    for (let n = from; n <= to; n++) parts.push(`${n === from ? "M" : "L"} ${point(n)}`);
-    return parts.join(" ");
-  };
-  const lit = Math.min(frontier, levels);
-  return (
-    <svg
-      aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full"
-      viewBox={`0 0 100 ${height}`}
-      preserveAspectRatio="none"
-    >
-      {levels > lit && (
-        <path d={path(lit, levels)} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={5} strokeDasharray="2 12" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      )}
-      {lit > 1 && (
-        <path d={path(1, lit)} fill="none" stroke="rgba(203,242,77,0.55)" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      )}
-    </svg>
-  );
-}
-
 /** The guest's way back to guest home, and to Sign In (no tab bar here). */
 function GuestMapBar({ onHome, onSignIn }: { onHome: () => void; onSignIn: () => void }) {
   return (
@@ -545,35 +457,6 @@ function GuestMapBar({ onHome, onSignIn }: { onHome: () => void; onSignIn: () =>
         Sign In
       </button>
     </div>
-  );
-}
-
-function EpisodeBanner({ episode, bottom }: { episode: number; bottom: number }) {
-  return (
-    <li aria-hidden className="absolute inset-x-6 flex items-center gap-3" style={{ bottom }}>
-      <span className="h-px flex-1 bg-white/15" />
-      <span className="glass rounded-full border border-white/10 px-3 py-1 font-mono text-label font-bold uppercase tracking-label text-text-secondary">
-        Episode {episode}
-      </span>
-      <span className="h-px flex-1 bg-white/15" />
-    </li>
-  );
-}
-
-function LockIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
-      <rect x="5" y="11" width="14" height="10" rx="2" />
-      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-    </svg>
-  );
-}
-
-function SkullIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" className="text-void" aria-hidden>
-      <path d="M12 2C7 2 3.5 5.6 3.5 10.2c0 2.6 1.2 4.6 3 5.9V19a1 1 0 0 0 1 1h1.5v-2h2v2h2v-2h2v2h1.5a1 1 0 0 0 1-1v-2.9c1.8-1.3 3-3.3 3-5.9C20.5 5.6 17 2 12 2Zm-3.5 11a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm7 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
-    </svg>
   );
 }
 

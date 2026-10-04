@@ -29,10 +29,18 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
   notifySuccess: vi.fn(async () => {}),
   notifyError: vi.fn(async () => {}),
 }));
+// The map's gem pill reads the Shop: a fixed balance, no server.
+vi.mock("../../mobile/src/lib/shop", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../mobile/src/lib/shop")>()),
+  fetchShop: async () => ({ gems: 300, ownedIds: [], appleAccountToken: null, webCheckout: false }),
+  settleUnfinishedPurchases: async () => null,
+  watchAppleTransactions: () => () => {},
+}));
 // The canvas painter needs a real 2D context; the training's engine still runs.
 vi.mock("@app/components/Game/ClimbCanvas", () => ({ ClimbCanvas: () => null }));
 
 import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
+import { ShopProvider } from "../../mobile/src/contexts/ShopContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
 import type { LevelsClient } from "../../mobile/src/lib/levels/model";
 import { LevelMapScreen } from "../../mobile/src/screens/LevelMapScreen";
@@ -49,6 +57,8 @@ import {
 } from "../../mobile/src/lib/onboarding";
 import { unseenTutorials } from "../../mobile/src/lib/levels/tutorialSeen";
 import { TICK_HZ } from "../../src/game/types";
+import { TRAINING_GOALS } from "../../src/game/levels/training";
+import { CONTROL_SCHEME_KEY } from "../../src/lib/controlScheme";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -101,12 +111,14 @@ async function render(client: LevelsClient, path: string, { nav = true }: { nav?
     root.render(
       <MemoryRouter initialEntries={[path]}>
         <LevelsProvider client={client}>
-          <Where />
-          <Routes>
-            <Route path="/" element={<LevelMapScreen />} />
-            <Route path="/tutorial" element={<TrainingScreen />} />
-          </Routes>
-          {nav && <BottomNav />}
+          <ShopProvider>
+            <Where />
+            <Routes>
+              <Route path="/" element={<LevelMapScreen />} />
+              <Route path="/tutorial" element={<TrainingScreen />} />
+            </Routes>
+            {nav && <BottomNav />}
+          </ShopProvider>
         </LevelsProvider>
       </MemoryRouter>,
     );
@@ -241,6 +253,43 @@ describe("training climb", () => {
     });
     await run(10);
     expect(goal()).toBe("climb");
+  });
+
+  it("asks touch players to pick their controls, and coaches in the layout they picked", async () => {
+    const realMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === "(pointer: coarse)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      await render(memoryClient(), "/tutorial");
+      await click(button("Start training"));
+      // Not on the climb yet: the controls choice comes first, Buttons preselected.
+      expect(container.querySelector("[data-training-goal]")).toBeNull();
+      expect(document.querySelector("h1")?.textContent).toBe("Pick your controls");
+      const radio = (name: string) =>
+        [...document.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((b) => b.textContent?.startsWith(name));
+      expect(radio("Buttons")?.getAttribute("aria-checked")).toBe("true");
+
+      await click(radio("Joystick"));
+      expect(localStorage.getItem(CONTROL_SCHEME_KEY)).toBe("joystick");
+      await click(button("Start training"));
+      const card = container.querySelector("[data-training-goal]");
+      expect(card?.getAttribute("data-training-goal")).toBe("walk");
+      expect(card?.textContent).toContain(TRAINING_GOALS[0]!.stick);
+      expect(container.querySelector(".exp-joystick")).not.toBeNull();
+
+      // Both layouts are playable here: switching swaps the controls and the coaching.
+      await click(button("Try the buttons"));
+      expect(localStorage.getItem(CONTROL_SCHEME_KEY)).toBe("buttons");
+      expect(container.querySelector(".exp-joystick")).toBeNull();
+      expect(container.querySelector("[data-training-goal]")?.textContent).toContain(TRAINING_GOALS[0]!.touch);
+      expect(button("Try the joystick")).toBeDefined();
+    } finally {
+      window.matchMedia = realMatchMedia;
+    }
   });
 
   it("Skip goes to the map tour, which ends on the next level's card", async () => {

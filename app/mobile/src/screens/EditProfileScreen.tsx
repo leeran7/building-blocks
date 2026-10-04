@@ -6,22 +6,12 @@ import { useAuth } from "../contexts/AuthContext";
 import {
   useSettings,
   useDashboard,
-  useClearAppData,
   useInvalidateAppData,
-  echoedSetting,
   settingsFromResponse,
   type SettingsData,
   type SocialState,
 } from "../contexts/AppDataContext";
-import {
-  tapLight,
-  notifySuccess,
-  notifyError,
-  isHapticsEnabled,
-  setHapticsEnabled,
-} from "../lib/haptics";
-import { hasLeaderboardConsent, setLeaderboardConsent } from "../lib/consent";
-import { clearDailyStore } from "@app/lib/daily";
+import { tapLight, notifySuccess, notifyError } from "../lib/haptics";
 import { normalizeUsername } from "@app/lib/username";
 import {
   SOCIAL_PLATFORMS,
@@ -29,26 +19,24 @@ import {
   normalizeHandle,
 } from "@app/lib/socialHandle";
 import { SocialMark } from "@app/components/Social/SocialMark";
-import { ControlSchemePicker } from "@app/components/ControlSchemePicker";
 import { HexAvatar } from "../components/HexAvatar";
-import { PushHeader, RetryPanel } from "../components/ui";
+import { GlassSection as Section, PushHeader, RetryPanel } from "../components/ui";
 import { avatarButtonLabel, avatarLabel, identityNameFor } from "../lib/identity";
 import { stashEditProfileDraft, takeEditProfileDraft } from "../lib/editProfileDraft";
 import { useBackOr } from "../lib/navigation";
 import { useRetry } from "../hooks/useRetry";
 
 const LOAD_FAILED_MESSAGE = "Couldn't load your profile. Check your connection and try again.";
-/** The visibility toggle flipped back: the PUT failed, or its 200 did not echo the value. */
-export const VISIBILITY_NOT_SAVED = "Couldn't save your leaderboard visibility. Try again.";
 
 const INPUT =
   "min-h-[48px] w-full rounded-xl border border-white/10 bg-[#0d0c10]/80 px-3.5 text-body text-text-primary placeholder:text-text-muted focus:border-signal focus:outline-none";
 
 /**
- * Edit Profile — identity, socials, preferences and the account actions.
- * Pushed from Profile; seeds its form once from the shared settings cache so a
- * background refresh never clobbers an in-progress edit. Unsaved fields survive
- * a trip to the avatar picker (see lib/editProfileDraft).
+ * Edit Profile — identity and socials. Preferences and the account actions
+ * live on Settings (the gear on Profile). Pushed from Profile; seeds its form
+ * once from the shared settings cache so a background refresh never clobbers
+ * an in-progress edit. Unsaved fields survive a trip to the avatar picker (see
+ * lib/editProfileDraft).
  *
  * The form only renders once real settings arrived, and Save needs the seed:
  * a PUT from an unseeded (empty) form would null the saved username and
@@ -56,10 +44,9 @@ const INPUT =
  */
 export function EditProfileScreen() {
   const navigate = useNavigate();
-  const { signOut, user } = useAuth();
+  const { user } = useAuth();
   const settingsSlice = useSettings();
   const dashData = useDashboard().data;
-  const clearAll = useClearAppData();
   const invalidate = useInvalidateAppData();
 
   const settingsData = settingsSlice.data;
@@ -86,12 +73,6 @@ export function EditProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [haptics, setHaptics] = useState(isHapticsEnabled);
-  const [leaderboardVisible, setLeaderboardVisible] = useState(hasLeaderboardConsent);
-  const [visibilityError, setVisibilityError] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const seeded = useRef(false);
   useEffect(() => {
@@ -107,20 +88,7 @@ export function EditProfileScreen() {
     setUsername(draft?.username ?? settingsData.username ?? "");
     setSavedUsername(settingsData.username ?? "");
     setSocial(draft?.social ?? settingsData.social ?? {});
-    setLeaderboardVisible(settingsData.leaderboardConsent ?? false);
   }, [settingsData, uid]);
-
-  // Delete-confirm focus management: move focus into the warning when it opens
-  // (so it's announced to VoiceOver/switch users) and restore it to the trigger
-  // on cancel. Guarded so it never steals focus on the initial render.
-  const confirmRef = useRef<HTMLDivElement>(null);
-  const deleteTriggerRef = useRef<HTMLButtonElement>(null);
-  const prevConfirm = useRef(false);
-  useEffect(() => {
-    if (deleteConfirm) confirmRef.current?.focus();
-    else if (prevConfirm.current) deleteTriggerRef.current?.focus();
-    prevConfirm.current = deleteConfirm;
-  }, [deleteConfirm]);
 
   const usernameCheck = username.trim() ? normalizeUsername(username) : null;
 
@@ -194,67 +162,6 @@ export function EditProfileScreen() {
   // Stays true through a retry so Try again (and its focus) stays put.
   const loadFailed = settingsRetry.showError;
 
-  const signOutNow = async () => {
-    void tapLight();
-    clearAll();
-    await signOut();
-    navigate("/");
-  };
-
-  const toggleLeaderboard = async () => {
-    const next = !leaderboardVisible;
-    setLeaderboardVisible(next);
-    setLeaderboardConsent(next);
-    setVisibilityError(null);
-    if (next) void tapLight();
-    try {
-      const res = await apiFetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leaderboardConsent: next }),
-      });
-      if (!res.ok) throw new Error("save failed");
-      // Server truth only, as on the avatar picker: a 200 whose settings do not
-      // carry the value sent did not store it, so the toggle flips back.
-      const confirmed = echoedSetting(await res.json().catch(() => null), "leaderboardConsent", next);
-      if (!confirmed) throw new Error("not saved");
-      if (settingsData) {
-        setSettings({ ...settingsData, leaderboardConsent: confirmed.leaderboardConsent });
-      }
-      invalidate(["leaderboard"]);
-    } catch {
-      setLeaderboardVisible(!next);
-      setLeaderboardConsent(!next);
-      setVisibilityError(VISIBILITY_NOT_SAVED);
-      void notifyError();
-    }
-  };
-
-  const deleteAccount = async () => {
-    void tapLight();
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      const res = await apiFetch("/api/account/delete", { method: "DELETE" });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setDeleteError((d as { error?: string }).error ?? "Could not delete account. Try again.");
-        void notifyError();
-        return;
-      }
-      clearAll();
-      clearDailyStore(); // device-local streak isn't account-scoped; wipe on delete
-      await signOut();
-      navigate("/");
-    } catch {
-      setDeleteError("Could not delete account. Check your connection.");
-      void notifyError();
-    } finally {
-      setDeleting(false);
-      setDeleteConfirm(false);
-    }
-  };
-
   return (
     <main className="flex h-full flex-col">
       <PushHeader title="Edit profile" onBack={goBack} headingRef={headingRef} />
@@ -269,9 +176,7 @@ export function EditProfileScreen() {
             retrying={settingsRetry.retrying}
             attempts={settingsRetry.attempts}
             onRetry={() => void settingsRetry.retry()}
-          >
-            <SignOutButton onPress={() => void signOutNow()} />
-          </RetryPanel>
+          />
         ) : !settingsData ? (
           <div role="status" aria-busy="true" className="flex flex-col gap-3" aria-label="Loading profile">
             <div className="h-56 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
@@ -279,7 +184,7 @@ export function EditProfileScreen() {
           </div>
         ) : (
           <div className="flex flex-col gap-3 pb-[calc(env(safe-area-inset-bottom)+16vh)]">
-            <Section title="Account">
+            <Section title="Identity">
               <div className="flex flex-col gap-4">
                 <AvatarRow
                   userId={uid ?? identityName}
@@ -361,38 +266,6 @@ export function EditProfileScreen() {
               </div>
             </Section>
 
-            <Section title="Preferences">
-              <p id="control-scheme-label" className="text-body font-semibold text-text-primary">
-                Game controls
-              </p>
-              <p className="mb-3 mt-0.5 text-meta text-text-secondary">On-screen buttons or a joystick</p>
-              <ControlSchemePicker labelledBy="control-scheme-label" />
-              <div className="my-3 h-px bg-white/[0.07]" />
-              <Toggle
-                label="Haptic feedback"
-                description="Vibration on taps and game events"
-                on={haptics}
-                onToggle={() => {
-                  const next = !haptics;
-                  setHaptics(next);
-                  setHapticsEnabled(next);
-                  if (next) void tapLight();
-                }}
-              />
-              <div className="my-3 h-px bg-white/[0.07]" />
-              <Toggle
-                label="Leaderboard visibility"
-                description="Show your name and peak height on the public leaderboard"
-                on={leaderboardVisible}
-                onToggle={() => void toggleLeaderboard()}
-              />
-              {visibilityError && (
-                <p role="alert" className="mt-2 text-meta text-ember">
-                  {visibilityError}
-                </p>
-              )}
-            </Section>
-
             {error && (
               <p role="alert" className="px-1 text-meta text-ember">
                 {error}
@@ -407,89 +280,10 @@ export function EditProfileScreen() {
               {saving ? "Saving…" : saved ? "Saved!" : "Save changes"}
             </button>
 
-            <SignOutButton onPress={() => void signOutNow()} />
-
-            {!deleteConfirm ? (
-              <button
-                ref={deleteTriggerRef}
-                type="button"
-                onClick={() => {
-                  void tapLight();
-                  setDeleteConfirm(true);
-                  setDeleteError(null);
-                }}
-                className="mx-auto min-h-[44px] px-4 text-body font-medium text-ember transition-opacity active:opacity-70"
-              >
-                Delete account
-              </button>
-            ) : (
-              <div
-                ref={confirmRef}
-                tabIndex={-1}
-                role="alertdialog"
-                aria-modal="false"
-                aria-label="Confirm account deletion"
-                className="glass rounded-3xl border border-ember/40 p-5 outline-none"
-              >
-                <p className="font-display text-base font-black uppercase tracking-wide text-text-primary">
-                  Delete account?
-                </p>
-                <p className="mt-1 text-meta leading-relaxed text-text-secondary">
-                  Your profile, climb history, and social links will be permanently removed. This cannot be undone.
-                </p>
-                {deleteError && (
-                  <p role="alert" className="mt-2 text-meta text-ember">
-                    {deleteError}
-                  </p>
-                )}
-                <div className="mt-4 flex gap-2">
-                  <button
-                    onClick={() => {
-                      void tapLight();
-                      setDeleteConfirm(false);
-                      setDeleteError(null);
-                    }}
-                    disabled={deleting}
-                    className="min-h-[48px] flex-1 rounded-2xl border border-white/10 text-meta font-semibold text-text-primary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={deleteAccount}
-                    disabled={deleting}
-                    className="min-h-[48px] flex-1 rounded-2xl bg-ember text-meta font-bold uppercase tracking-wide text-white disabled:opacity-60"
-                  >
-                    {deleting ? "Deleting…" : "Delete"}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
     </main>
-  );
-}
-
-function SignOutButton({ onPress }: { onPress: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onPress}
-      className="glass min-h-[50px] w-full rounded-2xl border border-white/10 text-body font-semibold text-text-primary transition-transform active:scale-[0.98]"
-    >
-      Sign out
-    </button>
-  );
-}
-
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return (
-    <section className="glass rounded-3xl border border-white/10 px-5 pb-5 pt-4">
-      <h2 className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">{title}</h2>
-      {subtitle && <p className="mt-1 text-meta text-text-secondary">{subtitle}</p>}
-      <div className="mt-3">{children}</div>
-    </section>
   );
 }
 
@@ -528,47 +322,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-meta font-medium text-text-primary">{label}</span>
       {children}
     </label>
-  );
-}
-
-function Toggle({
-  label,
-  description,
-  on,
-  onToggle,
-}: {
-  label: string;
-  description: string;
-  on: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <div>
-        <p className="text-body font-semibold text-text-primary">{label}</p>
-        <p className="mt-0.5 text-meta text-text-secondary">{description}</p>
-      </div>
-      {/* The 44px-tall button is the tap target; the 32px track is drawn inside it. */}
-      <button
-        role="switch"
-        aria-checked={on}
-        aria-label={label}
-        onClick={onToggle}
-        className="group flex h-11 w-16 shrink-0 items-center justify-center rounded-full focus-visible:outline-none"
-      >
-        <span
-          aria-hidden
-          className={`relative h-8 w-14 rounded-full transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-signal group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-void ${
-            on ? "bg-signal shadow-[0_0_14px_rgba(203,242,77,0.45)]" : "bg-border-strong"
-          }`}
-        >
-          <span
-            className="absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
-            style={{ left: on ? 28 : 4 }}
-          />
-        </span>
-      </button>
-    </div>
   );
 }
 

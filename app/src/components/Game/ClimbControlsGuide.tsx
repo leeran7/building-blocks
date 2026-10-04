@@ -6,6 +6,7 @@
 
 import type { ReactNode } from "react";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
+import { useControlScheme, type ControlScheme } from "../../lib/controlScheme";
 import {
   JETPACK_MAX_VY,
   POWER_UP_SPECS,
@@ -34,11 +35,22 @@ const KEYBOARD_CONTROLS = [
   },
 ] as const;
 
-const TOUCH_CONTROLS = [
-  { label: "Move", detail: "Tap and hold ← → at the bottom of the screen" },
-  { label: "Jump", detail: "Tap JMP to leap; re-hold JMP in the air to thrust" },
-  { label: "Climb", detail: "Hold ↑ climb when you're on a ladder" },
-] as const;
+/** Touch copy per on-screen layout, so it names the controls the player sees. */
+const TOUCH_CONTROLS: Record<
+  ControlScheme,
+  readonly { label: string; detail: string }[]
+> = {
+  buttons: [
+    { label: "Move", detail: "Hold ← or → at the bottom of the screen" },
+    { label: "Jump", detail: "Tap Jump to leap; re-hold Jump in the air to thrust" },
+    { label: "Climb", detail: "Hold ↑ climb when you're on a ladder" },
+  ],
+  joystick: [
+    { label: "Move", detail: "Drag the stick left or right" },
+    { label: "Jump", detail: "Tap Jump to leap; re-hold Jump in the air to thrust" },
+    { label: "Climb", detail: "Push the stick up when you're on a ladder" },
+  ],
+};
 
 const TIPS = [
   "Grab a ladder and climb to go faster than jumping floor to floor.",
@@ -62,6 +74,8 @@ export function ClimbControlsGuide({
   collapsible?: boolean;
 }) {
   const touch = useCoarsePointer();
+  const [scheme] = useControlScheme();
+  const touchControls = TOUCH_CONTROLS[scheme];
 
   if (variant === "compact") {
     return (
@@ -70,7 +84,7 @@ export function ClimbControlsGuide({
           {touch ? "Touch controls" : "Controls"}
         </span>
         {touch
-          ? TOUCH_CONTROLS.map((c) => (
+          ? touchControls.map((c) => (
               <p key={c.label} className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="w-14 shrink-0 text-text-primary">{c.label}</span>
                 <span className="text-text-secondary leading-snug">{c.detail}</span>
@@ -102,7 +116,7 @@ export function ClimbControlsGuide({
         </p>
         <ul className="space-y-2">
           {touch
-            ? TOUCH_CONTROLS.map((c) => (
+            ? touchControls.map((c) => (
                 <li key={c.label} className="flex items-start gap-2.5">
                   <span className="shrink-0 w-14 font-mono text-[10px] uppercase tracking-widest text-text-secondary pt-0.5">
                     {c.label}
@@ -134,7 +148,7 @@ export function ClimbControlsGuide({
     <>
       {touch ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {TOUCH_CONTROLS.map((c) => (
+          {touchControls.map((c) => (
             <div key={c.label} className="rounded-xl border border-border-subtle bg-void/40 p-4">
               <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
                 {c.label}

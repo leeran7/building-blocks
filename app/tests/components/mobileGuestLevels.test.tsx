@@ -378,6 +378,7 @@ describe("guest training", () => {
     }
     expect(titles).toEqual(GUEST_MAP_TOUR.map((s) => s.title));
     expect(titles).not.toContain("Star chest");
+    expect(titles).not.toContain("Gems");
     expect(titles).not.toContain("Shop");
     // The tour's last button opens level 1.
     expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 1");

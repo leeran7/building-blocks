@@ -36,6 +36,7 @@ import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { GuestSignInSheet } from "../components/GuestSignInSheet";
 import { GUEST_NUDGE_AFTER_RUNS, recordGuestEndlessRun } from "../lib/guestMode";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
+import { useHapticsSetting } from "../lib/hapticsSetting";
 import { useGameHaptics } from "../lib/useGameHaptics";
 import { commitDailyRun, msUntilReset, formatReset, type DailyRunResult } from "@app/lib/daily";
 import {
@@ -193,6 +194,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const lavaNear = isLavaInProximity(
     lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM)
   );
+  const vibration = useHapticsSetting();
   const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
     state.tick,
@@ -404,7 +406,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
 
         <ExpeditionHud player={player} hazardY={state.hazardY} tick={state.tick}
           lavaPhase={lavaPhaseInfo.phase} lavaPhaseProgress={lavaPhaseInfo.progress}
-          muted={muted} onToggleMute={() => setMuted(!muted)} announcement={announcement} runId={runId}
+          muted={muted} onToggleMute={() => setMuted(!muted)} vibration={vibration} announcement={announcement} runId={runId}
           topInset={safeArea.top} leftInset={safeArea.left} rightInset={safeArea.right}
           backControl={<button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); goBack(); }}>←</button>}
         />
@@ -484,7 +486,9 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
               isDaily && isAuthed
                 ? () => {
                     void tapLight();
-                    navigate(TODAY_BOARD_PATH);
+                    // Replace the finished run: Back from the board must not
+                    // land on a fresh Daily lobby (the board is a pushed screen).
+                    navigate(TODAY_BOARD_PATH, { replace: true });
                   }
                 : undefined
             }

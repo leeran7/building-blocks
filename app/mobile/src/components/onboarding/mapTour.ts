@@ -29,6 +29,11 @@ export const MAP_TOUR: readonly TourStep[] = [
     body: "A fast finish earns up to 3 stars. Stars fill this chest, and a full chest gives you boosters: power-ups you can start a level with.",
   },
   {
+    target: "gems",
+    title: "Gems",
+    body: "Gems buy lives refills and character skins. Tap + to get more.",
+  },
+  {
     target: "play",
     title: "Play",
     body: "Opens the next level. Pick a booster there if you have one, then tap Play.",
@@ -41,17 +46,12 @@ export const MAP_TOUR: readonly TourStep[] = [
   {
     target: "tab-modes",
     title: "Modes",
-    body: "The Daily Climb, Quick Play against other climbers, and Challenges with your friends.",
-  },
-  {
-    target: "tab-ranks",
-    title: "Ranks",
-    body: "Leaderboards for the whole world or just your friends, all-time or today.",
+    body: "The Daily Climb, Quick Play against other climbers, Challenges with your friends, and the leaderboards.",
   },
   {
     target: "tab-shop",
     title: "Shop",
-    body: "Tap + next to your gems to buy a gem pack. Spend gems on character skins here, or on a lives refill when a level says you are out.",
+    body: "Character skins, paid for with gems. Tap + next to your gems to buy a gem pack.",
   },
   {
     target: "tab-profile",
@@ -62,8 +62,8 @@ export const MAP_TOUR: readonly TourStep[] = [
 
 /**
  * The guest's map tour (the levels taster): the map's own readouts only. A
- * guest has no star chest and no tab bar, so those steps are left out.
+ * guest has no star chest, no gems and no tab bar, so those steps are left out.
  */
 export const GUEST_MAP_TOUR: readonly TourStep[] = MAP_TOUR.filter(
-  (step) => step.target !== "chest" && !step.target.startsWith("tab-"),
+  (step) => step.target !== "chest" && step.target !== "gems" && !step.target.startsWith("tab-"),
 );

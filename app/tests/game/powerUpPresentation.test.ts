@@ -137,10 +137,11 @@ describe("AC-J12 ClimbControlsGuide copy", () => {
     expect(html).toContain(POWER_UP_SPECS.jetpack.description);
   });
 
-  it("tells touch players to re-hold JMP in the air to thrust", () => {
+  it("tells touch players to re-hold Jump in the air to thrust", () => {
     vi.mocked(useCoarsePointer).mockReturnValue(true);
     const html = renderToStaticMarkup(createElement(ClimbControlsGuide, {}));
-    expect(html).toMatch(/re-hold JMP in the air to thrust/i);
+    expect(html).toMatch(/re-hold Jump in the air to thrust/);
+    expect(html).not.toMatch(/JMP/);
   });
 });
 

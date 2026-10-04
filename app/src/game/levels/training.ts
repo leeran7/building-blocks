@@ -41,8 +41,10 @@ export interface TrainingGoal {
   id: TrainingGoalId;
   /** Short heading, e.g. "Jump". */
   title: string;
-  /** What to do with the on-screen controls. */
+  /** What to do with the on-screen buttons (the default touch layout). */
   touch: string;
+  /** The joystick layout's version, where it differs from `touch`. */
+  stick?: string;
   /** What to do with a keyboard. */
   keys: string;
   /** Shown once the goal is met: what just happened, in one line. */
@@ -54,21 +56,23 @@ export const TRAINING_GOALS: readonly TrainingGoal[] = [
   {
     id: "walk",
     title: "Walk",
-    touch: "Hold ← or → (or push the stick) to walk. Walk off one edge and you come back on the other side.",
+    touch: "Hold ← or → to walk. Walk off one edge and you come back on the other side.",
+    stick: "Drag the stick left or right to walk. Walk off one edge and you come back on the other side.",
     keys: "Hold ← → or A D to walk. Walk off one edge and you come back on the other side.",
     done: "The tower wraps around, so every direction leads somewhere.",
   },
   {
     id: "jump",
     title: "Jump",
-    touch: "Tap the jump button to leap. Jump over crates and across gaps in the floor.",
+    touch: "Tap Jump to leap. Jump over crates and across gaps in the floor.",
     keys: "Tap Space to leap. Jump over crates and across gaps in the floor.",
     done: "Jumps clear crates and gaps.",
   },
   {
     id: "climb",
     title: "Climb a ladder",
-    touch: "Walk to a ladder, then hold ↑ climb (or push the stick up) to reach the next floor.",
+    touch: "Walk to a ladder, then hold ↑ climb to reach the next floor.",
+    stick: "Walk to a ladder, then push the stick up to reach the next floor.",
     keys: "Walk to a ladder, then hold ↑ or W to climb to the next floor.",
     done: "Ladders are the fastest way up.",
   },
@@ -82,7 +86,7 @@ export const TRAINING_GOALS: readonly TrainingGoal[] = [
   {
     id: "use",
     title: "Super Jump",
-    touch: "Tap jump, then tap it again in the air. You jump much higher, and can jump again in mid-air.",
+    touch: "Tap Jump, then tap it again in the air. You jump much higher, and can jump again in mid-air.",
     keys: "Tap Space, then tap it again in the air. You jump much higher, and can jump again in mid-air.",
     done: "Each power-up does something different, and they all run out.",
   },
@@ -94,6 +98,12 @@ export const TRAINING_GOALS: readonly TrainingGoal[] = [
     done: "Every level ends at a diamond like this one.",
   },
 ];
+
+/** A goal's instructions for the player's input: a keyboard, or a touch layout. */
+export function trainingHint(goal: TrainingGoal, input: "keys" | "buttons" | "joystick"): string {
+  if (input === "keys") return goal.keys;
+  return input === "joystick" ? (goal.stick ?? goal.touch) : goal.touch;
+}
 
 export interface Training {
   readonly state: MatchState;

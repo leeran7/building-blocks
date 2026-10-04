@@ -54,7 +54,7 @@ vi.mock("../../mobile/src/contexts/AppDataContext", async (importOriginal) => {
   };
 });
 
-import { EditProfileScreen, VISIBILITY_NOT_SAVED } from "../../mobile/src/screens/EditProfileScreen";
+import { EditProfileScreen } from "../../mobile/src/screens/EditProfileScreen";
 import { AvatarPickerScreen } from "../../mobile/src/screens/AvatarPickerScreen";
 import { stashEditProfileDraft, takeEditProfileDraft } from "../../mobile/src/lib/editProfileDraft";
 import { initialsOf } from "../../mobile/src/lib/leaderboard";
@@ -304,95 +304,14 @@ describe("EditProfileScreen display name placeholder", () => {
   });
 });
 
-describe("Leaderboard visibility counts as saved only when the server echoes it", () => {
-  const visibility = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Leaderboard visibility"]');
-
-  async function toggleAfter(response: Response) {
-    state.settings = settings({ leaderboardConsent: true });
-    apiFetch.mockResolvedValueOnce(response);
+describe("Edit Profile holds identity and socials only", () => {
+  it("has no preference switches or account actions; those live on Settings", () => {
     renderEditProfile();
-    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
-    await click(visibility());
-  }
-
-  it("keeps the new value and caches the server's when the 200 echoes it", async () => {
-    await toggleAfter(json(settings({ leaderboardConsent: false })));
-    expect(JSON.parse((apiFetch.mock.calls[0] as [string, RequestInit])[1].body as string)).toEqual({
-      leaderboardConsent: false,
-    });
-    expect(visibility()?.getAttribute("aria-checked")).toBe("false");
-    expect(setSettings).toHaveBeenCalledWith(expect.objectContaining({ leaderboardConsent: false }));
-    expect(invalidate).toHaveBeenCalledWith(["leaderboard"]);
-  });
-
-  it("flips back when the 200 carries no leaderboardConsent, which would parse as false", async () => {
-    const { leaderboardConsent: _dropped, ...withoutConsent } = settings();
-    await toggleAfter(json(withoutConsent));
-    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
-    expect(setSettings).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalled();
-  });
-
-  it("flips back when the 200 stored the other value", async () => {
-    await toggleAfter(json(settings({ leaderboardConsent: true })));
-    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
-    expect(setSettings).not.toHaveBeenCalled();
-  });
-
-  it("flips back when the 200 does not parse", async () => {
-    await toggleAfter({ ok: true, status: 200, json: () => Promise.reject(new SyntaxError("bad json")) } as Response);
-    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
-    expect(setSettings).not.toHaveBeenCalled();
-  });
-});
-
-describe("A failed visibility toggle says why on screen", () => {
-  const visibility = () => container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Leaderboard visibility"]');
-  const alerts = () => [...container.querySelectorAll('[role="alert"]')].map((a) => a.textContent);
-
-  beforeEach(() => {
-    state.settings = settings({ leaderboardConsent: true });
-  });
-
-  it("shows no message before a toggle or after one the server confirms", async () => {
-    apiFetch.mockResolvedValueOnce(json(settings({ leaderboardConsent: false })));
-    renderEditProfile();
-    expect(alerts()).toEqual([]);
-    await click(visibility());
-    expect(visibility()?.getAttribute("aria-checked")).toBe("false");
-    expect(alerts()).toEqual([]);
-  });
-
-  it.each([
-    ["the PUT is rejected", () => json({ error: "Could not save" }, 500)],
-    ["the 200 does not echo the value", () => json({ displayName: SAVED_NAME })],
-  ])("shows an alert beside the switch when %s", async (_case, response) => {
-    apiFetch.mockResolvedValueOnce(response());
-    renderEditProfile();
-    await click(visibility());
-    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
-    expect(alerts()).toEqual([VISIBILITY_NOT_SAVED]);
-    // Same section as the switch, so it reads as the switch's error.
-    const alert = container.querySelector('[role="alert"]');
-    expect(alert?.closest("section")?.contains(visibility() ?? null)).toBe(true);
-  });
-
-  it("shows an alert when the request never reaches the server", async () => {
-    apiFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    renderEditProfile();
-    await click(visibility());
-    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
-    expect(alerts()).toEqual([VISIBILITY_NOT_SAVED]);
-  });
-
-  it("clears the message when the retry succeeds", async () => {
-    apiFetch.mockResolvedValueOnce(json({}, 500));
-    renderEditProfile();
-    await click(visibility());
-    expect(alerts()).toEqual([VISIBILITY_NOT_SAVED]);
-    apiFetch.mockResolvedValueOnce(json(settings({ leaderboardConsent: false })));
-    await click(visibility());
-    expect(visibility()?.getAttribute("aria-checked")).toBe("false");
-    expect(alerts()).toEqual([]);
+    expect(heading()).toBe("Edit profile");
+    expect(nameInput()).toBeTruthy();
+    expect(container.querySelectorAll('[role="switch"]')).toHaveLength(0);
+    expect(container.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(button(/^Sign out$/)).toBeUndefined();
+    expect(button(/^Delete account$/)).toBeUndefined();
   });
 });

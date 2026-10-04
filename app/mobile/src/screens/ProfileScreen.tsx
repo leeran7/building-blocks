@@ -3,17 +3,20 @@ import { API_BASE } from "../lib/api";
 import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
 import { useDashboard, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
-import { tapLight, tapHeavy } from "../lib/haptics";
+import { tapLight } from "../lib/haptics";
 import { dailySummary, formatReset, msUntilReset } from "@app/lib/daily";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { HexAvatar } from "../components/HexAvatar";
 import { HubHeader } from "../components/HubHeader";
+import { ChevronRight } from "../components/ui";
 import { avatarButtonLabel, identityNameFor } from "../lib/identity";
 
 /**
- * Profile — the player's identity and standing, plus the daily-climb hook.
- * Editing (name, socials, preferences, account actions) lives on the pushed
- * Edit Profile screen so this page reads as a game card, not a form.
+ * Profile — the player's identity and standing. The Daily Climb itself is
+ * played from Modes; its streak shows here.
+ * Name and socials are edited on the pushed Edit Profile screen (the pencil);
+ * preferences and account actions live on Settings (the header gear), so this
+ * page reads as a game card, not a form.
  */
 export function ProfileScreen() {
   const navigate = useNavigate();
@@ -50,6 +53,11 @@ export function ProfileScreen() {
     navigate("/profile/edit");
   };
 
+  const openSettings = () => {
+    void tapLight();
+    navigate("/settings");
+  };
+
   const openAvatarPicker = () => {
     void tapLight();
     navigate("/profile/avatar");
@@ -61,7 +69,19 @@ export function ProfileScreen() {
         className="flex-1 overflow-y-auto px-4"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
-        <HubHeader title="Profile" subtitle={["Your climb"]} />
+        {/* The gear sits over the centered header's top-right corner, level with
+            the eyebrow, so the title stays centered like the other hubs. */}
+        <div className="relative">
+          <HubHeader title="Profile" subtitle={["Your climb"]} />
+          <button
+            type="button"
+            aria-label="Settings"
+            onClick={openSettings}
+            className="glass absolute right-0 top-[calc(env(safe-area-inset-top)+0.25rem)] flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 text-text-primary transition-transform active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+          >
+            <GearIcon />
+          </button>
+        </div>
 
         {loading ? (
           <div className="flex flex-col gap-3" aria-label="Loading profile">
@@ -116,7 +136,7 @@ export function ProfileScreen() {
                 )}
               </div>
               <button
-                aria-label="Edit profile & socials"
+                aria-label="Edit profile"
                 onClick={openEdit}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-text-primary transition-transform active:scale-90"
               >
@@ -159,11 +179,20 @@ export function ProfileScreen() {
                     {climb.peakY.toLocaleString()}
                     <span className="ml-1 text-[0.5em] font-bold text-text-secondary">{ALTITUDE_UNIT}</span>
                   </p>
-                  <p className="mt-2 font-mono text-label uppercase tracking-label text-text-secondary">
+                  {/* The rank is the way into the Leaderboard from here (it is not a tab). */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void tapLight();
+                      navigate("/leaderboard");
+                    }}
+                    className="mt-1 inline-flex min-h-[44px] items-center gap-1 font-mono text-label uppercase tracking-label text-text-secondary underline decoration-white/25 underline-offset-4 transition-transform active:scale-[0.97]"
+                  >
                     #{climb.rank.toLocaleString()}
                     {climb.totalClimbers ? ` of ${climb.totalClimbers.toLocaleString()}` : ""}
                     {topPct ? ` · top ${topPct}%` : ""}
-                  </p>
+                    <span className="sr-only">, see the leaderboard</span>
+                  </button>
                 </div>
               </section>
             ) : (
@@ -188,20 +217,14 @@ export function ProfileScreen() {
               />
             </div>
 
-            <StreakCard streak={daily.streak} playedToday={daily.playedToday} />
-
-            <button
-              onClick={() => {
-                void tapHeavy();
-                navigate("/climb?daily=1");
+            <StreakCard
+              streak={daily.streak}
+              playedToday={daily.playedToday}
+              onPlay={() => {
+                void tapLight();
+                navigate("/modes");
               }}
-              className="cta-lime flex min-h-[56px] w-full items-center justify-center gap-3 rounded-[22px] py-2 text-void transition-transform active:scale-[0.97]"
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#141612] text-signal">
-                <PlayGlyph />
-              </span>
-              <span className="font-display text-cta font-black uppercase tracking-[-0.01em]">Daily climb</span>
-            </button>
+            />
 
             <button
               onClick={() => {
@@ -260,8 +283,8 @@ function StatTile({ label, value, accent = false }: { label: string; value: stri
   );
 }
 
-/** Where the player stands on today's daily — status only; the button below plays it. */
-function StreakCard({ streak, playedToday }: { streak: number; playedToday: boolean }) {
+/** Unplayed today, the card is the way to the Daily Climb on Modes (its one home). */
+function StreakCard({ streak, playedToday, onPlay }: { streak: number; playedToday: boolean; onPlay: () => void }) {
   const reset = formatReset(msUntilReset());
   const [title, detail] =
     streak === 0
@@ -269,16 +292,24 @@ function StreakCard({ streak, playedToday }: { streak: number; playedToday: bool
       : playedToday
         ? [`${streak}-day streak`, `Done for today · new map in ${reset}`]
         : [`Keep your ${streak}-day streak`, `Play today's climb · resets in ${reset}`];
-  return (
-    <section className="glass flex items-center gap-3.5 rounded-3xl border border-white/10 px-4 py-3.5">
+  const body = (
+    <>
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-ember/60 bg-ember/15">
         <FlameIcon />
       </span>
-      <div className="min-w-0 flex-1">
-        <p className="font-display text-base font-black uppercase tracking-wide text-text-primary">{title}</p>
-        <p className="mt-0.5 text-meta leading-snug text-text-secondary">{detail}</p>
-      </div>
-    </section>
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-base font-black uppercase tracking-wide text-text-primary">{title}</span>
+        <span className="mt-0.5 block text-meta leading-snug text-text-secondary">{detail}</span>
+      </span>
+    </>
+  );
+  const card = "glass flex w-full items-center gap-3.5 rounded-3xl border border-white/10 px-4 py-3.5 text-left";
+  if (playedToday) return <section className={card}>{body}</section>;
+  return (
+    <button type="button" onClick={onPlay} className={`${card} transition-transform active:scale-[0.98]`}>
+      {body}
+      <ChevronRight className="text-text-secondary" />
+    </button>
   );
 }
 
@@ -306,10 +337,11 @@ function FlameIcon() {
   );
 }
 
-function PlayGlyph() {
+function GearIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.79-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14Z" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
