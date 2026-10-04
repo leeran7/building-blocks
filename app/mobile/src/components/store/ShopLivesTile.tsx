@@ -44,8 +44,8 @@ export function ShopLivesTile() {
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="font-display text-lead font-black uppercase text-text-primary">Lives refill</span>
-          <span className="font-mono text-label uppercase tracking-label text-text-secondary">
-            {full ? "Lives full" : `${player.lives} of ${player.maxLives} · next in ${livesLabel(player, now)}`}
+          <span className="whitespace-nowrap font-mono text-label uppercase tracking-label text-text-secondary">
+            {full ? "Lives full" : `${player.lives} of ${player.maxLives} · ${livesLabel(player, now)}`}
           </span>
         </span>
         <span className="font-mono text-label font-bold uppercase tracking-label text-signal">
