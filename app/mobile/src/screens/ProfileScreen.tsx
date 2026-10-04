@@ -203,6 +203,17 @@ export function ProfileScreen() {
               <span className="font-display text-cta font-black uppercase tracking-[-0.01em]">Daily climb</span>
             </button>
 
+            <button
+              onClick={() => {
+                void tapLight();
+                navigate("/tutorial");
+              }}
+              className="glass flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border border-white/10 font-display text-meta font-bold uppercase tracking-label text-text-primary transition-transform active:scale-[0.98]"
+            >
+              <HelpIcon />
+              How to play
+            </button>
+
             {identityUsername && (
               <button
                 onClick={() => {
@@ -316,6 +327,16 @@ function BadgePencilIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function HelpIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9.5" />
+      <path d="M9.4 9.2a2.7 2.7 0 0 1 5.2 1c0 1.8-2.6 2.4-2.6 4" />
+      <path d="M12 17.6h.01" />
     </svg>
   );
 }
