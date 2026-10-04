@@ -4,7 +4,8 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import { TICK_HZ } from "@app/game/types";
 
 import { useLevels } from "../contexts/LevelsContext";
-import { useMapPath } from "../contexts/GuestContext";
+import { useGuest, useMapPath } from "../contexts/GuestContext";
+import { isGuestLocked } from "../lib/levels/guestClient";
 import { tapLight, notifySuccess } from "../lib/haptics";
 import {
   type LevelNode,
@@ -88,12 +89,15 @@ export function LevelPlayScreen() {
   const [autoStart, setAutoStart] = useState(false);
   const [tutorial, setTutorial] = useState<TutorialTopic[] | null>(null);
 
+  // A guest never plays above the taster, Practice included: the map opens
+  // its sign-in prompt for the level instead.
+  const guestLocked = useGuest() !== null && isGuestLocked(level);
   // A normal run needs a ticket; without one (app restart, stale link) go
   // back to the map rather than play a run nobody can score.
-  const missing = !practice && ticket === null;
+  const missing = guestLocked || (!practice && ticket === null);
   useEffect(() => {
-    if (missing) navigate(mapPath, { replace: true });
-  }, [missing, navigate, mapPath]);
+    if (missing) navigate(mapPath, { replace: true, state: guestLocked ? { openLevel: level } : null });
+  }, [missing, guestLocked, level, navigate, mapPath]);
 
   const toMap = useCallback(
     (openLevel?: number) => {

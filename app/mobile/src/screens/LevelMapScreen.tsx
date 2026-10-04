@@ -339,7 +339,8 @@ export function LevelMapScreen() {
       )}
       {signInPrompt && guest && (
         <GuestSignInSheet
-          eyebrow={`Levels 1–${GUEST_LEVEL_CAP} done`}
+          // Only a guest past the taster has done it; any locked pin opens this.
+          eyebrow={frontier > GUEST_LEVEL_CAP ? `Levels 1–${GUEST_LEVEL_CAP} done` : `Levels 1–${GUEST_LEVEL_CAP} are free`}
           title="Unlock all 300 levels"
           body="Sign in to keep your stars from here on, play every level, add friends and save your scores. Guest stars stay on this device."
           onSignIn={guest.onSignIn}

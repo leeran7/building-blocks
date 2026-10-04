@@ -322,12 +322,39 @@ describe("guest levels taster", () => {
     await click(byLabel("Sign in to play level 4"));
     expect(signInSheet()).not.toBeNull();
     expect(byLabel("Play level 4")).toBeUndefined();
+    // Levels 1-3 really are done here, so the sheet may say so.
+    expect(signInSheet()?.textContent).toContain(`Levels 1–${GUEST_LEVEL_CAP} done`);
+  });
+
+  it("a fresh guest tapping the level 4 pin is not told levels 1-3 are done", async () => {
+    await renderGuest("/levels");
+    await click(pin("Level 4, sign in to unlock"));
+    const text = signInSheet()?.textContent ?? "";
+    expect(text).toContain("Unlock all 300 levels");
+    expect(text).toContain(`Levels 1–${GUEST_LEVEL_CAP} are free`);
+    expect(text).not.toContain("done");
   });
 
   it("a level link above the cap lands on the taster map, not on the level", async () => {
     await renderGuest("/levels/4/play");
     expect(pathname).toBe("/levels");
     expect(byLabel("stub-clear")).toBeUndefined();
+  });
+
+  it("Practice above the cap does not play: it lands on the map's sign-in prompt", async () => {
+    await clearGuestLevels(GUEST_LEVEL_CAP);
+    await renderGuest("/levels/4/play?practice=1");
+    expect(pathname).toBe("/levels");
+    expect(byLabel("stub-clear")).toBeUndefined();
+    expect(signInSheet()).not.toBeNull();
+  });
+
+  it("(control) Practice of level 3 still plays for a guest", async () => {
+    await clearGuestLevels(GUEST_LEVEL_CAP);
+    await renderGuest("/levels/3/play?practice=1");
+    expect(pathname).toBe("/levels/3/play");
+    expect(byLabel("stub-clear")).toBeTruthy();
+    expect(signInSheet()).toBeNull();
   });
 });
 

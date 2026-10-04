@@ -40,8 +40,9 @@ export function GuestShell({ onSignIn }: { onSignIn: () => void }) {
             <Routes>
               <Route path="/climb" element={<ClimbScreen onSignIn={onSignIn} />} />
               <Route path={GUEST_MAP_PATH} element={<LevelMapScreen />} />
-              {/* Keyed by entry so "Practice this level" from a result starts fresh. */}
-              <Route path={`${GUEST_MAP_PATH}/:level/play`} element={<LevelPlayScreen key={location.key} />} />
+              {/* Keyed by entry so "Practice this level" from a result starts fresh.
+                  Literal, like App.tsx: the shared map and start card navigate to /levels/N/play. */}
+              <Route path="/levels/:level/play" element={<LevelPlayScreen key={location.key} />} />
               <Route path="/tutorial" element={<TrainingScreen />} />
               <Route
                 path="*"
