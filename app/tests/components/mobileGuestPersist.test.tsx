@@ -27,7 +27,7 @@ vi.mock("../../mobile/src/components/AnimatedBackdrop", async (importOriginal) =
   ...(await importOriginal<typeof import("../../mobile/src/components/AnimatedBackdrop")>()),
   AnimatedBackdrop: () => null,
 }));
-vi.mock("../../mobile/src/components/BottomNav", () => ({ BottomNav: () => null, isTabRoot: () => false }));
+vi.mock("../../mobile/src/components/BottomNav", () => ({ BottomNav: () => null, BottomNavDock: () => null, isTabRoot: () => false }));
 vi.mock("../../mobile/src/components/GuestShell", () => ({
   GuestShell: ({ onSignIn }: { onSignIn: () => void }) => (
     <button type="button" onClick={onSignIn}>

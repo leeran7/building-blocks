@@ -17,7 +17,7 @@ import { TrainingScreen } from "./screens/TrainingScreen";
 import { SkinDetailsScreen } from "./screens/SkinDetailsScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
-import { BottomNav, isTabRoot } from "./components/BottomNav";
+import { BottomNavDock, isTabRoot } from "./components/BottomNav";
 import { useNativeShell } from "./lib/useNativeShell";
 import { useAuth } from "./contexts/AuthContext";
 import { useLevels } from "./contexts/LevelsContext";
@@ -83,7 +83,8 @@ export function App() {
               path="*"
               element={
                 <RouteTransition>
-                  <Routes>
+                  {(routeLocation) => (
+                  <Routes location={routeLocation}>
                     {/* Levels are the main game: the map is home (design doc §2).
                         Endless, Daily, Quick Play and Challenge live on Modes. */}
                     <Route path="/" element={<LevelMapScreen />} />
@@ -98,6 +99,7 @@ export function App() {
                     <Route path="/settings" element={<SettingsScreen />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
+                  )}
                 </RouteTransition>
               }
             />
@@ -108,8 +110,9 @@ export function App() {
           <SignInScreen onGuestContinue={enterGuest} />
         )}
       </div>
-      {/* Single BottomNav instance — never unmounts on hub route changes */}
-      {showNav && <BottomNav />}
+      {/* Single BottomNav instance — never unmounts on hub route changes, and
+          slides away (or back) with the screen when leaving a tab. */}
+      {authed && <BottomNavDock show={showNav} />}
     </div>
   );
 }

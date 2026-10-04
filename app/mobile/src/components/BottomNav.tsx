@@ -1,5 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import { tapLight } from "../lib/haptics";
+import { prefersReducedMotion } from "../lib/motion";
 
 const TABS = [
   { label: "Levels", path: "/", icon: MapIcon },
@@ -20,9 +22,63 @@ export function isTabRoot(pathname: string): boolean {
   return TAB_PATHS.has(pathname);
 }
 
-export function BottomNav() {
-  const navigate = useNavigate();
+/**
+ * The tab bar's slot in the App column. Leaving a tab for a pushed screen, the
+ * bar lifts out of the layout (the screen gets the full height at once) and
+ * slides down behind it; coming back, it takes its slot and slides up. It
+ * keeps highlighting the tab it was on while it slides away.
+ */
+export function BottomNavDock({ show }: { show: boolean }) {
   const { pathname } = useLocation();
+  const [leaving, setLeaving] = useState(false);
+  const [wasShown, setWasShown] = useState(show);
+  const lastTab = useRef(pathname);
+  if (show) lastTab.current = pathname;
+
+  // Derived state: start the exit on the render that hides the bar.
+  if (show !== wasShown) {
+    setWasShown(show);
+    setLeaving(!show && !prefersReducedMotion());
+  }
+
+  useEffect(() => {
+    if (!leaving) return;
+    // animationend ends it; this covers a WebView backgrounded mid-slide.
+    const id = window.setTimeout(() => setLeaving(false), 900);
+    return () => window.clearTimeout(id);
+  }, [leaving]);
+
+  if (!show && !leaving) return null;
+  return (
+    <div
+      className={show ? "nav-dock nav-dock-in" : "nav-dock nav-dock-out"}
+      inert={!show}
+      onAnimationEnd={(e) => {
+        if (!show && e.target === e.currentTarget) setLeaving(false);
+      }}
+    >
+      <BottomNav activePath={lastTab.current} />
+      <style>{`
+        .nav-dock-out {
+          position: absolute; left: 0; right: 0; bottom: 0; z-index: 20;
+          pointer-events: none;
+          animation: navDockOut 0.24s cubic-bezier(0.4, 0, 1, 1) both;
+        }
+        .nav-dock-in { animation: navDockIn 0.36s cubic-bezier(0.2, 0, 0, 1) both; }
+        @keyframes navDockOut { to { transform: translate3d(0, 100%, 0); opacity: 0; } }
+        @keyframes navDockIn { from { transform: translate3d(0, 100%, 0); opacity: 0; } }
+        @media (prefers-reduced-motion: reduce) {
+          .nav-dock-in, .nav-dock-out { animation: none; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export function BottomNav({ activePath }: { activePath?: string } = {}) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const pathname = activePath ?? location.pathname;
 
   return (
     <div

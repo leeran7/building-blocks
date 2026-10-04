@@ -19,6 +19,8 @@ const PARENT_ROUTES: ReadonlyMap<string, string> = new Map([
 ]);
 
 export function parentRoute(pathname: string): string {
+  // Skin Details (/shop/<character>) sits under the Shop tab.
+  if (pathname.startsWith("/shop/")) return "/shop";
   return PARENT_ROUTES.get(pathname) ?? HOME_ROUTE;
 }
 

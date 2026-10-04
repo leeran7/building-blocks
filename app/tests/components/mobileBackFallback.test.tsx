@@ -15,7 +15,7 @@
 
 import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { HashRouter, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { HashRouter, MemoryRouter, Route, Routes, useLocation, useNavigate, type Location } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -103,15 +103,14 @@ const path = () => container.querySelector("[data-testid=path]")?.textContent;
 
 /** Every route renders a label inside the real RouteTransition. */
 const transitionTree = () =>
-  createElement(
-    RouteTransition,
-    null,
-    createElement(
-      Routes,
-      null,
-      ...["/", ...ROUTE_PATHS].map((p) => createElement(Route, { key: p, path: p, element: createElement("p", null, p) })),
-    ),
-  );
+  createElement(RouteTransition, {
+    children: (location: Location) =>
+      createElement(
+        Routes,
+        { location },
+        ...["/", ...ROUTE_PATHS].map((p) => createElement(Route, { key: p, path: p, element: createElement("p", null, p) })),
+      ),
+  });
 
 function touch(target: Element, type: string, clientX: number) {
   const event = new Event(type, { bubbles: true, cancelable: true });
@@ -165,33 +164,11 @@ afterEach(() => {
 const sceneOf = (route: string) =>
   [...container.querySelectorAll("p")].find((p) => p.textContent === route)?.parentElement ?? null;
 
-describe("RouteTransition: tab roots fade in as hubs, other screens push", () => {
-  it.each(["/", "/modes", "/profile"])("wraps the %s tab root in the hub fade", async (tab) => {
-    await mount([tab], transitionTree());
-    const scene = sceneOf(tab);
-    expect(scene?.classList.contains("route-fade")).toBe(true);
-    expect(scene?.classList.contains("route-scene")).toBe(true);
-    expect(scene?.classList.contains("route-push")).toBe(false);
-  });
-
-  it("gives Modes and Profile exactly the wrapper Home gets", async () => {
-    const wrappers: Array<string | undefined> = [];
-    for (const tab of ["/", "/modes", "/profile"]) {
-      await mount([tab], transitionTree());
-      wrappers.push(sceneOf(tab)?.className);
-      const r = root;
-      if (r) act(() => r.unmount());
-      root = null;
-    }
-    expect(wrappers[0]).toBe("route-fade route-scene");
-    expect(wrappers).toEqual([wrappers[0], wrappers[0], wrappers[0]]);
-  });
-
-  it.each(["/profile/edit", "/profile/avatar", "/challenge", "/leaderboard"])("slides %s in as a pushed screen", async (screen) => {
+describe("RouteTransition: the first screen", () => {
+  it.each(["/", "/modes", "/profile", "/profile/edit", "/challenge"])("fades %s in on launch with nothing leaving", async (screen) => {
     await mount([screen], transitionTree());
-    const scene = sceneOf(screen);
-    expect(scene?.classList.contains("route-push")).toBe(true);
-    expect(scene?.classList.contains("route-fade")).toBe(false);
+    expect(sceneOf(screen)?.className).toBe("route-scene route-enter-initial");
+    expect(container.querySelectorAll(".route-scene")).toHaveLength(1);
   });
 });
 
@@ -202,6 +179,7 @@ describe("parentRoute", () => {
     expect(parentRoute("/settings")).toBe("/profile");
     expect(parentRoute("/challenge")).toBe("/");
     expect(parentRoute("/leaderboard")).toBe("/modes");
+    expect(parentRoute("/shop/wraith")).toBe("/shop");
     expect(parentRoute("/duel/abc")).toBe("/");
     // Inherited object keys are not routes.
     expect(parentRoute("constructor")).toBe("/");
@@ -227,11 +205,11 @@ describe("swipe-back on a pushed screen", () => {
     expect(path()).toBe(tab);
   });
 
-  it("pops back to the tab it was pushed from, which fades in as a hub", async () => {
+  it("pops back to the tab it was pushed from, which slides in from the left", async () => {
     await mount(["/profile", "/profile/edit"], transitionTree());
     await swipeBack();
     expect(path()).toBe("/profile");
-    expect(sceneOf("/profile")?.classList.contains("route-fade")).toBe(true);
+    expect(sceneOf("/profile")?.classList.contains("route-enter-pop")).toBe(true);
   });
 
   it("pops to the previous in-app screen when there is one", async () => {
