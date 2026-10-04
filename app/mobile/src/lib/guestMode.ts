@@ -46,13 +46,15 @@ export function useGuestMode(): { guestMode: boolean; enterGuest: () => void; ex
 
 /** Run nudge shown this launch, for when storage refuses the write: never twice. */
 let nudgeShownThisLaunch = false;
+/** Runs counted this launch, for when storage refuses the write. */
+let runsThisLaunch = 0;
 
 function readCount(): number {
   try {
     const n = Number(localStorage.getItem(GUEST_RUNS_KEY));
-    return Number.isInteger(n) && n > 0 ? n : 0;
+    return Math.max(runsThisLaunch, Number.isInteger(n) && n > 0 ? n : 0);
   } catch {
-    return 0;
+    return runsThisLaunch;
   }
 }
 
@@ -72,6 +74,7 @@ function nudgeShown(): boolean {
  */
 export function recordGuestEndlessRun(): boolean {
   const count = readCount() + 1;
+  runsThisLaunch = count;
   try {
     localStorage.setItem(GUEST_RUNS_KEY, String(count));
   } catch {
@@ -90,4 +93,5 @@ export function recordGuestEndlessRun(): boolean {
 /** Tests only: forget the in-memory flag along with storage. */
 export function resetGuestNudgeForTests(): void {
   nudgeShownThisLaunch = false;
+  runsThisLaunch = 0;
 }

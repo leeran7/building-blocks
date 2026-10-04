@@ -141,6 +141,18 @@ describe("guest run counter", () => {
     expect(recordGuestEndlessRun()).toBe(false);
   });
 
+  it("still nudges on the third run when storage refuses every read and write", () => {
+    const denied = () => {
+      throw new Error("denied");
+    };
+    vi.stubGlobal("localStorage", { getItem: denied, setItem: denied, removeItem: denied, clear: denied });
+    try {
+      expect([1, 2, 3, 4].map(() => recordGuestEndlessRun())).toEqual([false, false, true, false]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("reads a corrupt count as zero", () => {
     localStorage.setItem(GUEST_RUNS_KEY, "lots");
     expect(recordGuestEndlessRun()).toBe(false);

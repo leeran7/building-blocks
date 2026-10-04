@@ -344,6 +344,25 @@ describe("A failed visibility toggle says why on screen", () => {
     expect(alerts()).toEqual([VISIBILITY_NOT_SAVED]);
   });
 
+  it("ignores a second tap while the first save is in flight, so two saves never race", async () => {
+    state.settings = settings({ leaderboardConsent: true });
+    let answer!: (r: Response) => void;
+    apiFetch.mockImplementationOnce(() => new Promise<Response>((done) => (answer = done)));
+    renderSettings();
+    await click(visibility());
+    await click(visibility());
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(visibility()?.getAttribute("aria-checked")).toBe("false");
+    await act(async () => answer(json(settings({ leaderboardConsent: false }))));
+    expect(visibility()?.getAttribute("aria-checked")).toBe("false");
+    expect(alerts()).toEqual([]);
+    // Once it settles, the switch takes taps again.
+    apiFetch.mockResolvedValueOnce(json(settings({ leaderboardConsent: true })));
+    await click(visibility());
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+    expect(visibility()?.getAttribute("aria-checked")).toBe("true");
+  });
+
   it("clears the message when the retry succeeds", async () => {
     apiFetch.mockResolvedValueOnce(json({}, 500));
     renderSettings();

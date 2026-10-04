@@ -86,15 +86,24 @@ export function SettingsScreen() {
   };
 
   // Flips at once; flips back with a message unless the server echoes it.
+  // Taps while a save is in flight are ignored, so two saves never race and
+  // the switch always shows what the server last confirmed.
+  const savingVisibility = useRef(false);
   const toggleLeaderboard = async () => {
+    if (savingVisibility.current) return;
+    savingVisibility.current = true;
     const next = !leaderboardVisible;
     setLeaderboardVisible(next);
     setVisibilityError(null);
     if (next) void tapLight();
-    if (await saveConsent(next)) return;
-    setLeaderboardVisible(!next);
-    setVisibilityError(VISIBILITY_NOT_SAVED);
-    void notifyError();
+    try {
+      if (await saveConsent(next)) return;
+      setLeaderboardVisible(!next);
+      setVisibilityError(VISIBILITY_NOT_SAVED);
+      void notifyError();
+    } finally {
+      savingVisibility.current = false;
+    }
   };
 
   const deleteAccount = async () => {
