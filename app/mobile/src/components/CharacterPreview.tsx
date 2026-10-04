@@ -11,6 +11,21 @@ const FIGURE_PX = 132;
 const SIZE_PX = 168;
 /** The figure's feet sit this far above the canvas's bottom edge, CSS px. */
 export const PREVIEW_FOOT_PAD = 8;
+/**
+ * How far above the skull top a character's art can reach, as a share of the
+ * figure height: horns, ears, crests, and hands over the head on the climb.
+ * The tallest in the registry is the Void Ibex walking, 0.41 of its skull
+ * height with the walk's bob; a test measures every cell of every sheet.
+ */
+export const PREVIEW_HEADROOM = 0.44;
+
+/**
+ * The canvas size (sizePx) that shows any character whole at this figure
+ * height: the foot pad, the figure, and room above the skull for its horns.
+ */
+export function previewSize(figurePx: number): number {
+  return Math.ceil(figurePx * (1 + PREVIEW_HEADROOM)) + PREVIEW_FOOT_PAD;
+}
 /** In-game speeds (m/s) so the cycles step at the pace they do in a run. */
 const WALK_MPS = 13;
 const CLIMB_MPS = 3.2;
@@ -57,7 +72,11 @@ export function CharacterPreview({
   locked: boolean;
   /** Figure height in CSS px, feet to the top of the head. */
   figurePx?: number;
-  /** Canvas width and height in CSS px; the figure stands centred on its bottom edge. */
+  /**
+   * Canvas width and height in CSS px; the figure stands centred on its bottom
+   * edge. Anything above the skull (horns, a crest) is cut off at the canvas
+   * top unless sizePx leaves room for it: previewSize(figurePx) does.
+   */
   sizePx?: number;
   /** Save frames on a screen that stays open: see above. */
   ambient?: boolean;

@@ -14,7 +14,7 @@ import { OutOfLives, type RefillOffer } from "./LevelStartSheet";
 import { ChestCollected, ChestReveal } from "./ChestOpening";
 import { ArrowRight } from "./LevelIcons";
 import { RewardReveal } from "../RewardReveal";
-import { CharacterPreview } from "../CharacterPreview";
+import { CharacterPreview, previewSize } from "../CharacterPreview";
 import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
 
 /**
@@ -286,7 +286,7 @@ function UnlockedAvatars({ ids }: { ids: string[] }) {
       {next && (
         <RewardReveal
           key={next.id}
-          subject={<CharacterPreview avatarId={next.id} pose="idle" locked={false} figurePx={190} sizePx={230} />}
+          subject={<CharacterPreview avatarId={next.id} pose="idle" locked={false} figurePx={190} sizePx={previewSize(190)} />}
           eyebrow={next.name === "Stick figures" ? "New characters unlocked" : "New character unlocked"}
           title={next.name}
           detail="Pick it in Choose Character."

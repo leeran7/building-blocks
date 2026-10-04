@@ -233,15 +233,13 @@ describe("swipe-back on a pushed screen", () => {
     expect(path()).toBe("/leaderboard");
   });
 
-  it("goes to the parent after the pop animation when motion is allowed", async () => {
+  it("goes to the parent the moment the finger lets go when motion is allowed, as a pop", async () => {
     shell.reduceMotion = false;
     await mount(["/profile/edit"], transitionTree());
     await swipeBack();
-    expect(path()).toBe("/profile/edit");
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 260));
-    });
+    // No wait for a slide to finish: the parent arrives while the swiped screen leaves beside it.
     expect(path()).toBe("/profile");
+    expect(sceneOf("/profile")?.dataset.routeKind).toBe("pop");
   });
 });
 

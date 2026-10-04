@@ -146,7 +146,7 @@ describe("transitionKind", () => {
 });
 
 describe("scene motion", () => {
-  const base = { swiped: false, reduce: false };
+  const base = { swiped: false, swipeVelocity: 0, reduce: false };
   it("pushes in from the right and pops in from the left, both fading up", () => {
     expect(sceneEnterFrom({ ...base, kind: "push" })).toMatchObject({ opacity: 0, x: 56 });
     expect(sceneEnterFrom({ ...base, kind: "pop" })).toMatchObject({ opacity: 0, x: -40 });
@@ -162,14 +162,23 @@ describe("scene motion", () => {
     expect(exitS).toBeLessThan(fade.delay + fade.duration);
   });
 
-  it("drops a swiped-away screen at once instead of animating it back", () => {
-    expect(sceneExitTo({ ...base, kind: "pop", swiped: true })).toEqual({ opacity: 0, transition: { duration: 0 } });
+  it("carries a swiped-away screen on off the right edge at the finger's speed, the one behind fading in at once", () => {
+    const swiped = { ...base, kind: "pop" as const, swiped: true, swipeVelocity: 1200 };
+    const exit = sceneExitTo(swiped);
+    expect(exit).toMatchObject({ x: window.innerWidth, transition: { velocity: 1200 } });
+    // It stays solid on its way out: the screen behind is what fades.
+    expect(exit).not.toHaveProperty("opacity");
+    const fade = (sceneRest(swiped).transition as { opacity: { delay: number } }).opacity;
+    expect(fade.delay).toBe(0);
+    expect(sceneEnterFrom(swiped)).toMatchObject({ opacity: 0, x: -40 });
+    expect(sceneExitTo({ ...swiped, reduce: true })).toEqual({ opacity: 0, transition: { duration: 0 } });
   });
 
   it("moves nothing under reduced motion", () => {
-    expect(sceneEnterFrom({ kind: "push", swiped: false, reduce: true })).toEqual({ opacity: 1, x: 0, y: 0, scale: 1 });
-    expect(sceneRest({ kind: "push", swiped: false, reduce: true }).transition).toEqual({ duration: 0 });
-    expect(sceneExitTo({ kind: "push", swiped: false, reduce: true }).transition).toEqual({ duration: 0 });
+    const reduced = { ...base, kind: "push" as const, reduce: true };
+    expect(sceneEnterFrom(reduced)).toEqual({ opacity: 1, x: 0, y: 0, scale: 1 });
+    expect(sceneRest(reduced).transition).toEqual({ duration: 0 });
+    expect(sceneExitTo(reduced).transition).toEqual({ duration: 0 });
   });
 });
 
@@ -234,8 +243,8 @@ function touch(target: Element, type: string, clientX: number) {
   target.dispatchEvent(event);
 }
 
-describe("swipe-back racing another back", () => {
-  it("steps back once when Back is pressed while the swiped screen is still sliding away", async () => {
+describe("swipe-back", () => {
+  it("steps back the moment the finger lets go, the swiped screen leaving beside the one behind", async () => {
     await mount(["/profile", "/settings", "/shop/wraith"]);
     const scene = sceneOf("/shop/wraith");
     if (!scene) throw new Error("scene not found");
@@ -244,12 +253,22 @@ describe("swipe-back racing another back", () => {
         touch(scene, type, x);
       });
     }
-    // Header Back (or Android back) lands before the swipe's own delayed back.
-    await go(-1);
-    expect(sceneOf("/settings")).not.toBeNull();
-    await settle(300);
+    // No wait for a slide to finish first: the screen behind is entering already.
     expect(sceneOf("/settings")?.dataset.routeRole).toBe("enter");
-    expect(sceneOf("/profile")).toBeNull();
+    expect(sceneOf("/shop/wraith")?.dataset.routeRole).toBe("exit");
+    expect(sceneOf("/shop/wraith")?.dataset.routeKind).toBe("pop");
+    await settle();
+    expect(scenes().map((s) => s.textContent)).toEqual(["/settings"]);
+  });
+
+  it("tells the screen it lands on that it was popped to, and a pushed one that it was not", async () => {
+    await mount(["/shop", "/shop/wraith"]);
+    expect(sceneOf("/shop/wraith")?.dataset.routeKind).toBe("initial");
+    await go(-1);
+    expect(sceneOf("/shop")?.dataset.routeKind).toBe("pop");
+    await settle();
+    await go("/shop/wraith");
+    expect(sceneOf("/shop/wraith")?.dataset.routeKind).toBe("hero");
   });
 });
 

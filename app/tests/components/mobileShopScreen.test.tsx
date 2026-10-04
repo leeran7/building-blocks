@@ -9,6 +9,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MotionGlobalConfig } from "motion/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -39,6 +40,7 @@ import { skinsOf } from "@app/lib/avatars";
 import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
 import { ShopProvider } from "../../mobile/src/contexts/ShopContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
+import { SceneContext, type TransitionKind } from "../../mobile/src/components/RouteTransition";
 import { FEATURED_CHARACTER_ID, SHOP_CHARACTERS, ShopScreen } from "../../mobile/src/screens/ShopScreen";
 import { SkinDetailsScreen } from "../../mobile/src/screens/SkinDetailsScreen";
 
@@ -57,7 +59,8 @@ afterEach(() => {
   container.remove();
 });
 
-async function renderShop() {
+/** `arrivedBy`: the transition RouteTransition would say the Shop's screen arrived by. */
+async function renderShop(arrivedBy: TransitionKind = "initial") {
   let stored: string | null = null;
   const client = createMockLevelsClient({ load: () => stored, save: (raw) => void (stored = raw) });
   await act(async () => {
@@ -65,10 +68,12 @@ async function renderShop() {
       <MemoryRouter initialEntries={["/shop"]}>
         <LevelsProvider client={client}>
           <ShopProvider>
-            <Routes>
-              <Route path="/shop" element={<ShopScreen />} />
-              <Route path="/shop/:characterId" element={<SkinDetailsScreen />} />
-            </Routes>
+            <SceneContext.Provider value={arrivedBy}>
+              <Routes>
+                <Route path="/shop" element={<ShopScreen />} />
+                <Route path="/shop/:characterId" element={<SkinDetailsScreen />} />
+              </Routes>
+            </SceneContext.Provider>
           </ShopProvider>
         </LevelsProvider>
       </MemoryRouter>,
@@ -146,5 +151,37 @@ describe("Shop characters", () => {
     await renderShop();
     await click(card("lynx"));
     expect(checkedLook()).toBe("lynx-void");
+  });
+});
+
+describe("the Shop's entrance", () => {
+  // Real Motion here (the suite's setup skips animations): the first frame
+  // shows whether the cards start hidden. happy-dom's WAAPI stub rejects on
+  // cancel, so Motion falls back to its own frame loop.
+  const realAnimate = Element.prototype.animate;
+  beforeEach(() => {
+    MotionGlobalConfig.skipAnimations = false;
+    delete (Element.prototype as Partial<Element>).animate;
+  });
+  afterEach(() => {
+    MotionGlobalConfig.skipAnimations = true;
+    Element.prototype.animate = realAnimate;
+  });
+
+  /** The last card: the one whose rise, staggered, starts latest. */
+  const lastRow = () => {
+    const rows = document.querySelectorAll("[data-shop-character]");
+    return rows[rows.length - 1]?.closest("li") as HTMLElement | null;
+  };
+
+  it("rises the cards in when the Shop opens", async () => {
+    await renderShop();
+    // Still on its way up from opacity 0 as the render returns.
+    expect(Number(lastRow()?.style.opacity)).toBeLessThan(0.5);
+  });
+
+  it("has the cards in place already on the way back from Skin Details", async () => {
+    await renderShop("pop");
+    expect(Number(lastRow()?.style.opacity)).toBe(1);
   });
 });

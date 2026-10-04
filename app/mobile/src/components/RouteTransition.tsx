@@ -1,5 +1,5 @@
 import { useLocation, useNavigationType, type Location, type NavigationType } from "react-router-dom";
-import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import {
   AnimatePresence,
   LayoutGroup,
@@ -32,7 +32,9 @@ import { isTabRoot } from "./BottomNav";
  *   preview (a shared layoutId), so the new screen holds still and lets its
  *   content rise in around it while the Shop fades away.
  * - pop: the same in reverse (Back, Android back, a swipe from the left edge).
- *   After a swipe the screen is already off to the right, so it just goes.
+ *   A swiped screen steps back the moment the finger lets go and carries on
+ *   off the right edge at the finger's speed, while the screen behind arrives
+ *   under it at once: no gap of bare backdrop between the two.
  *
  * A LayoutGroup spans both screens, so an element tagged with the same
  * `layoutId` on each (the Shop card's character and Skin Details' preview)
@@ -56,8 +58,10 @@ export function transitionKind(from: string, to: string, navType: NavigationType
 /** What the screens animate with for one transition: read by both of them. */
 export interface SceneCustom {
   kind: TransitionKind;
-  /** The leaving screen was swiped away and is already off screen. */
+  /** The leaving screen was swiped away: it carries on off the right edge. */
   swiped: boolean;
+  /** How fast the finger let go of a swiped screen, px/s (0 otherwise). */
+  swipeVelocity: number;
   reduce: boolean;
 }
 
@@ -75,16 +79,18 @@ export function sceneEnterFrom({ kind, reduce }: SceneCustom): TargetAndTransiti
 }
 
 /** Where a screen comes to rest, and how it gets there. */
-export function sceneRest({ kind, reduce }: SceneCustom): TargetAndTransition {
-  const transition = reduce
-    ? { duration: 0 }
-    : { ...spring.smooth, opacity: fadeIn(kind === "push" || kind === "pop" ? 0.08 : 0.06) };
+export function sceneRest({ kind, swiped, reduce }: SceneCustom): TargetAndTransition {
+  // Behind a swiped screen there is no wait: it is already part way off.
+  const delay = swiped ? 0 : kind === "push" || kind === "pop" ? 0.08 : 0.06;
+  const transition = reduce ? { duration: 0 } : { ...spring.smooth, opacity: fadeIn(delay) };
   return { opacity: 1, x: 0, y: 0, scale: 1, transition };
 }
 
 /** Where a screen goes when it leaves. */
-export function sceneExitTo({ kind, swiped, reduce }: SceneCustom): TargetAndTransition {
-  if (reduce || swiped) return { opacity: 0, transition: { duration: 0 } };
+export function sceneExitTo({ kind, swiped, swipeVelocity, reduce }: SceneCustom): TargetAndTransition {
+  if (reduce) return { opacity: 0, transition: { duration: 0 } };
+  // The finger took it part of the way; it carries on off the edge at that speed.
+  if (swiped) return { x: window.innerWidth, transition: { ...spring.smooth, velocity: swipeVelocity } };
   if (kind === "push") return { opacity: 0, x: -24, transition: leave };
   if (kind === "hero") return { opacity: 0, transition: { duration: duration.exit * 0.7, ease: ease.in } };
   if (kind === "pop") return { opacity: 0, x: 32, transition: leave };
@@ -93,8 +99,8 @@ export function sceneExitTo({ kind, swiped, reduce }: SceneCustom): TargetAndTra
 
 const SCENE_VARIANTS = { enter: sceneEnterFrom, rest: sceneRest, exit: sceneExitTo };
 
-/** Set by a swipe-back just before it navigates: that screen has already left. */
-let swipedAway: string | null = null;
+/** Set by a swipe-back as it navigates: that screen is leaving at this speed (px/s). */
+let swipedAway: { pathname: string; velocity: number } | null = null;
 
 interface SceneState {
   id: number;
@@ -102,6 +108,14 @@ interface SceneState {
   key: string;
   kind: TransitionKind;
   swiped: boolean;
+  swipeVelocity: number;
+}
+
+/** The transition the screen around a component arrived by: "pop" when the user came back to it. */
+export const SceneContext = createContext<TransitionKind>("initial");
+
+export function useSceneKind(): TransitionKind {
+  return useContext(SceneContext);
 }
 
 export function RouteTransition({ children }: { children: (location: Location) => ReactNode }) {
@@ -113,12 +127,14 @@ export function RouteTransition({ children }: { children: (location: Location) =
     key: location.key,
     kind: "initial",
     swiped: false,
+    swipeVelocity: 0,
   }));
 
   // Adopt a new location during render (React's derived-state pattern), so the
   // first frame of the new screen already has the old one leaving beside it.
   let shown = scene;
   if (scene.key !== location.key) {
+    const swipe = swipedAway !== null && swipedAway.pathname === scene.pathname ? swipedAway : null;
     shown =
       scene.pathname === location.pathname
         ? // Same screen, new entry (a tab tapped twice): no transition, no remount.
@@ -128,7 +144,8 @@ export function RouteTransition({ children }: { children: (location: Location) =
             pathname: location.pathname,
             key: location.key,
             kind: transitionKind(scene.pathname, location.pathname, navType),
-            swiped: swipedAway === scene.pathname,
+            swiped: swipe !== null,
+            swipeVelocity: swipe?.velocity ?? 0,
           };
     setScene(shown);
   }
@@ -137,7 +154,12 @@ export function RouteTransition({ children }: { children: (location: Location) =
     swipedAway = null;
   }, [location.key]);
 
-  const custom: SceneCustom = { kind: shown.kind, swiped: shown.swiped, reduce: prefersReducedMotion() };
+  const custom: SceneCustom = {
+    kind: shown.kind,
+    swiped: shown.swiped,
+    swipeVelocity: shown.swipeVelocity,
+    reduce: prefersReducedMotion(),
+  };
 
   return (
     <div className="route-stage">
@@ -196,8 +218,7 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
     },
     [],
   );
-  // Leaving: a pending swipe step (the delayed back) must not also run, or
-  // Back pressed mid-swipe would step back twice.
+  // Leaving: the spring-back's settle timer has nothing left to settle.
   useEffect(() => {
     if (present) return;
     timers.current.forEach((id) => window.clearTimeout(id));
@@ -263,31 +284,28 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
     const dragged = lastX.current;
     const flick = vel.current > POP_VELOCITY && dragged > 40;
     const shouldPop = dragged > width * POP_RATIO || flick;
+    const reduce = prefersReducedMotion();
 
-    const goBack = () => {
+    if (shouldPop) {
+      // Step back now: the screen behind arrives while this one carries on off
+      // the edge at the finger's speed (px/ms → px/s) as its exit (sceneExitTo).
+      // Not an animate(x, …) of its own: that would strand the exit.
+      settling.current = true;
+      swipedAway = { pathname, velocity: reduce ? 0 : Math.max(0, vel.current) * 1000 };
       void tapLight();
-      swipedAway = pathname;
       back();
-    };
-
-    if (prefersReducedMotion()) {
-      if (shouldPop) goBack();
-      else x.set(0);
       return;
     }
-
-    settling.current = true;
-    if (shouldPop) {
-      // Carry the finger's speed (px/ms → px/s) into the slide off screen.
-      void animate(x, width, { ...spring.smooth, velocity: vel.current * 1000 });
-      later(goBack, 220);
-    } else {
-      // Spring back: the overshoot says the screen resisted dismissal.
-      void animate(x, 0, spring.bouncy);
-      later(() => {
-        settling.current = false;
-      }, 360);
+    if (reduce) {
+      x.set(0);
+      return;
     }
+    // Spring back: the overshoot says the screen resisted dismissal.
+    settling.current = true;
+    void animate(x, 0, spring.bouncy);
+    later(() => {
+      settling.current = false;
+    }, 360);
   };
 
   return (
@@ -318,7 +336,7 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
           }}
         />
       )}
-      {children}
+      <SceneContext.Provider value={kind}>{children}</SceneContext.Provider>
     </motion.div>
   );
 }
