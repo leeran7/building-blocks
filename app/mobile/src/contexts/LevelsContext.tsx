@@ -15,6 +15,7 @@ import { createHttpLevelsClient } from "../lib/levels/httpClient";
 import { season1Catalog } from "../lib/levels/catalog";
 import { withMockFallback } from "../lib/levels/fallbackClient";
 import { createBestFailStore, type BestFailStore } from "../lib/levels/nearMiss";
+import { createRunNoteStore, type RunNoteStore } from "../lib/levels/runNote";
 import type { BuyLivesResult, LevelsClient, PlayerStats, SeasonView } from "../lib/levels/model";
 
 /**
@@ -34,6 +35,8 @@ interface LevelsValue {
   setPlayer: (player: PlayerStats) => void;
   /** Best failed height per level, on this device (near-miss markers, §6.2). */
   bestFails: BestFailStore;
+  /** The run in progress on this device, so an interrupted run is mentioned on the map. */
+  runNotes: RunNoteStore;
   /**
    * Top lives up to full with gems, and apply the new lives and balance. Null
    * when no refill can be sold (the client or the season has no price).
@@ -48,6 +51,7 @@ export function LevelsProvider({
   client: injected,
   bestFails: injectedBestFails,
   guest = false,
+  runNotes: injectedRunNotes,
 }: {
   children: ReactNode;
   /** Tests and the screenshot harness pass their own client. */
@@ -58,6 +62,7 @@ export function LevelsProvider({
    * GUEST_LEVEL_CAP, loaded with no account. Never the server client.
    */
   guest?: boolean;
+  runNotes?: RunNoteStore;
 }) {
   const { user, loading: authLoading, isAnonymous } = useAuth();
   // A guest has no account here, whatever the auth state says.
@@ -72,6 +77,10 @@ export function LevelsProvider({
   const bestFails = useMemo(
     () => injectedBestFails ?? createBestFailStore({ accountId: uid }),
     [injectedBestFails, uid],
+  );
+  const runNotes = useMemo(
+    () => injectedRunNotes ?? createRunNoteStore({ accountId: uid }),
+    [injectedRunNotes, uid],
   );
   const [season, setSeason] = useState<SeasonView | null>(null);
   const [loading, setLoading] = useState(false);
@@ -130,9 +139,10 @@ export function LevelsProvider({
       refresh,
       setPlayer,
       bestFails,
+      runNotes,
       buyLives: canBuyLives ? buyLives : null,
     }),
-    [client, season, loading, error, refresh, setPlayer, bestFails, canBuyLives, buyLives],
+    [client, season, loading, error, refresh, setPlayer, bestFails, runNotes, canBuyLives, buyLives],
   );
   return <LevelsContext.Provider value={value}>{children}</LevelsContext.Provider>;
 }
