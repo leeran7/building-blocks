@@ -105,7 +105,7 @@ body,
 body {
   font-family: var(--font-sans);
   /* Safe areas are handled per-screen (ScreenHeader top, ScreenBody bottom,
-     HomeScreen inset props) — no body-level padding needed. */
+     the level map's own insets) — no body-level padding needed. */
 }
 
 /*

@@ -13,7 +13,7 @@ import { avatarButtonLabel, identityNameFor } from "../lib/identity";
 
 /**
  * Profile — the player's identity and standing. The Daily Climb itself is
- * played from Modes; its streak shows here.
+ * played from the map's mode rail; its streak shows here.
  * Name and socials are edited on the pushed Edit Profile screen (the pencil);
  * preferences and account actions live on Settings (the header gear), so this
  * page reads as a game card, not a form.
@@ -220,9 +220,10 @@ export function ProfileScreen() {
             <StreakCard
               streak={daily.streak}
               playedToday={daily.playedToday}
+              // The Daily is played from the map's mode rail, not from here.
               onPlay={() => {
                 void tapLight();
-                navigate("/modes");
+                navigate("/");
               }}
             />
 
@@ -283,7 +284,7 @@ function StatTile({ label, value, accent = false }: { label: string; value: stri
   );
 }
 
-/** Unplayed today, the card is the way to the Daily Climb on Modes (its one home). */
+/** Unplayed today, the card leads to the map, whose mode rail is the Daily Climb's one home. */
 function StreakCard({ streak, playedToday, onPlay }: { streak: number; playedToday: boolean; onPlay: () => void }) {
   const reset = formatReset(msUntilReset());
   const [title, detail] =

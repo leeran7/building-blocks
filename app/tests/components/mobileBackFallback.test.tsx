@@ -70,7 +70,7 @@ import { ChallengeScreen } from "../../mobile/src/screens/ChallengeScreen";
 import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
 
 /** Every route these tests mount: pushed screens and tab roots. */
-const ROUTE_PATHS = ["/leaderboard", "/modes", "/shop", "/profile", "/profile/edit", "/profile/avatar", "/challenge", "/climb"];
+const ROUTE_PATHS = ["/leaderboard", "/shop", "/profile", "/profile/edit", "/profile/avatar", "/challenge", "/climb"];
 
 function LocationProbe() {
   return createElement("output", { "data-testid": "path" }, useLocation().pathname);
@@ -165,7 +165,21 @@ const sceneOf = (route: string) =>
   [...container.querySelectorAll("p")].find((p) => p.textContent === route)?.closest<HTMLElement>(".route-scene") ?? null;
 
 describe("RouteTransition: the first screen", () => {
-  it.each(["/", "/modes", "/profile", "/profile/edit", "/challenge"])("fades %s in on launch with nothing leaving", async (screen) => {
+  it("gives Shop and Profile exactly the wrapper Home gets", async () => {
+    const wrappers: Array<string | undefined> = [];
+    for (const tab of ["/", "/shop", "/profile"]) {
+      await mount([tab], transitionTree());
+      const scene = sceneOf(tab);
+      wrappers.push(`${scene?.className}|${scene?.dataset.routeKind}`);
+      const r = root;
+      if (r) act(() => r.unmount());
+      root = null;
+    }
+    expect(wrappers[0]).toBe("route-scene|initial");
+    expect(wrappers).toEqual([wrappers[0], wrappers[0], wrappers[0]]);
+  });
+
+  it.each(["/", "/shop", "/profile", "/profile/edit", "/profile/avatar", "/challenge", "/leaderboard"])("fades %s in on launch with nothing leaving", async (screen) => {
     await mount([screen], transitionTree());
     expect(sceneOf(screen)?.dataset.routeKind).toBe("initial");
     expect(sceneOf(screen)?.dataset.routeRole).toBe("enter");
@@ -179,7 +193,7 @@ describe("parentRoute", () => {
     expect(parentRoute("/profile/avatar")).toBe("/profile");
     expect(parentRoute("/settings")).toBe("/profile");
     expect(parentRoute("/challenge")).toBe("/");
-    expect(parentRoute("/leaderboard")).toBe("/modes");
+    expect(parentRoute("/leaderboard")).toBe("/");
     expect(parentRoute("/shop/wraith")).toBe("/shop");
     expect(parentRoute("/duel/abc")).toBe("/");
     // Inherited object keys are not routes.
@@ -193,14 +207,14 @@ describe("swipe-back on a pushed screen", () => {
     ["/profile/edit", "/profile"],
     ["/profile/avatar", "/profile"],
     ["/challenge", "/"],
-    ["/leaderboard", "/modes"],
+    ["/leaderboard", "/"],
   ])("from a deep-linked %s goes to %s instead of leaving the app", async (from, to) => {
     await mount([from], transitionTree());
     await swipeBack();
     expect(path()).toBe(to);
   });
 
-  it.each(["/modes", "/profile"])("does nothing on the %s tab root, even with a tab behind it", async (tab) => {
+  it.each(["/shop", "/profile"])("does nothing on the %s tab root, even with a tab behind it", async (tab) => {
     await mount(["/", tab], transitionTree());
     await swipeBack();
     expect(path()).toBe(tab);
@@ -236,7 +250,7 @@ describe("Android hardware back", () => {
     ["/profile/edit", "/profile"],
     ["/profile/avatar", "/profile"],
     ["/challenge", "/"],
-    ["/leaderboard", "/modes"],
+    ["/leaderboard", "/"],
   ])("from a deep-linked %s goes to %s instead of leaving the app", async (from, to) => {
     await mount([from], createElement(NativeShellProbe));
     await pressAndroidBack();
@@ -268,11 +282,10 @@ describe("Android hardware back", () => {
   });
 
   it.each([
-    [["/modes"]],
     [["/shop"]],
     [["/profile"]],
-    [["/", "/modes"]],
-    [["/modes", "/profile"]],
+    [["/", "/shop"]],
+    [["/shop", "/profile"]],
   ])("minimises on a tab root like Home, never popping to another tab (%j)", async (entries) => {
     await mount(entries, createElement(NativeShellProbe));
     await pressAndroidBack();

@@ -19,7 +19,7 @@ const CANONICAL_HOST = new URL(API_BASE).host;
  *  - dark, edge-to-edge status bar to match the ASCENT void background;
  *  - Android hardware back button: on a pushed screen, navigate back through
  *    the in-app history (or to the screen's parent on a deep link, where there
- *    is none); on a tab root (Levels, Modes, Shop, Profile), background the app —
+ *    is none); on a tab root (Play, Shop, Profile), background the app —
  *    never exit mid-run;
  *  - universal / app links: a shared https challenge link (…/duel/:id) opens
  *    straight into the in-app race room instead of the browser.

@@ -561,6 +561,11 @@ function useAppData(): AppDataState {
   return ctx;
 }
 
+/** Whether an AppDataProvider is above: the level map runs without one for a guest. */
+export function useHasAppData(): boolean {
+  return useContext(Ctx) !== null;
+}
+
 /** Cached dashboard slice; fetches on mount if cold, revalidates if stale. */
 export function useDashboard() {
   const { dashboard, ensureDashboard } = useAppData();

@@ -164,7 +164,7 @@ async function mountDaily(path: string | string[] = "/climb?daily=1") {
             null,
             createElement(Route, { path: "/climb", element: <ClimbScreen onSignIn={onSignIn} /> }),
             createElement(Route, { path: "/leaderboard", element: createElement("p", null, "ranks screen") }),
-            createElement(Route, { path: "/modes", element: createElement("p", null, "modes screen") }),
+            createElement(Route, { path: "/", element: createElement("p", null, "map screen") }),
           ),
           createElement(LocationProbe),
           createElement(PopProbe),
@@ -264,12 +264,12 @@ describe("ClimbScreen daily mode", () => {
     expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/leaderboard?board=today");
   });
 
-  it("'See today's board' replaces the finished run, so Back from the board returns to Modes, not a fresh Daily", async () => {
-    await mountDaily(["/modes", "/climb?daily=1"]);
+  it("'See today's board' replaces the finished run, so Back from the board returns to the map, not a fresh Daily", async () => {
+    await mountDaily(["/", "/climb?daily=1"]);
     await click(buttonByText("See today’s board"));
     expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/leaderboard?board=today");
     await click(container!.querySelector('[data-testid="pop"]'));
-    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/modes");
+    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/");
   });
 
   it("saved while hidden says so instead of a rank", async () => {

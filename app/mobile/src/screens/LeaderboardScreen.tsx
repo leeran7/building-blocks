@@ -114,7 +114,7 @@ function dailyStanding(
 export function LeaderboardScreen() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  // Pushed from Modes, Profile or a Daily result; cold-opened, Back goes to Modes.
+  // Pushed from the mode rail, Profile or a Daily result; cold-opened, Back goes to the map.
   const goBack = useBackOr(parentRoute("/leaderboard"));
   const [searchParams] = useSearchParams();
   const board = searchParams.get("board");
