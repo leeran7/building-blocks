@@ -5,6 +5,7 @@ import { tapHeavy, tapLight } from "../lib/haptics";
 import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
 import { LivesSheet } from "../components/levels/LivesSheet";
+import { XpSheet } from "../components/levels/XpSheet";
 import { GemBalance } from "../components/store/GemBalance";
 import { useOptionalShop } from "../contexts/ShopContext";
 import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
@@ -67,6 +68,7 @@ export function LevelMapScreen() {
   // The mode rail reads the shared app data; a guest has none of its modes.
   const showRail = useHasAppData() && guest === null;
   const [livesOpen, setLivesOpen] = useState(false);
+  const [xpOpen, setXpOpen] = useState(false);
   const avatar = useEquippedAvatar();
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
@@ -258,7 +260,14 @@ export function LevelMapScreen() {
             />
           </span>
           <span data-tour="xp" className="inline-flex">
-            <XpBar player={season.player} compact />
+            <XpBar
+              player={season.player}
+              compact
+              onPress={() => {
+                void tapLight();
+                setXpOpen(true);
+              }}
+            />
           </span>
         </div>
         <p className="mt-2.5 text-center font-mono text-label uppercase tracking-eyebrow text-text-secondary">
@@ -383,6 +392,7 @@ export function LevelMapScreen() {
       {livesOpen && refill.offer && (
         <LivesSheet player={season.player} offer={refill.offer} onClose={() => setLivesOpen(false)} />
       )}
+      {xpOpen && <XpSheet season={season} guest={guest !== null} onClose={() => setXpOpen(false)} />}
       {refill.overlays}
       {touring && (
         <AppTour

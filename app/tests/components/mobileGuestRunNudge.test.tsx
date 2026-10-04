@@ -62,7 +62,7 @@ vi.mock("../../src/components/Game/ClimbCanvas", () => ({ ClimbCanvas: () => nul
 vi.mock("../../src/components/Game/ExpeditionHud", () => ({ ExpeditionHud: () => null }));
 vi.mock("../../src/components/Game/TouchControls", () => ({
   TouchControls: () => null,
-  useTouchControlsInset: () => 0,
+  touchControlsInset: () => 0,
 }));
 vi.mock("../../src/components/Game/usePowerUpFeedback", () => ({
   usePowerUpFeedback: () => ({ muted: false, setMuted: () => {}, announcement: null, unlockAudio: () => {} }),
