@@ -1,5 +1,7 @@
+import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../lib/api";
+import { sharedId, spring } from "../lib/motionTokens";
 import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
 import { useDashboard, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
@@ -65,7 +67,9 @@ export function ProfileScreen() {
 
   return (
     <main className="flex h-full flex-col">
-      <div
+      {/* layoutScroll: the avatar flies out from where it is scrolled to. */}
+      <motion.div
+        layoutScroll
         className="flex-1 overflow-y-auto px-4"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
@@ -99,12 +103,15 @@ export function ProfileScreen() {
                 onClick={openAvatarPicker}
                 className="relative shrink-0 rounded-2xl transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
               >
-                <HexAvatar
-                  userId={user?.uid ?? identityName}
-                  name={identityName}
-                  avatarId={settingsData?.avatarId ?? null}
-                  size={64}
-                />
+                {/* Flies into Choose character's preview or Edit profile's avatar (sharedId). */}
+                <motion.span layoutId={sharedId.myAvatar} layoutCrossfade={false} transition={spring.smooth} className="flex">
+                  <HexAvatar
+                    userId={user?.uid ?? identityName}
+                    name={identityName}
+                    avatarId={settingsData?.avatarId ?? null}
+                    size={64}
+                  />
+                </motion.span>
                 <span
                   aria-hidden
                   className="absolute -bottom-0.5 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-void bg-signal text-void"
@@ -255,7 +262,7 @@ export function ProfileScreen() {
             )}
           </div>
         )}
-      </div>
+      </motion.div>
     </main>
   );
 }

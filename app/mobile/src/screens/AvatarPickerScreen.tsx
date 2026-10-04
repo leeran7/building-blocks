@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { motion } from "motion/react";
+import { riseIn, sharedId, spring } from "../lib/motionTokens";
 import {
   AVATARS,
   CHARACTER_ENTRIES,
@@ -451,10 +453,13 @@ export function AvatarPickerScreen() {
       <PushHeader title="Choose character" onBack={goBack} headingRef={headingRef} />
 
       {settingsData && !loadFailed && (
-        <div data-avatar-pinned className="flex shrink-0 flex-col gap-2.5 px-4 pb-2">
+        // The details rise in around the avatar flying in from Profile or Edit profile.
+        <motion.div data-avatar-pinned initial="hidden" animate="shown" className="flex shrink-0 flex-col gap-2.5 px-4 pb-2">
           {/* The stage sits beside the details, not above them: a small square
               the figure fills, so it never floats under the pose switch. */}
-          <section
+          <motion.section
+            variants={riseIn}
+            custom={0}
             aria-label="Selected character"
             className="glass flex gap-3 overflow-hidden rounded-3xl border border-white/10 p-2.5"
           >
@@ -462,13 +467,16 @@ export function AvatarPickerScreen() {
               className="relative flex min-h-[132px] w-[112px] shrink-0 items-end justify-center overflow-hidden rounded-2xl border border-white/10 bg-cover bg-bottom"
               style={{ backgroundImage: `linear-gradient(180deg, rgba(10,10,12,0.45), rgba(10,10,12,0.05) 50%, rgba(10,10,12,0.35)), url(${volcanoScene})` }}
             >
-              <CharacterPreview
-                avatarId={viewing}
-                pose={pose}
-                locked={viewedLock !== null}
-                figurePx={PREVIEW_FIGURE_PX}
-                sizePx={PREVIEW_CANVAS_PX}
-              />
+              {/* Your avatar on Profile or Edit profile flies into this spot (sharedId). */}
+              <motion.div layoutId={sharedId.myAvatar} layoutCrossfade={false} transition={spring.smooth} className="flex">
+                <CharacterPreview
+                  avatarId={viewing}
+                  pose={pose}
+                  locked={viewedLock !== null}
+                  figurePx={PREVIEW_FIGURE_PX}
+                  sizePx={PREVIEW_CANVAS_PX}
+                />
+              </motion.div>
               {viewedLock && (
                 <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full border border-white/15 bg-void/80 px-1.5 py-1 font-mono text-[10px] font-bold uppercase leading-none tracking-label text-text-primary">
                   <LockIcon />
@@ -512,11 +520,11 @@ export function AvatarPickerScreen() {
                 ))}
               </div>
             </div>
-          </section>
+          </motion.section>
 
           {/* One slim line, not a card, so the grid below gets the height. */}
           {next && (
-            <div data-avatar-next className="flex items-center gap-2 px-0.5">
+            <motion.div variants={riseIn} custom={1} data-avatar-next className="flex items-center gap-2 px-0.5">
               <HexAvatar userId={userId} name={next.entry.name} avatarId={next.entry.id} size={NEXT_HEX} />
               <p className="shrink-0 text-meta text-text-secondary">
                 Next: <span className="font-semibold text-text-primary">{next.entry.name}</span> · {next.starsLeft}{" "}
@@ -525,21 +533,25 @@ export function AvatarPickerScreen() {
               <div aria-hidden className="h-1.5 min-w-8 flex-1 overflow-hidden rounded-full bg-elevated">
                 <div className="h-full rounded-full bg-signal" style={{ width: `${Math.round(next.progress * 100)}%` }} />
               </div>
-            </div>
+            </motion.div>
           )}
 
-          <p className="-mx-4 mt-1 flex items-center justify-between bg-void/60 px-4 py-2.5 font-mono text-label font-bold uppercase tracking-eyebrow">
+          <motion.p variants={riseIn} custom={2} className="-mx-4 mt-1 flex items-center justify-between bg-void/60 px-4 py-2.5 font-mono text-label font-bold uppercase tracking-eyebrow">
             <span className="text-text-primary">Your characters</span>
             <span className="text-signal">
               {counts.owned} / {counts.total} unlocked
             </span>
-          </p>
-        </div>
+          </motion.p>
+        </motion.div>
       )}
 
       {/* Takes every pixel between the pinned preview and the save bar; the
           grid scrolls inside it. */}
-      <div
+      <motion.div
+        variants={riseIn}
+        custom={3}
+        initial="hidden"
+        animate="shown"
         data-avatar-scroller
         className="min-h-0 flex-1 overflow-y-auto px-4"
         style={{
@@ -684,7 +696,7 @@ export function AvatarPickerScreen() {
             </div>
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Sticky save bar: the last row of the full-height page, outside the
           scroller so Save is reachable from any row, just above the home

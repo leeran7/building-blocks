@@ -93,4 +93,6 @@ export const riseIn = {
 export const sharedId = {
   /** The figure on a Shop card and the preview on Skin Details, per look. */
   shopLook: (lookId: string) => `shop-look-${lookId}`,
+  /** The player's own character: Profile's avatar, Edit profile's and the picker's preview. */
+  myAvatar: "my-avatar",
 } as const;

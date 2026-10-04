@@ -31,9 +31,11 @@ import { adjacentTab, isTabRoot, tabDirection } from "./BottomNav";
  *   slide: the old screen drifts left and is gone in the first third, the new
  *   one springs in from the right as it fades up, so the two never show at full
  *   strength on top of each other.
- * - hero: Shop → Skin Details. The tapped card's figure flies up into the
- *   preview (a shared layoutId), so the new screen holds still and lets its
- *   content rise in around it while the Shop fades away.
+ * - hero: Shop → Skin Details, and Profile → Choose character or Edit
+ *   profile (and Edit profile → Choose character). The tapped figure flies
+ *   into its place on the new screen (a shared layoutId), so the new screen
+ *   holds still and lets its content rise in around it while the old one
+ *   fades away.
  * - pop: the same in reverse (Back, Android back, a swipe from the left edge).
  *   A swiped screen steps back the moment the finger lets go and carries on
  *   off the right edge at the finger's speed, while the screen behind arrives
@@ -52,6 +54,9 @@ import { adjacentTab, isTabRoot, tabDirection } from "./BottomNav";
  */
 export type TransitionKind = "initial" | "tab" | "push" | "hero" | "pop" | "launch" | "land";
 
+/** Moves whose tapped figure flies into the next screen (besides Shop → a character). */
+const HERO_MOVES: ReadonlySet<string> = new Set(["/profile>/profile/avatar", "/profile>/profile/edit", "/profile/edit>/profile/avatar"]);
+
 /** Which transition a move from `from` to `to` gets. Pure, so tests can call it. */
 export function transitionKind(from: string, to: string, navType: NavigationType): TransitionKind {
   // Runs move on the depth axis whichever way the history went.
@@ -59,7 +64,7 @@ export function transitionKind(from: string, to: string, navType: NavigationType
   if (isGameRoute(from)) return "land";
   if (isTabRoot(from) && isTabRoot(to)) return "tab";
   if (navType === "POP") return "pop";
-  if (from === "/shop" && to.startsWith("/shop/")) return "hero";
+  if ((from === "/shop" && to.startsWith("/shop/")) || HERO_MOVES.has(`${from}>${to}`)) return "hero";
   // Back from a cold-opened screen replaces it with its parent (useBackOr).
   if (navType === "REPLACE" && parentRoute(from) === to) return "pop";
   if (isTabRoot(to) && !isTabRoot(from)) return "pop";

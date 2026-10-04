@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
+import { riseIn, sharedId, spring } from "../lib/motionTokens";
 import { apiFetch, API_BASE } from "../lib/api";
 import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
@@ -166,7 +168,12 @@ export function EditProfileScreen() {
     <main className="flex h-full flex-col">
       <PushHeader title="Edit profile" onBack={goBack} headingRef={headingRef} />
 
-      <div
+      {/* layoutScroll: the avatar flies to Choose character from where it is
+          scrolled to. The sections rise in around the avatar flying in from Profile. */}
+      <motion.div
+        layoutScroll
+        initial="hidden"
+        animate="shown"
         className="flex-1 overflow-y-auto px-4"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
@@ -184,87 +191,91 @@ export function EditProfileScreen() {
           </div>
         ) : (
           <div className="flex flex-col gap-3 pb-[calc(env(safe-area-inset-bottom)+16vh)]">
-            <Section title="Identity">
-              <div className="flex flex-col gap-4">
-                <AvatarRow
-                  userId={uid ?? identityName}
-                  name={identityName}
-                  avatarId={settingsData?.avatarId ?? null}
-                  onOpen={() => {
-                    void tapLight();
-                    if (uid && dirty) stashEditProfileDraft(uid, { displayName, username, social });
-                    navigate("/profile/avatar");
-                  }}
-                />
-                <Field label="Display name">
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder={pseudonym}
-                    maxLength={60}
-                    className={INPUT}
+            <motion.div variants={riseIn} custom={0}>
+              <Section title="Identity">
+                <div className="flex flex-col gap-4">
+                  <AvatarRow
+                    userId={uid ?? identityName}
+                    name={identityName}
+                    avatarId={settingsData?.avatarId ?? null}
+                    onOpen={() => {
+                      void tapLight();
+                      if (uid && dirty) stashEditProfileDraft(uid, { displayName, username, social });
+                      navigate("/profile/avatar");
+                    }}
                   />
-                </Field>
-                <Field label="Public username">
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                    placeholder="yourhandle"
-                    maxLength={30}
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    aria-invalid={usernameCheck ? !usernameCheck.valid : undefined}
-                    className={`${INPUT} font-medium`}
-                  />
-                  <UsernameHint check={usernameCheck} savedUsername={savedUsername} />
-                </Field>
-              </div>
-            </Section>
+                  <Field label="Display name">
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder={pseudonym}
+                      maxLength={60}
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="Public username">
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                      placeholder="yourhandle"
+                      maxLength={30}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      aria-invalid={usernameCheck ? !usernameCheck.valid : undefined}
+                      className={`${INPUT} font-medium`}
+                    />
+                    <UsernameHint check={usernameCheck} savedUsername={savedUsername} />
+                  </Field>
+                </div>
+              </Section>
+            </motion.div>
 
-            <Section title="Social accounts" subtitle="Shown on your public page.">
-              <div className="flex flex-col">
-                {SOCIAL_PLATFORMS.map((p) => {
-                  const value = social[p] ?? "";
-                  const check = value.trim() ? normalizeHandle(p, value) : null;
-                  const invalid = check ? !check.valid : false;
-                  return (
-                    <label
-                      key={p}
-                      className="flex items-center gap-3 border-b border-white/[0.07] py-2 last:border-0"
-                    >
-                      <span className="flex w-[6.75rem] shrink-0 items-center gap-2.5 text-text-primary">
-                        <SocialMark platform={p} className="h-5 w-5 shrink-0" />
-                        <span className="text-meta">{PLATFORM_META[p].label}</span>
-                      </span>
-                      <span
-                        className={`flex min-h-[44px] min-w-0 flex-1 items-center gap-1 rounded-xl border bg-[#0d0c10]/80 px-3 focus-within:border-signal ${
-                          invalid ? "border-ember/60" : "border-white/10"
-                        }`}
+            <motion.div variants={riseIn} custom={1}>
+              <Section title="Social accounts" subtitle="Shown on your public page.">
+                <div className="flex flex-col">
+                  {SOCIAL_PLATFORMS.map((p) => {
+                    const value = social[p] ?? "";
+                    const check = value.trim() ? normalizeHandle(p, value) : null;
+                    const invalid = check ? !check.valid : false;
+                    return (
+                      <label
+                        key={p}
+                        className="flex items-center gap-3 border-b border-white/[0.07] py-2 last:border-0"
                       >
-                        <span aria-hidden className="font-mono text-meta text-text-muted">
-                          @
+                        <span className="flex w-[6.75rem] shrink-0 items-center gap-2.5 text-text-primary">
+                          <SocialMark platform={p} className="h-5 w-5 shrink-0" />
+                          <span className="text-meta">{PLATFORM_META[p].label}</span>
                         </span>
-                        <input
-                          value={value}
-                          onChange={(e) => setSocial((s) => ({ ...s, [p]: e.target.value }))}
-                          placeholder={PLATFORM_META[p].example}
-                          maxLength={PLATFORM_META[p].maxLen + 4}
-                          autoCapitalize="none"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          aria-label={`${PLATFORM_META[p].label} handle`}
-                          aria-invalid={invalid || undefined}
-                          className="min-w-0 flex-1 bg-transparent py-2 font-mono text-meta text-text-primary placeholder:text-text-muted focus:outline-none"
-                        />
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </Section>
+                        <span
+                          className={`flex min-h-[44px] min-w-0 flex-1 items-center gap-1 rounded-xl border bg-[#0d0c10]/80 px-3 focus-within:border-signal ${
+                            invalid ? "border-ember/60" : "border-white/10"
+                          }`}
+                        >
+                          <span aria-hidden className="font-mono text-meta text-text-muted">
+                            @
+                          </span>
+                          <input
+                            value={value}
+                            onChange={(e) => setSocial((s) => ({ ...s, [p]: e.target.value }))}
+                            placeholder={PLATFORM_META[p].example}
+                            maxLength={PLATFORM_META[p].maxLen + 4}
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            aria-label={`${PLATFORM_META[p].label} handle`}
+                            aria-invalid={invalid || undefined}
+                            className="min-w-0 flex-1 bg-transparent py-2 font-mono text-meta text-text-primary placeholder:text-text-muted focus:outline-none"
+                          />
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </Section>
+            </motion.div>
 
             {error && (
               <p role="alert" className="px-1 text-meta text-ember">
@@ -282,7 +293,7 @@ export function EditProfileScreen() {
 
           </div>
         )}
-      </div>
+      </motion.div>
     </main>
   );
 }
@@ -306,7 +317,10 @@ function AvatarRow({
       aria-label={avatarButtonLabel(avatarId)}
       className="-mx-1 flex min-h-[56px] items-center gap-3 rounded-2xl px-1 text-left transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
     >
-      <HexAvatar userId={userId} name={name} avatarId={avatarId} size={48} />
+      {/* Profile's avatar flies into this one, and this one on into Choose character (sharedId). */}
+      <motion.span layoutId={sharedId.myAvatar} layoutCrossfade={false} transition={spring.smooth} className="flex">
+        <HexAvatar userId={userId} name={name} avatarId={avatarId} size={48} />
+      </motion.span>
       <span className="min-w-0 flex-1">
         <span className="block text-body font-medium text-text-primary">Character</span>
         <span className="block truncate text-meta text-text-secondary">{current}</span>
