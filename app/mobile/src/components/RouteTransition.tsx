@@ -1,4 +1,4 @@
-import { useLocation, useNavigationType, type Location, type NavigationType } from "react-router-dom";
+import { useLocation, useNavigate, useNavigationType, type Location, type NavigationType } from "react-router-dom";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import {
   AnimatePresence,
@@ -14,7 +14,7 @@ import { tapLight } from "../lib/haptics";
 import { prefersReducedMotion } from "../lib/motion";
 import { duration, ease, spring, travel, zoom } from "../lib/motionTokens";
 import { isGameRoute, parentRoute, useBackOr } from "../lib/navigation";
-import { isTabRoot } from "./BottomNav";
+import { adjacentTab, isTabRoot, tabDirection } from "./BottomNav";
 
 /**
  * How one screen hands over to the next, over the persistent game backdrop.
@@ -22,8 +22,11 @@ import { isTabRoot } from "./BottomNav";
  * Screens are transparent (the lava backdrop shows through), so the outgoing
  * screen stays mounted (AnimatePresence) and both animate together:
  *
- * - tab: between two bottom-nav tabs (peers, not a stack). The old tab fades
- *   out fast while the new one fades in and settles up into place.
+ * - tab: between two bottom-nav tabs, laid out left to right in the bar's
+ *   order. The new tab slides in from its side as the old one drifts the other
+ *   way, whether a tab was tapped or the screen swiped sideways: a tab follows
+ *   the finger and, let go past a third of the way (or flicked), carries on
+ *   off the edge at the finger's speed as the neighbour slides in.
  * - push: hub → screen (Shop → Skin Details, Profile → Settings). Shared-axis
  *   slide: the old screen drifts left and is gone in the first third, the new
  *   one springs in from the right as it fades up, so the two never show at full
@@ -66,9 +69,11 @@ export function transitionKind(from: string, to: string, navType: NavigationType
 /** What the screens animate with for one transition: read by both of them. */
 export interface SceneCustom {
   kind: TransitionKind;
-  /** The leaving screen was swiped away: it carries on off the right edge. */
+  /** Which side the arriving screen comes from: 1 the right, -1 the left. */
+  from: 1 | -1;
+  /** The leaving screen was swiped away: it carries on off the far edge. */
   swiped: boolean;
-  /** How fast the finger let go of a swiped screen, px/s (0 otherwise). */
+  /** How fast the finger let go of a swiped screen, px/s, signed (0 otherwise). */
   swipeVelocity: number;
   reduce: boolean;
 }
@@ -77,9 +82,10 @@ const fadeIn = (delay: number) => ({ duration: duration.fast + 0.04, ease: "line
 const leave = { duration: duration.exit, ease: ease.in };
 
 /** Where a screen starts when it arrives. */
-export function sceneEnterFrom({ kind, reduce }: SceneCustom): TargetAndTransition {
+export function sceneEnterFrom({ kind, from, reduce }: SceneCustom): TargetAndTransition {
   if (reduce) return { opacity: 1, x: 0, y: 0, scale: 1 };
   if (kind === "push") return { opacity: 0, x: travel.screen };
+  if (kind === "tab") return { opacity: 0, x: from * travel.screen };
   // Hold still: the shared figure is the motion, and must not fade or slide.
   if (kind === "hero") return { opacity: 1, x: 0 };
   if (kind === "pop") return { opacity: 0, x: -travel.behind };
@@ -91,17 +97,18 @@ export function sceneEnterFrom({ kind, reduce }: SceneCustom): TargetAndTransiti
 /** Where a screen comes to rest, and how it gets there. */
 export function sceneRest({ kind, swiped, reduce }: SceneCustom): TargetAndTransition {
   // Behind a swiped screen there is no wait: it is already part way off.
-  const delay = swiped ? 0 : kind === "push" || kind === "pop" || kind === "launch" ? 0.08 : 0.06;
+  const delay = swiped ? 0 : kind === "push" || kind === "pop" || kind === "tab" || kind === "launch" ? 0.08 : 0.06;
   const transition = reduce ? { duration: 0 } : { ...spring.smooth, opacity: fadeIn(delay) };
   return { opacity: 1, x: 0, y: 0, scale: 1, transition };
 }
 
 /** Where a screen goes when it leaves. */
-export function sceneExitTo({ kind, swiped, swipeVelocity, reduce }: SceneCustom): TargetAndTransition {
+export function sceneExitTo({ kind, from, swiped, swipeVelocity, reduce }: SceneCustom): TargetAndTransition {
   if (reduce) return { opacity: 0, transition: { duration: 0 } };
-  // The finger took it part of the way; it carries on off the edge at that speed.
-  if (swiped) return { x: window.innerWidth, transition: { ...spring.smooth, velocity: swipeVelocity } };
+  // The finger took it part of the way; it carries on off the far edge at that speed.
+  if (swiped) return { x: -from * window.innerWidth, transition: { ...spring.smooth, velocity: swipeVelocity } };
   if (kind === "push") return { opacity: 0, x: -24, transition: leave };
+  if (kind === "tab") return { opacity: 0, x: -from * 24, transition: leave };
   if (kind === "hero") return { opacity: 0, transition: { duration: duration.exit * 0.7, ease: ease.in } };
   if (kind === "pop") return { opacity: 0, x: 32, transition: leave };
   // The screen behind a run sinks away; a finished run lifts off toward the player.
@@ -113,7 +120,7 @@ export function sceneExitTo({ kind, swiped, swipeVelocity, reduce }: SceneCustom
 /** The scene variants, for anything that swaps pages on the same axes (PageSwap). */
 export const SCENE_VARIANTS = { enter: sceneEnterFrom, rest: sceneRest, exit: sceneExitTo };
 
-/** Set by a swipe-back as it navigates: that screen is leaving at this speed (px/s). */
+/** Set by a swipe as it navigates: that screen is leaving at this speed (px/s, signed). */
 let swipedAway: { pathname: string; velocity: number } | null = null;
 
 interface SceneState {
@@ -121,6 +128,7 @@ interface SceneState {
   pathname: string;
   key: string;
   kind: TransitionKind;
+  from: 1 | -1;
   swiped: boolean;
   swipeVelocity: number;
 }
@@ -132,7 +140,37 @@ export function useSceneKind(): TransitionKind {
   return useContext(SceneContext);
 }
 
-export function RouteTransition({ children }: { children: (location: Location) => ReactNode }) {
+/** The scene a move to `location` starts. */
+function nextScene(
+  scene: SceneState,
+  location: Location,
+  navType: NavigationType,
+  swipe: { velocity: number } | null,
+): SceneState {
+  const kind = transitionKind(scene.pathname, location.pathname, navType);
+  return {
+    id: scene.id + 1,
+    pathname: location.pathname,
+    key: location.key,
+    kind,
+    from: kind === "tab" ? tabDirection(scene.pathname, location.pathname) : kind === "pop" ? -1 : 1,
+    swiped: swipe !== null,
+    swipeVelocity: swipe?.velocity ?? 0,
+  };
+}
+
+/**
+ * `tabSwipe`: a sideways swipe on a tab root moves to the tab beside it. Only
+ * where the tab bar is (the signed-in app), so a guest's home never swipes to
+ * a Shop it does not have.
+ */
+export function RouteTransition({
+  children,
+  tabSwipe = false,
+}: {
+  children: (location: Location) => ReactNode;
+  tabSwipe?: boolean;
+}) {
   const location = useLocation();
   const navType = useNavigationType();
   const [scene, setScene] = useState<SceneState>(() => ({
@@ -140,6 +178,7 @@ export function RouteTransition({ children }: { children: (location: Location) =
     pathname: location.pathname,
     key: location.key,
     kind: "initial",
+    from: 1,
     swiped: false,
     swipeVelocity: 0,
   }));
@@ -153,14 +192,7 @@ export function RouteTransition({ children }: { children: (location: Location) =
       scene.pathname === location.pathname
         ? // Same screen, new entry (a tab tapped twice): no transition, no remount.
           { ...scene, key: location.key }
-        : {
-            id: scene.id + 1,
-            pathname: location.pathname,
-            key: location.key,
-            kind: transitionKind(scene.pathname, location.pathname, navType),
-            swiped: swipe !== null,
-            swipeVelocity: swipe?.velocity ?? 0,
-          };
+        : nextScene(scene, location, navType, swipe);
     setScene(shown);
   }
 
@@ -170,6 +202,7 @@ export function RouteTransition({ children }: { children: (location: Location) =
 
   const custom: SceneCustom = {
     kind: shown.kind,
+    from: shown.from,
     swiped: shown.swiped,
     swipeVelocity: shown.swipeVelocity,
     reduce: prefersReducedMotion(),
@@ -179,7 +212,7 @@ export function RouteTransition({ children }: { children: (location: Location) =
     <div className="route-stage">
       <LayoutGroup>
         <AnimatePresence custom={custom}>
-          <Scene key={shown.id} pathname={shown.pathname} custom={custom}>
+          <Scene key={shown.id} pathname={shown.pathname} custom={custom} tabSwipe={tabSwipe}>
             {children(location)}
           </Scene>
         </AnimatePresence>
@@ -192,13 +225,29 @@ export function RouteTransition({ children }: { children: (location: Location) =
 const EDGE_PX = 28;
 const POP_RATIO = 0.35;
 const POP_VELOCITY = 0.55;
+/** How far (of the width) a tab must be dragged to go to its neighbour. */
+const TAB_RATIO = 0.3;
+/** Past the first or last tab the screen gives a little, then springs back. */
+const TAB_RUBBER = 0.3;
 
 /**
- * One screen in the stage. While it is the current screen, pushed screens (not
- * tab roots) take the swipe-back gesture from the left edge; once it starts
- * leaving it is inert and hidden from assistive tech.
+ * One screen in the stage. While it is the current screen it follows a
+ * sideways finger: pushed screens (not tab roots or runs) take the swipe-back
+ * gesture from the left edge, and with `tabSwipe` a tab root can be dragged
+ * either way to the tab beside it. Once it starts leaving it is inert and
+ * hidden from assistive tech.
  */
-function Scene({ pathname, custom, children }: { pathname: string; custom: SceneCustom; children: ReactNode }) {
+function Scene({
+  pathname,
+  custom,
+  tabSwipe,
+  children,
+}: {
+  pathname: string;
+  custom: SceneCustom;
+  tabSwipe: boolean;
+  children: ReactNode;
+}) {
   const present = useIsPresent();
   // Gesture handlers read this: a screen that has started leaving must not
   // finish a swipe (it would stop the exit's x animation and strand the
@@ -210,14 +259,17 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
   const leavingAs = usePresenceData() as SceneCustom | undefined;
   const kind = present ? custom.kind : (leavingAs?.kind ?? custom.kind);
   // A run's left edge is game input, never a swipe-back.
-  const swipeable = present && !isTabRoot(pathname) && !isGameRoute(pathname);
+  const swipeBack = present && !isTabRoot(pathname) && !isGameRoute(pathname);
+  const swipeTabs = present && tabSwipe && isTabRoot(pathname);
   // A deep-linked screen has nothing behind it: swipe to its parent instead.
   const back = useBackOr(parentRoute(pathname));
+  const navigate = useNavigate();
   // The gesture and the transition share one x, so a release carries on from
   // wherever the finger let go.
   const x = useMotionValue(0);
   const [dragging, setDragging] = useState(false);
 
+  const mode = useRef<"back" | "tab">("back");
   const startX = useRef(0);
   const startY = useRef(0);
   const startT = useRef(0);
@@ -245,9 +297,11 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
   };
 
   const onTouchStart = (e: TouchEvent<HTMLDivElement>) => {
-    if (!swipeable || settling.current) return;
+    if (settling.current) return;
     const t = e.touches[0];
-    if (t.clientX > EDGE_PX) return;
+    if (swipeTabs) mode.current = "tab";
+    else if (swipeBack && t.clientX <= EDGE_PX) mode.current = "back";
+    else return;
     startX.current = t.clientX;
     startY.current = t.clientY;
     startT.current = Date.now();
@@ -269,7 +323,15 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
     const dy = t.clientY - startY.current;
     if (axis.current === "none") {
       if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-      axis.current = Math.abs(dx) > Math.abs(dy) && dx > 0 ? "h" : "v";
+      // A tab's screen scrolls up and down: only a clearly sideways move is a swipe.
+      axis.current =
+        mode.current === "tab"
+          ? Math.abs(dx) > Math.abs(dy) * 1.2
+            ? "h"
+            : "v"
+          : Math.abs(dx) > Math.abs(dy) && dx > 0
+            ? "h"
+            : "v";
       if (axis.current === "h") {
         // The finger takes over from any entrance spring still running.
         x.stop();
@@ -277,13 +339,18 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
       }
     }
     if (axis.current === "h") {
-      const clamped = Math.max(0, dx);
+      const next =
+        mode.current === "back"
+          ? Math.max(0, dx)
+          : adjacentTab(pathname, dx < 0 ? 1 : -1) === null
+            ? dx * TAB_RUBBER
+            : dx;
       const now = Date.now();
       const gap = now - lastT.current;
-      if (gap > 0) vel.current = (clamped - lastX.current) / gap;
-      lastX.current = clamped;
+      if (gap > 0) vel.current = (next - lastX.current) / gap;
+      lastX.current = next;
       lastT.current = now;
-      x.set(clamped);
+      x.set(next);
     }
   };
 
@@ -297,25 +364,38 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
     if (!presentRef.current) return;
     const width = window.innerWidth || 1;
     const dragged = lastX.current;
-    const flick = vel.current > POP_VELOCITY && dragged > 40;
-    const shouldPop = dragged > width * POP_RATIO || flick;
     const reduce = prefersReducedMotion();
 
-    if (shouldPop) {
-      // Step back now: the screen behind arrives while this one carries on off
-      // the edge at the finger's speed (px/ms → px/s) as its exit (sceneExitTo).
-      // Not an animate(x, …) of its own: that would strand the exit.
-      settling.current = true;
-      swipedAway = { pathname, velocity: reduce ? 0 : Math.max(0, vel.current) * 1000 };
-      void tapLight();
-      back();
-      return;
+    if (mode.current === "tab") {
+      const target = adjacentTab(pathname, dragged < 0 ? 1 : -1);
+      const flick = Math.abs(vel.current) > POP_VELOCITY && Math.abs(dragged) > 40 && vel.current * dragged > 0;
+      if (target !== null && (Math.abs(dragged) > width * TAB_RATIO || flick)) {
+        // Go now: this tab carries on off its edge at the finger's speed as
+        // the neighbour slides in from the other side (sceneExitTo).
+        settling.current = true;
+        swipedAway = { pathname, velocity: reduce ? 0 : vel.current * 1000 };
+        void tapLight();
+        void navigate(target);
+        return;
+      }
+    } else {
+      const flick = vel.current > POP_VELOCITY && dragged > 40;
+      if (dragged > width * POP_RATIO || flick) {
+        // Step back now: the screen behind arrives while this one carries on off
+        // the edge at the finger's speed (px/ms → px/s) as its exit (sceneExitTo).
+        // Not an animate(x, …) of its own: that would strand the exit.
+        settling.current = true;
+        swipedAway = { pathname, velocity: reduce ? 0 : Math.max(0, vel.current) * 1000 };
+        void tapLight();
+        back();
+        return;
+      }
     }
     if (reduce) {
       x.set(0);
       return;
     }
-    // Spring back: the overshoot says the screen resisted dismissal.
+    // Spring back: the overshoot says the screen resisted.
     settling.current = true;
     void animate(x, 0, spring.bouncy);
     later(() => {
@@ -331,17 +411,19 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
       initial="enter"
       animate="rest"
       exit="exit"
-      style={{ x }}
+      // A tab hands sideways moves to the swipe; up and down still scroll.
+      style={{ x, touchAction: swipeTabs ? "pan-y" : undefined }}
       inert={!present}
       aria-hidden={!present || undefined}
       data-route-role={present ? "enter" : "exit"}
       data-route-kind={kind}
+      data-route-from={present ? custom.from : (leavingAs?.from ?? custom.from)}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={endGesture}
       onTouchCancel={endGesture}
     >
-      {dragging && present && (
+      {dragging && present && mode.current === "back" && (
         <span
           aria-hidden
           className="pointer-events-none fixed inset-y-0 left-0 z-50 w-1"

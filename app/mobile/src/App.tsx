@@ -95,7 +95,7 @@ export function App() {
             {shell === "splash" ? (
               <AuthSplash />
             ) : shell === "app" ? (
-              <RouteTransition>
+              <RouteTransition tabSwipe>
                 {(routeLocation) => (
                   <Routes location={routeLocation}>
                     {/* Levels are the main game: the map is home (design doc §2).

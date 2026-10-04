@@ -15,11 +15,28 @@ const TAB_PATHS: ReadonlySet<string> = new Set(TABS.map((t) => t.path));
 /**
  * True for a bottom-nav tab root (Play, Shop, Profile), taken from TABS so a
  * new tab cannot be missed. The tabs are peers, not a stack: App shows the nav
- * on them, RouteTransition fades them in with no swipe-back, and Android back
+ * on them, RouteTransition slides between them (tap or swipe), never swipe-back, and Android back
  * leaves the app from any of them instead of popping to another tab.
  */
 export function isTabRoot(pathname: string): boolean {
   return TAB_PATHS.has(pathname);
+}
+
+/**
+ * The tab beside `pathname` in the bar's left-to-right order: `step` 1 is the
+ * one to its right, -1 the one to its left. Null past either end, or off a tab.
+ */
+export function adjacentTab(pathname: string, step: 1 | -1): string | null {
+  const i = TABS.findIndex((t) => t.path === pathname);
+  if (i < 0) return null;
+  return TABS[i + step]?.path ?? null;
+}
+
+/** Which way a move between two tabs goes along the bar: 1 rightwards, -1 leftwards. */
+export function tabDirection(from: string, to: string): 1 | -1 {
+  const a = TABS.findIndex((t) => t.path === from);
+  const b = TABS.findIndex((t) => t.path === to);
+  return b < a ? -1 : 1;
 }
 
 /**

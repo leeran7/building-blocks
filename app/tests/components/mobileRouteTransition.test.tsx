@@ -62,12 +62,16 @@ function NavigateProbe() {
   return null;
 }
 
+/** Guest mode has no tab bar, so its RouteTransition takes no tab swipes. */
+let tabSwipe = true;
+
 function Shell() {
   const { pathname } = useLocation();
   return createElement(
     "div",
     null,
     createElement(RouteTransition, {
+      tabSwipe,
       children: (location: Location) =>
         createElement(
           Routes,
@@ -119,6 +123,7 @@ afterAll(() => {
 
 beforeEach(() => {
   motion.reduce = false;
+  tabSwipe = true;
   container = document.createElement("div");
   document.body.appendChild(container);
 });
@@ -156,11 +161,11 @@ describe("transitionKind", () => {
 });
 
 describe("scene motion", () => {
-  const base = { swiped: false, swipeVelocity: 0, reduce: false };
+  const base = { from: 1 as const, swiped: false, swipeVelocity: 0, reduce: false };
   it("pushes in from the right and pops in from the left, both fading up", () => {
     expect(sceneEnterFrom({ ...base, kind: "push" })).toMatchObject({ opacity: 0, x: 56 });
     expect(sceneEnterFrom({ ...base, kind: "pop" })).toMatchObject({ opacity: 0, x: -40 });
-    expect(sceneEnterFrom({ ...base, kind: "tab" })).toEqual({ opacity: 0, y: 8, scale: 0.985 });
+    expect(sceneEnterFrom({ ...base, kind: "initial" })).toEqual({ opacity: 0, y: 8, scale: 0.985 });
   });
 
   it("sends the old screen the other way, gone before the new one is in", () => {
@@ -173,7 +178,7 @@ describe("scene motion", () => {
   });
 
   it("carries a swiped-away screen on off the right edge at the finger's speed, the one behind fading in at once", () => {
-    const swiped = { ...base, kind: "pop" as const, swiped: true, swipeVelocity: 1200 };
+    const swiped = { ...base, kind: "pop" as const, from: -1 as const, swiped: true, swipeVelocity: 1200 };
     const exit = sceneExitTo(swiped);
     expect(exit).toMatchObject({ x: window.innerWidth, transition: { velocity: 1200 } });
     // It stays solid on its way out: the screen behind is what fades.
@@ -191,6 +196,18 @@ describe("scene motion", () => {
     expect(sceneExitTo({ ...base, kind: "land" })).toMatchObject({ opacity: 0, scale: 1.06 });
     expect(sceneRest({ ...base, kind: "launch" })).toMatchObject({ opacity: 1, scale: 1 });
     expect(sceneEnterFrom({ ...base, kind: "launch", reduce: true })).toEqual({ opacity: 1, x: 0, y: 0, scale: 1 });
+  });
+
+  it("slides tabs in from their side of the bar and the old tab the other way", () => {
+    expect(sceneEnterFrom({ ...base, kind: "tab", from: 1 })).toEqual({ opacity: 0, x: 56 });
+    expect(sceneEnterFrom({ ...base, kind: "tab", from: -1 })).toEqual({ opacity: 0, x: -56 });
+    expect(sceneExitTo({ ...base, kind: "tab", from: 1 })).toMatchObject({ opacity: 0, x: -24 });
+    expect(sceneExitTo({ ...base, kind: "tab", from: -1 })).toMatchObject({ opacity: 0, x: 24 });
+  });
+
+  it("carries a tab swiped leftwards on off the left edge at the finger's speed", () => {
+    const exit = sceneExitTo({ ...base, kind: "tab", from: 1, swiped: true, swipeVelocity: -900 });
+    expect(exit).toMatchObject({ x: -window.innerWidth, transition: { velocity: -900 } });
   });
 
   it("moves nothing under reduced motion", () => {
@@ -256,9 +273,9 @@ describe("RouteTransition keeps the outgoing screen until it has animated out", 
   });
 });
 
-function touch(target: Element, type: string, clientX: number) {
+function touch(target: Element, type: string, clientX: number, clientY = 300) {
   const event = new Event(type, { bubbles: true, cancelable: true });
-  Object.defineProperty(event, "touches", { value: type === "touchend" ? [] : [{ clientX, clientY: 300 }] });
+  Object.defineProperty(event, "touches", { value: type === "touchend" ? [] : [{ clientX, clientY }] });
   target.dispatchEvent(event);
 }
 
@@ -288,6 +305,107 @@ describe("swipe-back", () => {
     await settle();
     await go("/shop/wraith");
     expect(sceneOf("/shop/wraith")?.dataset.routeKind).toBe("hero");
+  });
+});
+
+async function drag(scene: Element, points: Array<[number, number?]>) {
+  const [first, ...rest] = points;
+  await act(async () => {
+    touch(scene, "touchstart", first[0], first[1]);
+  });
+  for (const [x, y] of rest) {
+    await act(async () => {
+      touch(scene, "touchmove", x, y);
+    });
+  }
+  await act(async () => {
+    touch(scene, "touchend", 0);
+  });
+}
+
+describe("sideways between tabs", () => {
+  it("swipes from Play to the Shop on its right, the Shop sliding in from the right", async () => {
+    await mount(["/"]);
+    await settle();
+    const play = sceneOf("/");
+    if (!play) throw new Error("scene not found");
+    await drag(play, [[300], [290], [120]]);
+    expect(play.dataset.routeRole).toBe("exit");
+    expect(play.dataset.routeKind).toBe("tab");
+    expect(sceneOf("/shop")?.dataset.routeRole).toBe("enter");
+    expect(sceneOf("/shop")?.dataset.routeFrom).toBe("1");
+    await settle();
+    expect(scenes().map((s) => s.textContent)).toEqual(["/shop"]);
+  });
+
+  it("swipes back from the Shop to Play on its left", async () => {
+    await mount(["/shop"]);
+    await settle();
+    const shop = sceneOf("/shop");
+    if (!shop) throw new Error("scene not found");
+    await drag(shop, [[80], [90], [260]]);
+    expect(sceneOf("/")?.dataset.routeRole).toBe("enter");
+    expect(sceneOf("/")?.dataset.routeFrom).toBe("-1");
+    await settle();
+    expect(scenes().map((s) => s.textContent)).toEqual(["/"]);
+  });
+
+  it("slides tapped tabs by their place in the bar too", async () => {
+    await mount(["/profile"]);
+    await settle();
+    await go("/");
+    expect(sceneOf("/")?.dataset.routeFrom).toBe("-1");
+    await settle();
+    await go("/profile");
+    expect(sceneOf("/profile")?.dataset.routeFrom).toBe("1");
+  });
+
+  it("springs back from a short drag, from past the last tab, and from a mostly vertical move", async () => {
+    await mount(["/profile"]);
+    await settle();
+    const profile = sceneOf("/profile");
+    if (!profile) throw new Error("scene not found");
+    // Short: under a third of the way, slowly.
+    await drag(profile, [[200], [195], [170]]);
+    await settle();
+    // Profile is the last tab: there is nothing to its right.
+    await drag(profile, [[300], [290], [40]]);
+    await settle();
+    // Scrolling: the finger moves mostly down (and a little toward the Shop).
+    await drag(profile, [[120, 300], [128, 310], [300, 600]]);
+    await settle();
+    expect(scenes().map((s) => s.textContent)).toEqual(["/profile"]);
+  });
+
+  it("gives a little past the last tab instead of following the finger", async () => {
+    await mount(["/profile"]);
+    await settle();
+    const profile = sceneOf("/profile");
+    if (!profile) throw new Error("scene not found");
+    await act(async () => {
+      touch(profile, "touchstart", 300);
+    });
+    for (const x of [290, 100]) {
+      await act(async () => {
+        touch(profile, "touchmove", x);
+      });
+    }
+    // 200px of finger, 60px of screen.
+    expect(profile.style.transform).toContain("translateX(-60px)");
+    await act(async () => {
+      touch(profile, "touchend", 0);
+    });
+  });
+
+  it("leaves tabs to their own taps where there is no tab bar", async () => {
+    tabSwipe = false;
+    await mount(["/"]);
+    await settle();
+    const play = sceneOf("/");
+    if (!play) throw new Error("scene not found");
+    await drag(play, [[300], [290], [120]]);
+    await settle();
+    expect(scenes().map((s) => s.textContent)).toEqual(["/"]);
   });
 });
 

@@ -12,7 +12,7 @@ import { SCENE_VARIANTS, type SceneCustom } from "./RouteTransition";
  * inert so nothing on it can be pressed mid-slide.
  */
 export function PageSwap({ page, back = false, children }: { page: string; back?: boolean; children: ReactNode }) {
-  const custom: SceneCustom = { kind: back ? "pop" : "push", swiped: false, swipeVelocity: 0, reduce: prefersReducedMotion() };
+  const custom: SceneCustom = { kind: back ? "pop" : "push", from: back ? -1 : 1, swiped: false, swipeVelocity: 0, reduce: prefersReducedMotion() };
   return (
     <div className="relative h-full w-full">
       <AnimatePresence initial={false} custom={custom}>
