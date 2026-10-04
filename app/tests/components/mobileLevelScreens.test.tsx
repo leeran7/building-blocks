@@ -355,6 +355,25 @@ describe("level map", () => {
       expect(livesPill()?.getAttribute("aria-label")).toBe("Lives, 5 of 5");
     });
 
+    it("closes only the gem packs on Escape when opened from the lives sheet, and hands focus back", async () => {
+      // The Shop's balance (300) is short of the price.
+      const { client } = await outOfLivesClient(20, 500, undefined, 2);
+      await renderMapWithShop(client);
+      await click(livesPill() ?? undefined);
+      const getGems = [...(livesSheet()?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find((b) => b.textContent === "Get gems");
+      getGems?.focus();
+      await click(getGems);
+      expect(document.body.querySelector("#gem-packs-title")).not.toBeNull();
+
+      await act(async () => {
+        document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      });
+      await flush();
+      expect(document.body.querySelector("#gem-packs-title")).toBeNull();
+      expect(livesSheet()).not.toBeNull();
+      expect(document.activeElement).toBe(getGems);
+    });
+
     it("keeps the lives sheet open with the reason when a refill is refused", async () => {
       const { client } = await outOfLivesClient(120, 50, { ok: false, code: "NETWORK" }, 2);
       await renderMap(client);
