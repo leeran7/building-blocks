@@ -87,7 +87,7 @@ export function ProfileScreen() {
           <div className="flex flex-col gap-3" aria-label="Loading profile">
             <div className="h-24 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
             <div className="h-32 animate-pulse rounded-3xl border border-signal/20 bg-surface/60" />
-            <div className="h-16 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
+            <div className="h-32 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
             <div className="h-20 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
           </div>
         ) : (
@@ -206,8 +206,19 @@ export function ProfileScreen() {
               </section>
             )}
 
-            {/* The daily streak lives only in the StreakCard below, with today's status. */}
-            <StatRow label="Wins" value={dashFailed ? "—" : String(climb?.wins ?? 0)} />
+            {/* Same shape as Best climb, dark instead of lit. */}
+            <section className="glass flex items-center gap-4 rounded-3xl border border-white/10 px-5 py-4" aria-label="Wins">
+              <TrophyIcon />
+              <span className="h-14 w-px shrink-0 bg-white/15" />
+              <div className="min-w-0 flex-1 text-center">
+                <p className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">Wins</p>
+                <p className="mt-1 font-display text-hero font-black tabular-nums text-text-primary">
+                  {dashFailed ? "—" : (climb?.wins ?? 0).toLocaleString()}
+                </p>
+              </div>
+            </section>
+
+            {/* The daily streak lives only in this card, with today's status. */}
 
             <StreakCard
               streak={daily.streak}
@@ -261,15 +272,6 @@ function EmailText({ email }: { email: string }) {
   );
 }
 
-function StatRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="glass flex items-center justify-between gap-3 rounded-3xl border border-white/10 px-5 py-3.5">
-      <span className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">{label}</span>
-      <span className="font-display text-lead font-black tabular-nums text-text-primary">{value}</span>
-    </div>
-  );
-}
-
 /** Unplayed today, the card leads to the map, whose mode rail is the Daily Climb's one home. */
 function StreakCard({ streak, playedToday, onPlay }: { streak: number; playedToday: boolean; onPlay: () => void }) {
   const reset = formatReset(msUntilReset());
@@ -312,6 +314,15 @@ function CrownIcon({ muted = false }: { muted?: boolean }) {
     >
       <path d="M2 6 7 10 12 3 17 10 22 6 20 17H4L2 6Z" />
       <rect x="4" y="18.5" width="16" height="2.5" rx="1" />
+    </svg>
+  );
+}
+
+function TrophyIcon() {
+  return (
+    <svg width="40" height="36" viewBox="0 0 24 22" fill="currentColor" className="shrink-0 text-text-secondary" aria-hidden>
+      <path d="M6 1h12v2h4v3a5 5 0 0 1-4.6 5A6 6 0 0 1 13 14.9V17h3v2H8v-2h3v-2.1A6 6 0 0 1 6.6 11 5 5 0 0 1 2 6V3h4V1Zm0 4H4v1a3 3 0 0 0 2 2.8V5Zm12 0v3.8A3 3 0 0 0 20 6V5h-2Z" />
+      <rect x="6" y="19.5" width="12" height="2.5" rx="1" />
     </svg>
   );
 }
