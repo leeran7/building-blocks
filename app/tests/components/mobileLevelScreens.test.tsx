@@ -6,9 +6,9 @@
  * @vitest-environment happy-dom
  */
 
-import { act, createElement, useEffect, type ReactElement } from "react";
+import { Fragment, StrictMode, act, createElement, useEffect, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -77,17 +77,23 @@ import type { RefillOffer } from "../../mobile/src/components/levels/LevelStartS
 import { TICK_HZ } from "../../src/game/types";
 import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../src/game/powerups";
 import { markTutorialsSeen } from "../../mobile/src/lib/levels/tutorialSeen";
-import { createRunNoteStore } from "../../mobile/src/lib/levels/runNote";
+import { createRunNoteStore, noteRunStarted } from "../../mobile/src/lib/levels/runNote";
+import { parentRoute, useBackOr } from "../../mobile/src/lib/navigation";
 
 let container: HTMLDivElement;
 let root: Root;
 let where: { pathname: string; state: unknown };
+/** The app's back (Android hardware back calls it), the browser's Forward, and a link. */
+let history: { back: () => void; forward: () => void; push: (to: string) => void };
 
 function Where() {
   const loc = useLocation();
+  const navigate = useNavigate();
+  const back = useBackOr(parentRoute(loc.pathname));
   useEffect(() => {
     where = { pathname: loc.pathname, state: loc.state };
-  }, [loc]);
+    history = { back, forward: () => void navigate(1), push: (to) => void navigate(to) };
+  }, [loc, back, navigate]);
   return null;
 }
 
@@ -135,19 +141,26 @@ async function flush() {
   });
 }
 
-async function renderMap(client: LevelsClient, initial: string | { pathname: string; state: unknown } = "/") {
+async function renderMap(
+  client: LevelsClient,
+  initial: string | { pathname: string; state: unknown } = "/",
+  { strict = false }: { strict?: boolean } = {},
+) {
+  const Mode = strict ? StrictMode : Fragment;
   await act(async () => {
     root.render(
-      <MemoryRouter initialEntries={[initial]}>
-        <LevelsProvider client={client}>
-          <Where />
-          <Routes>
-            <Route path="/" element={<LevelMapScreen />} />
-            <Route path="/levels/:level/play" element={<LevelPlayScreen />} />
-            <Route path="/climb" element={<p>practice</p>} />
-          </Routes>
-        </LevelsProvider>
-      </MemoryRouter>,
+      <Mode>
+        <MemoryRouter initialEntries={[initial]}>
+          <LevelsProvider client={client}>
+            <Where />
+            <Routes>
+              <Route path="/" element={<LevelMapScreen />} />
+              <Route path="/levels/:level/play" element={<LevelPlayScreen />} />
+              <Route path="/climb" element={<p>practice</p>} />
+            </Routes>
+          </LevelsProvider>
+        </MemoryRouter>
+      </Mode>,
     );
   });
   await flush();
@@ -639,19 +652,112 @@ describe("interrupted level runs", () => {
     expect(document.body.textContent).not.toContain("interrupted");
   });
 
-  it("keeps quiet about this session's own run when the map shows again mid-run", async () => {
+  it("keeps quiet about this session's own run while it is still being started", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    const started = await client.startLevel(11);
+    if (!started.ok) throw new Error("refused");
+    // Issued and noted by this session; the play screen has not taken it yet.
+    noteRunStarted(notes(), started.ticket.id, { season: 1, level: 11, costsLife: true });
+    await renderMap(client);
+    expect(document.body.textContent).not.toContain("interrupted");
+    expect(notes().get()?.ticketId).toBe(started.ticket.id);
+  });
+
+  it("ends the run like Quit when the player backs out of it: no note, no notice later", async () => {
     const client = memoryClient();
     await clearLevels(client, 10);
     await renderMap(client);
     await click(pin("Level 11, next to play"));
     await click(button("Play level 11"));
-    const live = notes().get();
-    expect(live).not.toBeNull();
+    const ticket = ticketFromState(where.state, 11);
+    expect(notes().get()?.ticketId).toBe(ticket?.id);
 
-    // The map mounts again in the same session without the run being scored.
+    // Android hardware back (useNativeShell calls this) or browser Back.
+    await act(async () => history.back());
+    await flush();
+    expect(where.pathname).toBe("/");
+    expect(notes().get()).toBeNull();
+    expect(document.body.textContent).not.toContain("interrupted");
+
+    // The next launch has nothing to say about a run the player left.
     await remount(client);
     expect(document.body.textContent).not.toContain("interrupted");
-    expect(notes().get()).toEqual(live);
+  });
+
+  it("does not replay the run after Back then Forward: the level's card says the run ended", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    expect(runs.mounted).toHaveLength(1);
+
+    await act(async () => history.back());
+    await flush();
+    expect(where.pathname).toBe("/");
+    // Forward lands on the same history entry, ticket and all.
+    await act(async () => history.forward());
+    await flush();
+    expect(runs.mounted).toHaveLength(1);
+    expect(where.pathname).toBe("/");
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 11");
+    expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe("That run has ended.");
+  });
+
+  it("keeps a run and its note through StrictMode's dev remount, and still ends it on Back", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client, "/", { strict: true });
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    const ticket = ticketFromState(where.state, 11);
+    expect(where.pathname).toBe("/levels/11/play");
+    expect(button("stub-lose")).toBeDefined();
+    expect(notes().get()?.ticketId).toBe(ticket?.id);
+
+    await act(async () => history.back());
+    await flush();
+    expect(notes().get()).toBeNull();
+    await act(async () => history.forward());
+    await flush();
+    expect(where.pathname).toBe("/");
+    expect(button("stub-lose")).toBeUndefined();
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 11");
+    expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe("That run has ended.");
+  });
+
+  it("keeps the bounce's notice on its card under StrictMode, once the season is loaded", async () => {
+    // As in the app, which waits for the season: the map mounts with it, so
+    // StrictMode runs the map's landing effect twice on one history entry.
+    await renderMap(memoryClient(), "/", { strict: true });
+    await act(async () => history.push("/levels/1/play"));
+    await flush();
+    expect(where.pathname).toBe("/");
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 1");
+    expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe("That run has ended.");
+  });
+
+  it("opens the cut-off run's own card when a bounce names another level", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    notes().save({ season: 1, level: 11, ticketId: "ticket-from-last-launch", costsLife: true });
+    await remount(client, "/levels/4/play");
+    expect(where.pathname).toBe("/");
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 11");
+    expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe(LOST_A_LIFE);
+    expect(statuses().filter((t) => t === LOST_A_LIFE)).toHaveLength(1);
+  });
+
+  it("shows only the banner when the cut-off run's level is not open", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    const above = "Your last run of level 14 was interrupted, so it counts as a loss and used a life.";
+    notes().save({ season: 1, level: 14, ticketId: "ticket-from-last-launch", costsLife: true });
+    await remount(client, "/levels/4/play");
+    expect(where.pathname).toBe("/");
+    expect(sheet()).toBeNull();
+    expect(statuses()).toContain(above);
   });
 
   it("does not replay a ticket a reload left in history: the level's card says the run was lost", async () => {
@@ -711,7 +817,7 @@ describe("interrupted level runs", () => {
     expect(document.body.textContent).not.toContain("interrupted");
   });
 
-  it("keeps quiet about a retried run when the map shows again mid-run", async () => {
+  it("keeps the retried run's note until the player backs out of it", async () => {
     const client = memoryClient();
     await clearLevels(client, 10);
     await renderMap(client);
@@ -721,11 +827,12 @@ describe("interrupted level runs", () => {
     await click(button("Retry"));
     const retried = notes().get();
     expect(retried).not.toBeNull();
+    expect(runs.mounted).toHaveLength(2);
 
-    // Same session, the retried run still going: it is not an interrupted run.
-    await remount(client);
+    await act(async () => history.back());
+    await flush();
+    expect(notes().get()).toBeNull();
     expect(document.body.textContent).not.toContain("interrupted");
-    expect(notes().get()).toEqual(retried);
   });
 
   it("drops a note from another season on the map without a notice", async () => {

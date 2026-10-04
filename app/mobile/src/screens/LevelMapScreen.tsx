@@ -16,7 +16,7 @@ import {
   type StartResult,
 } from "../lib/levels/model";
 import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
-import { isTicketLive, markTicketLive, runNoticeFor, type RunNotice } from "../lib/levels/runNote";
+import { isTicketLive, mapLanding, noteRunStarted, runNoticeFor, type RunNotice } from "../lib/levels/runNote";
 
 /** Vertical distance between two pins, px. */
 const ROW = 92;
@@ -28,6 +28,10 @@ const BOTTOM_PAD = 150;
 const TOP_PAD = 140;
 /** Locked levels shown above the frontier before the map fades out. */
 const LOOKAHEAD = 10;
+/** Height of the Play bar: pb-3 (12px) under the 56px buttons, px. */
+const PLAY_BAR_HEIGHT = 68;
+/** Gap between the Play bar and the run notice banner above it, px. */
+const NOTICE_GAP = 16;
 /**
  * Fades the map out behind the Play bar, so pins never run under Play and the
  * bar needs no dark scrim of its own: the backdrop's lava shows through down
@@ -91,21 +95,19 @@ export function LevelMapScreen() {
   const openLevel = openLevelFromState(location.state);
   const interrupted = interruptedFromState(location.state);
   // Once per history entry: a note left by an earlier session (the launch
-  // after a restart) or by the bounced run is said once, then forgotten.
-  const noticeFor = useRef<string | null>(null);
+  // after a restart) or by the bounced run is said once, then forgotten. A
+  // re-run for the same entry (a season refresh, StrictMode's dev re-run) does
+  // nothing, so it cannot reopen the card and wipe the notice just shown.
+  const noticeCheckedKey = useRef<string | null>(null);
   useLayoutEffect(() => {
-    if (!season) return;
-    let next: RunNotice | null = null;
-    if (noticeFor.current !== location.key) {
-      noticeFor.current = location.key;
-      const verdict = runNoticeFor({ note: runNotes.get(), season: season.season, bounced: interrupted, live: isTicketLive });
-      if (verdict.consume) runNotes.take();
-      // "That run has ended." names no level: show it on the card it bounced to.
-      next = verdict.notice && verdict.notice.level === null && interrupted ? { ...verdict.notice, level: openLevel } : verdict.notice;
-    }
+    if (!season || noticeCheckedKey.current === location.key) return;
+    noticeCheckedKey.current = location.key;
+    const verdict = runNoticeFor({ note: runNotes.get(), season: season.season, bounced: interrupted, live: isTicketLive });
+    if (verdict.consume) runNotes.take();
+    const landing = mapLanding({ notice: verdict.notice, openLevel, bounced: interrupted, frontier: season.frontier });
     if (openLevel !== null || interrupted) navigate(".", { replace: true, state: null });
-    if (openLevel !== null && openLevel <= season.frontier) setSelected(season.levels[openLevel - 1]);
-    if (next) setNotice(next);
+    if (landing.open !== null) setSelected(season.levels[landing.open - 1]);
+    if (landing.notice) setNotice(landing.notice);
   }, [season, openLevel, interrupted, location.key, navigate, setSelected, runNotes]);
 
   const startLevel = useCallback(
@@ -119,11 +121,8 @@ export function LevelMapScreen() {
       if (res.ok) {
         void tapHeavy();
         // Noted before the run, so a reload or restart mid-run is mentioned later.
-        markTicketLive(res.ticket.id);
         const node = season?.levels[level - 1];
-        if (season && node) {
-          runNotes.save({ season: season.season, level, ticketId: res.ticket.id, costsLife: node.costsLife });
-        }
+        noteRunStarted(runNotes, res.ticket.id, season && node ? { season: season.season, level, costsLife: node.costsLife } : null);
         setPlayer(res.ticket.player);
         // A spent booster leaves the inventory: reload it for the map.
         if (res.ticket.startPowerUp?.source === "booster") void refresh();
@@ -319,7 +318,10 @@ export function interruptedFromState(state: unknown): boolean {
 /** An interrupted run's notice when no level card shows it. */
 function MapNotice({ text, onDismiss }: { text: string; onDismiss: () => void }) {
   return (
-    <div className="absolute inset-x-4 bottom-[84px] z-30 mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-ember/40 bg-surface/95 py-1 pl-4 pr-1 backdrop-blur-xl">
+    <div
+      style={{ bottom: PLAY_BAR_HEIGHT + NOTICE_GAP }}
+      className="absolute inset-x-4 z-30 mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-ember/40 bg-surface/95 py-1 pl-4 pr-1 backdrop-blur-xl"
+    >
       <p role="status" className="flex-1 text-meta text-text-primary">
         {text}
       </p>

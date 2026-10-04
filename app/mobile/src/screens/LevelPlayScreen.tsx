@@ -19,7 +19,7 @@ import { parseStartPowerUp } from "../lib/levels/httpClient";
 import { bestFailMarker, nearMissHeadline } from "../lib/levels/nearMiss";
 import { tutorialTopicsFor, type TutorialTopic } from "@app/game/levels/tutorial";
 import { markTutorialsSeen, unseenTutorials } from "../lib/levels/tutorialSeen";
-import { isTicketLive, markTicketLive } from "../lib/levels/runNote";
+import { holdLiveTicket, isTicketLive, noteRunStarted, releaseLiveTicket } from "../lib/levels/runNote";
 import { LevelTutorial } from "../components/levels/LevelTutorial";
 import {
   LevelResultCard,
@@ -78,8 +78,9 @@ export function LevelPlayScreen() {
       ? season.levels[level - 1]
       : null;
 
-  // Only a ticket this session issued: after a page reload history.state
-  // still holds the old one, and replaying it would be a free retry.
+  // Only a ticket this session issued and has not left: after a page reload,
+  // or browser Back then Forward, history.state still holds the old one, and
+  // replaying it would be a free retry.
   const [ticket, setTicket] = useState<LevelTicket | null>(() => {
     const fromState = ticketFromState(location.state, level);
     return fromState && isTicketLive(fromState.id) ? fromState : null;
@@ -102,6 +103,15 @@ export function LevelPlayScreen() {
   }, [missing, level, navigate]);
 
   const ticketId = ticket?.id ?? null;
+  // Leaving the play route any way but the screen's own buttons (browser Back,
+  // Android hardware back) ends the run like Quit: the ticket is no longer
+  // live and the note is cleared. Deferred, so StrictMode's dev remount keeps it.
+  useEffect(() => {
+    if (ticketId === null) return;
+    holdLiveTicket(ticketId);
+    return () => releaseLiveTicket(ticketId, () => runNotes.clear(ticketId));
+  }, [ticketId, runNotes]);
+
   const toMap = useCallback(
     (openLevel?: number) => {
       void tapLight();
@@ -155,10 +165,7 @@ export function LevelPlayScreen() {
     try {
       const res = await client.startLevel(level);
       if (res.ok) {
-        markTicketLive(res.ticket.id);
-        if (seasonNo !== null && node) {
-          runNotes.save({ season: seasonNo, level, ticketId: res.ticket.id, costsLife: node.costsLife });
-        }
+        noteRunStarted(runNotes, res.ticket.id, seasonNo !== null && node ? { season: seasonNo, level, costsLife: node.costsLife } : null);
         setPlayer(res.ticket.player);
         setTicket(res.ticket);
         setAutoStart(true);

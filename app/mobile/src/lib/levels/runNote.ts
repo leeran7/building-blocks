@@ -115,21 +115,65 @@ export function createRunNoteStore(opts: RunNoteStoreOptions = {}): RunNoteStore
 // ── This app session's live ticket ───────────────────────────────────────────
 
 /**
- * The ticket most recently issued in this JavaScript session. A reload or a
- * restart starts a new session with none, so a ticket that router state still
- * holds after a page reload (history.state survives it) is not taken as live:
- * replaying it would be a free retry on one spent life.
+ * The ticket most recently issued in this JavaScript session and not yet left.
+ * A reload or a restart starts a new session with none, so a ticket that router
+ * state still holds after a page reload (history.state survives it) is not
+ * taken as live: replaying it would be a free retry on one spent life. Leaving
+ * the play screen releases it too, so browser Back then Forward cannot replay
+ * the same ticket either.
  */
 let liveTicketId: string | null = null;
+/** Tickets whose play screen unmounted, released unless it mounts again first. */
+const pendingRelease = new Set<string>();
 
 /** Mark `ticketId` as the run this session just started. */
 export function markTicketLive(ticketId: string): void {
+  pendingRelease.delete(ticketId);
   liveTicketId = ticketId;
 }
 
 /** Whether `ticketId` was issued in this session (and is the latest one). */
 export function isTicketLive(ticketId: string): boolean {
   return liveTicketId !== null && liveTicketId === ticketId;
+}
+
+/**
+ * The play screen running `ticketId` mounted. Cancels a release still pending
+ * from an unmount in the same task (React StrictMode's dev-only remount).
+ */
+export function holdLiveTicket(ticketId: string): void {
+  pendingRelease.delete(ticketId);
+}
+
+/**
+ * The play screen running `ticketId` unmounted. Unless it mounts again in the
+ * same task (StrictMode), the ticket stops being live and `onLeft` runs: the
+ * player left the run (Back, Android hardware back), which is a quit.
+ */
+export function releaseLiveTicket(ticketId: string, onLeft: () => void): void {
+  pendingRelease.add(ticketId);
+  queueMicrotask(() => {
+    if (!pendingRelease.delete(ticketId)) return;
+    if (liveTicketId === ticketId) liveTicketId = null;
+    onLeft();
+  });
+}
+
+/** The level run a new ticket is for, when the season names it. */
+export interface RunStart {
+  season: number;
+  level: number;
+  costsLife: boolean;
+}
+
+/**
+ * Bookkeeping for a run the server just issued `ticketId` for: it is this
+ * session's live ticket, and the device notes it so a reload or restart mid-run
+ * is mentioned later. With no `run` (season not loaded) only the first holds.
+ */
+export function noteRunStarted(store: RunNoteStore, ticketId: string, run: RunStart | null): void {
+  markTicketLive(ticketId);
+  if (run) store.save({ ...run, ticketId });
 }
 
 // ── The notice on the map ────────────────────────────────────────────────────
@@ -172,4 +216,34 @@ export function runNoticeFor(input: {
   if (!bounced && live(note.ticketId)) return { notice: null, consume: false };
   if (note.season !== season) return { notice: bounced ? { level: null, text: RUN_ENDED_COPY } : null, consume: true };
   return { notice: { level: note.level, text: interruptedCopy(note) }, consume: true };
+}
+
+/** Where the map lands: the level card to open, and the notice to show. */
+export interface MapLanding {
+  open: number | null;
+  notice: RunNotice | null;
+}
+
+/**
+ * Which card the map opens on arrival and which notice it shows.
+ *
+ * - `openLevel`: the card the route asked for (Next level, or the bounced
+ *   run's level); only a level at or below the frontier opens.
+ * - "That run has ended." names no level: when bounced it belongs on the card
+ *   the run bounced to.
+ * - A notice about a different level than the card would open is not left in
+ *   a banner behind that card: its own level's card opens instead, or, when
+ *   that level is not open, no card does and the banner shows alone.
+ */
+export function mapLanding(input: {
+  notice: RunNotice | null;
+  openLevel: number | null;
+  bounced: boolean;
+  frontier: number;
+}): MapLanding {
+  const { openLevel, bounced, frontier } = input;
+  const notice = input.notice && input.notice.level === null && bounced ? { ...input.notice, level: openLevel } : input.notice;
+  const open = openLevel !== null && openLevel <= frontier ? openLevel : null;
+  if (open === null || notice === null || notice.level === null || notice.level === open) return { open, notice };
+  return { open: notice.level <= frontier ? notice.level : null, notice };
 }

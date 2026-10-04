@@ -7,6 +7,8 @@
   - `parseRunNote`: allow-list parser that returns null on anything malformed.
   - `createRunNoteStore({accountId, load, save, remove})`: key `doomstack:levels:run-in-progress:v1:<uid|anon>`.
   - `markTicketLive` / `isTicketLive`: a module-level id of the ticket this JS session issued most recently. A reload or restart resets it.
+  - `holdLiveTicket` / `releaseLiveTicket`: the play screen holds its ticket while mounted. On unmount the release is deferred one microtask, so StrictMode's dev remount cancels it. A real unmount (Back, Android hardware back) un-lives the ticket and clears its note, like Quit. `noteRunStarted` is the single run-start bookkeeping (mark live + save note) used by the map and by Retry.
+  - `mapLanding`: which card the map opens and which notice it shows. A note about a level other than the requested card opens that level's card instead, or shows only the banner when that level is above the frontier.
   - `runNoticeFor`: a pure decision that returns the notice and whether to consume the note.
 - `LevelsContext`: exposes `runNotes` (injectable, like `bestFails`).
 - `LevelMapScreen`

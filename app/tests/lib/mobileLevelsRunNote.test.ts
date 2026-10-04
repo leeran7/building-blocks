@@ -9,10 +9,14 @@ import { describe, expect, it } from "vitest";
 import {
   RUN_ENDED_COPY,
   createRunNoteStore,
+  holdLiveTicket,
   interruptedCopy,
   isTicketLive,
+  mapLanding,
   markTicketLive,
+  noteRunStarted,
   parseRunNote,
+  releaseLiveTicket,
   runNoticeFor,
   type RunNote,
 } from "../../mobile/src/lib/levels/runNote";
@@ -130,6 +134,77 @@ describe("the session's live ticket", () => {
     expect(isTicketLive("first")).toBe(false);
     expect(isTicketLive("second")).toBe(true);
     expect(isTicketLive("never-issued")).toBe(false);
+  });
+
+  it("is released once its play screen unmounts, and the run counts as left", async () => {
+    markTicketLive("left");
+    let left = 0;
+    releaseLiveTicket("left", () => void left++);
+    await Promise.resolve();
+    expect(isTicketLive("left")).toBe(false);
+    expect(left).toBe(1);
+  });
+
+  it("stays live when its play screen mounts again in the same task (StrictMode)", async () => {
+    markTicketLive("strict");
+    let left = 0;
+    releaseLiveTicket("strict", () => void left++);
+    holdLiveTicket("strict");
+    await Promise.resolve();
+    expect(isTicketLive("strict")).toBe(true);
+    expect(left).toBe(0);
+  });
+
+  it("leaves a newer ticket live when an older one's screen unmounts", async () => {
+    markTicketLive("older");
+    markTicketLive("newer");
+    let left = 0;
+    releaseLiveTicket("older", () => void left++);
+    await Promise.resolve();
+    expect(isTicketLive("newer")).toBe(true);
+    expect(left).toBe(1);
+  });
+
+  it("marks a started run live and notes it, or only marks it with no season", () => {
+    const mem = memoryStorage();
+    const store = createRunNoteStore({ accountId: "u1", ...mem });
+    noteRunStarted(store, "tk-new", { season: 1, level: 12, costsLife: true });
+    expect(isTicketLive("tk-new")).toBe(true);
+    expect(store.get()).toEqual({ season: 1, level: 12, ticketId: "tk-new", costsLife: true });
+
+    noteRunStarted(store, "tk-unnoted", null);
+    expect(isTicketLive("tk-unnoted")).toBe(true);
+    expect(store.get()?.ticketId).toBe("tk-new");
+  });
+});
+
+describe("mapLanding", () => {
+  const ended = { level: null, text: RUN_ENDED_COPY };
+  const lost = (level: number) => ({ level, text: interruptedCopy({ ...NOTE, level }) });
+
+  it("opens the asked-for card at or below the frontier, and nothing above it", () => {
+    expect(mapLanding({ notice: null, openLevel: 4, bounced: false, frontier: 11 })).toEqual({ open: 4, notice: null });
+    expect(mapLanding({ notice: null, openLevel: 12, bounced: false, frontier: 11 })).toEqual({ open: null, notice: null });
+    expect(mapLanding({ notice: null, openLevel: null, bounced: false, frontier: 11 })).toEqual({ open: null, notice: null });
+  });
+
+  it("puts \"That run has ended.\" on the card the run bounced to", () => {
+    expect(mapLanding({ notice: ended, openLevel: 4, bounced: true, frontier: 11 })).toEqual({ open: 4, notice: { ...ended, level: 4 } });
+    // Not open: a banner, which shows for any level without a card.
+    expect(mapLanding({ notice: ended, openLevel: 12, bounced: true, frontier: 11 })).toEqual({ open: null, notice: { ...ended, level: 12 } });
+  });
+
+  it("keeps a plain visit's notice in the banner with no card", () => {
+    expect(mapLanding({ notice: lost(11), openLevel: null, bounced: false, frontier: 11 })).toEqual({ open: null, notice: lost(11) });
+  });
+
+  it("opens the cut-off run's level instead of another level's card", () => {
+    expect(mapLanding({ notice: lost(9), openLevel: 4, bounced: true, frontier: 11 })).toEqual({ open: 9, notice: lost(9) });
+    expect(mapLanding({ notice: lost(11), openLevel: 4, bounced: false, frontier: 11 })).toEqual({ open: 11, notice: lost(11) });
+  });
+
+  it("opens no card when the cut-off run's level is above the frontier", () => {
+    expect(mapLanding({ notice: lost(14), openLevel: 4, bounced: true, frontier: 11 })).toEqual({ open: null, notice: lost(14) });
   });
 });
 
