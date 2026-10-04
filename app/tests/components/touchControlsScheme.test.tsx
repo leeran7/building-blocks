@@ -289,6 +289,27 @@ describe("in-game settings cog", () => {
     }
   });
 
+  it("shows a Vibration switch only when the app supplies one", () => {
+    const restore = stubPointer(false);
+    try {
+      mountHud(() => {});
+      act(() => cog().click());
+      expect(container.textContent).not.toContain("Vibration");
+
+      const onToggle = vi.fn();
+      act(() => {
+        root.render(createElement(UtilityControls, { muted: false, onToggleMute: () => {}, vibration: { enabled: false, onToggle } }));
+      });
+      if (cog().getAttribute("aria-expanded") !== "true") act(() => cog().click());
+      const vib = [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')].find((b) => b.textContent?.startsWith("Vibration"));
+      expect(vib?.getAttribute("aria-checked")).toBe("false");
+      act(() => vib!.click());
+      expect(onToggle).toHaveBeenCalledTimes(1);
+    } finally {
+      restore();
+    }
+  });
+
   it("shows sound as off when muted", () => {
     const restore = stubPointer(true);
     try {

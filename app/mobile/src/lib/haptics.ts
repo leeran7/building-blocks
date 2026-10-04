@@ -1,24 +1,10 @@
 import { Capacitor } from "@capacitor/core";
 import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
+import { isHapticsEnabled } from "./hapticsSetting";
 
-const HAPTICS_KEY = "haptics_enabled";
+export { isHapticsEnabled, setHapticsEnabled } from "./hapticsSetting";
+
 const isNative = Capacitor.isNativePlatform();
-
-export function isHapticsEnabled(): boolean {
-  try {
-    return localStorage.getItem(HAPTICS_KEY) !== "false";
-  } catch {
-    return true;
-  }
-}
-
-export function setHapticsEnabled(enabled: boolean): void {
-  try {
-    localStorage.setItem(HAPTICS_KEY, enabled ? "true" : "false");
-  } catch {
-    /* ignore */
-  }
-}
 
 function canHaptic(): boolean {
   return isNative && isHapticsEnabled();

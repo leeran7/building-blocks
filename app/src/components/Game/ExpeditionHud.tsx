@@ -7,7 +7,7 @@ import { ALTITUDE_UNIT, formatAltitude } from "../../lib/units";
 import { isPowerUpActive } from "../../game/powerups";
 import { ActivePowerStack } from "./PowerUpHud";
 import { FullscreenButton } from "./FullscreenButton";
-import { GameSettingsButton } from "./GameSettings";
+import { GameSettingsButton, type GameToggle } from "./GameSettings";
 import "./expedition.css";
 
 export function HeightInstrument({ height }: { height: number }) {
@@ -62,16 +62,18 @@ export function LavaClearanceInstrument({ clearance: rawClearance, phase, progre
 type UtilitiesProps = {
   muted: boolean;
   onToggleMute: () => void;
+  /** Vibration on/off for the cog panel; only the native app has haptics to switch. */
+  vibration?: GameToggle;
   fullscreenSupported?: boolean;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   backControl?: ReactNode;
 };
 
-export function UtilityControls({ muted, onToggleMute, fullscreenSupported, isFullscreen = false, onToggleFullscreen, backControl }: UtilitiesProps) {
+export function UtilityControls({ muted, onToggleMute, vibration, fullscreenSupported, isFullscreen = false, onToggleFullscreen, backControl }: UtilitiesProps) {
   return <div className="exp-utilities">
     {backControl}
-    <GameSettingsButton muted={muted} onToggleMute={onToggleMute} />
+    <GameSettingsButton muted={muted} onToggleMute={onToggleMute} vibration={vibration} />
     {fullscreenSupported && onToggleFullscreen && <FullscreenButton isFullscreen={isFullscreen} onToggle={onToggleFullscreen} className="exp-utility" />}
   </div>;
 }

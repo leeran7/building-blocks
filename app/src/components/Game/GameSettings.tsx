@@ -2,8 +2,9 @@
 
 /**
  * The in-game settings cog: one HUD button that opens a small panel with game
- * sound and, on touch devices, the control layout. It replaces the bare mute
- * button so the controls can be changed mid-run without leaving the climb.
+ * sound, vibration where the host app has haptics, and, on touch devices, the
+ * control layout. It replaces the bare mute button so these can be changed
+ * mid-run without leaving the climb.
  *
  * The run keeps going while the panel is open (live climbs and duels have no
  * pause), so it is a popover under the cog, not a full-screen sheet.
@@ -13,7 +14,21 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ControlSchemePicker } from "../ControlSchemePicker";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 
-export function GameSettingsButton({ muted, onToggleMute }: { muted: boolean; onToggleMute: () => void }) {
+/** An on/off preference the host app owns, such as vibration on native. */
+export interface GameToggle {
+  enabled: boolean;
+  onToggle: () => void;
+}
+
+export function GameSettingsButton({
+  muted,
+  onToggleMute,
+  vibration,
+}: {
+  muted: boolean;
+  onToggleMute: () => void;
+  vibration?: GameToggle;
+}) {
   const [open, setOpen] = useState(false);
   // Which edge the panel hangs from: the cog sits top-left in some HUD layouts
   // and top-right in others, and the panel must open toward the screen.
@@ -67,21 +82,8 @@ export function GameSettingsButton({ muted, onToggleMute }: { muted: boolean; on
       </button>
       {open && (
         <div id={panelId} role="group" aria-label="Game settings" data-side={side} className="exp-settings-panel">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={!muted}
-            onClick={onToggleMute}
-            className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-1 text-left text-sm font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
-          >
-            Sound
-            <span
-              aria-hidden="true"
-              className={`font-mono text-xs uppercase tracking-[0.14em] ${muted ? "text-text-secondary" : "text-signal"}`}
-            >
-              {muted ? "Off" : "On"}
-            </span>
-          </button>
+          <SwitchRow label="Sound" on={!muted} onToggle={onToggleMute} />
+          {vibration && <SwitchRow label="Vibration" on={vibration.enabled} onToggle={vibration.onToggle} />}
           {touch && (
             <div className="mt-2 border-t border-white/10 pt-3">
               <p id={controlsLabelId} className="mb-2 px-1 text-sm font-semibold text-text-primary">
@@ -93,5 +95,22 @@ export function GameSettingsButton({ muted, onToggleMute }: { muted: boolean; on
         </div>
       )}
     </div>
+  );
+}
+
+function SwitchRow({ label, on, onToggle }: { label: string; on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={onToggle}
+      className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-1 text-left text-sm font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+    >
+      {label}
+      <span aria-hidden="true" className={`font-mono text-xs uppercase tracking-[0.14em] ${on ? "text-signal" : "text-text-secondary"}`}>
+        {on ? "On" : "Off"}
+      </span>
+    </button>
   );
 }

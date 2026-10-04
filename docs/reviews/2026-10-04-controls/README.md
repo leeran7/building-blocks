@@ -31,3 +31,11 @@ Before, the climb started on the joystick, and the copy mixed both layouts ("Hol
 | Before | After: pick step (new) | After: first goal |
 |--|--|--|
 | <img src="before-training.jpg" width="240" alt="Walk goal: Hold left or right (or push the stick); joystick layout with an arrow on the jump pad"> | <img src="after-pick.jpg" width="240" alt="Pick your controls card with Buttons preselected and Start training"> | <img src="after-training.jpg" width="240" alt="Walk goal: Hold left or right to walk; Try the joystick button; button row with JUMP"> |
+
+## Vibration switch in the cog
+
+The mobile app's run screens add a Vibration switch, which uses the same saved haptics setting as Edit profile. The web game has no haptics, so it doesn't show the switch.
+
+| Before | After | After: switched off |
+|--|--|--|
+| <img src="after-climb-settings.jpg" width="240" alt="Panel with Sound and Controls"> | <img src="after-vibration.jpg" width="240" alt="Panel with Sound, Vibration On and Controls"> | <img src="after-vibration-off.jpg" width="240" alt="Vibration Off"> |
