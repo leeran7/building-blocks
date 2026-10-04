@@ -17,10 +17,9 @@
  * Green Stick is what every player without a character climbs as.
  *
  * A fourth kind, `tint` (the Wraith sheets recoloured by climberTint.ts), is
- * the placeholder for a paid Void skin (`<id>-void`, src/lib/avatars.ts)
- * until its own art lands: the Wraith in that character's colours, which is
- * the Wraith style the paid versions are drawn in. Giving a Void skin its
- * art is one line in VOID_SKIN_SHEETS below plus its two sheet files.
+ * used for the Wraith colour skins. The 18 paid character skins have their
+ * own portrait-faithful art and skull calibration in VOID_SKIN_SHEETS below.
+ * Their original Choose Character portraits remain the identity reference.
  */
 
 import { AVATARS, stickColorOf, type AvatarEntry } from "../../lib/avatars";
@@ -51,7 +50,22 @@ export interface SheetCharacter {
    * One scale for every pose.
    */
   readonly refH: number;
+  /** Crossfade fraction per cycle frame; see SheetOptions.cycleBlend. */
+  readonly cycleBlend: CycleBlend;
 }
+
+export interface CycleBlend {
+  readonly walk: number;
+  readonly climb: number;
+}
+
+/**
+ * Default fraction of each walk step / climb frame (either side of a
+ * boundary) spent crossfading into the neighbouring frame: crisp frames with
+ * a short dissolve, right for a cycle drawn as steps of one motion (the
+ * Wraith's).
+ */
+export const CYCLE_BLEND = 0.14;
 
 export interface TintCharacter {
   readonly kind: "tint";
@@ -88,6 +102,14 @@ export interface SheetOptions {
    * of the head without horns, ears, crests or a hood. Sets refH.
    */
   readonly headTop?: number;
+  /**
+   * Crossfade fraction per cycle, 0 to 0.5, default CYCLE_BLEND for both. A
+   * generated cycle whose frames are six poses rather than steps of one
+   * motion cuts between unrelated limb positions 14 times a second; at 0.5 it
+   * dissolves continuously instead (crisp at each frame's centre), which
+   * reads as limbs moving rather than flickering.
+   */
+  readonly cycleBlend?: Partial<CycleBlend>;
 }
 
 /**
@@ -98,6 +120,9 @@ export interface SheetOptions {
  * sits on the stick figure's head; without it the top of the 380 px idle
  * figure is used.
  */
+const clampBlend = (v: number | undefined): number =>
+  typeof v === "number" && Number.isFinite(v) ? Math.min(0.5, Math.max(0, v)) : CYCLE_BLEND;
+
 export function sheets(id: string, opts: SheetOptions = {}): SheetCharacter {
   return {
     kind: "sheets",
@@ -107,12 +132,16 @@ export function sheets(id: string, opts: SheetOptions = {}): SheetCharacter {
     rootX: opts.rootX ?? 256 * K,
     rootY: opts.rootY ?? 460 * K,
     refH: (opts.rootY ?? 460 * K) - (opts.headTop ?? (460 - 380) * K),
+    cycleBlend: {
+      walk: clampBlend(opts.cycleBlend?.walk),
+      climb: clampBlend(opts.cycleBlend?.climb),
+    },
   };
 }
 
 /**
- * Wraith sheets recoloured: `accent` for the lime, optional `body` tone. Not
- * used by the live registry (real art only); kept for the recolour feature.
+ * Wraith sheets recoloured: `accent` for the lime, optional `body` tone.
+ * Used for the Wraith colour skins; character skins have dedicated art.
  */
 export function tint(accent: string, body: string | null = null): TintCharacter {
   return { kind: "tint", accent, body };
@@ -146,9 +175,9 @@ export interface RecolorColors {
 }
 
 /**
- * Each character's colours: the accent of its Void skin placeholder (below),
- * and data for a future recolour feature. Pass an entry to
- * `tint(accent, body)` to build a recoloured Wraith.
+ * Each character's colours: the fallback tint for a Void skin missing from
+ * VOID_SKIN_SHEETS (none today), and data for a future recolour feature.
+ * Pass an entry to `tint(accent, body)` to build a recoloured Wraith.
  *
  * Colours were sampled from each portrait in
  * mobile/src/assets/avatars/<id>.webp: `accent` is the brighter half of the
@@ -177,21 +206,49 @@ export const RECOLOR_PALETTE: Readonly<Record<string, RecolorColors>> = {
 };
 
 /**
- * Void skins whose own sheets have landed in public/climb/
- * (`<id>-void-poses-192.png` and `-climb-192.png`), with their sheet options.
- * Every other Void skin draws as its placeholder tint.
+ * The Void climb strips are six generated poses re-sequenced into a loop
+ * (scripts/climber-art), not steps of one motion, so they dissolve
+ * continuously; their walk strides are matched contact poses like the
+ * Wraith's and keep the default.
  */
-export const VOID_SKIN_SHEETS: Readonly<Record<string, SheetOptions>> = {};
+export const VOID_BLEND: Partial<CycleBlend> = Object.freeze({ climb: 0.5 });
 
-/** The near-black the Wraith-style placeholders lean their body greys toward. */
+/**
+ * Every character's Void skin, with its own sheets in public/climb/
+ * (`<id>-void-poses-192.png` and `-climb-192.png`) and its sheet options.
+ * Skull tops exclude crests, ears and horns; calibrated from the approved
+ * normalized idle cells. The Wraith's colour skins are tints, not listed here.
+ */
+export const VOID_SKIN_SHEETS: Readonly<Record<string, SheetOptions>> = {
+  "kestrel-void": { headTop: 52, cycleBlend: VOID_BLEND },
+  "lynx-void": { headTop: 46, cycleBlend: VOID_BLEND },
+  "raven-void": { headTop: 50, cycleBlend: VOID_BLEND },
+  "panther-void": { headTop: 39, cycleBlend: VOID_BLEND },
+  "wolf-void": { headTop: 54, cycleBlend: VOID_BLEND },
+  "otter-void": { headTop: 43, cycleBlend: VOID_BLEND },
+  "heron-void": { headTop: 52, cycleBlend: VOID_BLEND },
+  "yak-void": { headTop: 49, cycleBlend: VOID_BLEND },
+  "mantis-void": { headTop: 55, cycleBlend: VOID_BLEND },
+  "cobra-void": { headTop: 27, cycleBlend: VOID_BLEND },
+  "badger-void": { headTop: 30, cycleBlend: VOID_BLEND },
+  "falcon-void": { headTop: 49, cycleBlend: VOID_BLEND },
+  "marmot-void": { headTop: 48, cycleBlend: VOID_BLEND },
+  "bison-void": { headTop: 48, cycleBlend: VOID_BLEND },
+  "ibex-void": { headTop: 55, cycleBlend: VOID_BLEND },
+  "sentinel-void": { headTop: 48, cycleBlend: VOID_BLEND },
+  "viking-void": { headTop: 35, cycleBlend: VOID_BLEND },
+  "gecko-void": { headTop: 27, cycleBlend: VOID_BLEND },
+};
+
+/** The near-black a tinted skin leans its body greys toward. */
 const VOID_BODY = "#0e0e12";
 /** A skin with neither its own colour nor a palette entry: the Void Walker's purple. */
 const FALLBACK_SKIN_ACCENT = "#9b5cff";
 
 /**
- * A skin's registry entry: its own sheets once they land, else the
- * placeholder tint. The Wraith's colour skins use their catalogue colour;
- * every Void skin its character's palette accent.
+ * A skin's registry entry: its own sheets when VOID_SKIN_SHEETS lists it,
+ * else a tinted Wraith. The Wraith's colour skins tint to their catalogue
+ * colour; a Void skin without sheets would tint to its palette accent.
  */
 function voidSkin(skin: AvatarEntry, characterId: string): ClimberCharacter {
   const art = Object.prototype.hasOwnProperty.call(VOID_SKIN_SHEETS, skin.id) ? VOID_SKIN_SHEETS[skin.id] : null;

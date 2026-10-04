@@ -26,3 +26,4 @@ dist/
 .firebaserc
 scratch
 .next
+__pycache__/

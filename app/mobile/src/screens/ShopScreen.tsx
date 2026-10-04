@@ -22,9 +22,9 @@ const VOID_RGB = "155, 92, 255";
 
 /**
  * The Shop tab: the gem balance, the lives refill, the Wraith as the featured
- * character, then every other character in its paid Void skin. Figures are
- * the climbers as they look in a run, not portraits. A card opens Skin
- * Details, where looks are bought and equipped.
+ * character, then every other character's paid Void skin, each in front of
+ * its Classic look. Figures are the climbers as they look in a run, not
+ * portraits. A card opens Skin Details, where looks are bought and equipped.
  */
 export function ShopScreen() {
   const navigate = useNavigate();
@@ -158,7 +158,7 @@ function FeaturedCard({ character, owned, onOpen }: { character: AvatarEntry; ow
   );
 }
 
-/** One character, standing beside itself in its Void skin. */
+/** A Void skin, front and centre, with its Classic character small behind it. */
 function SkinCard({
   character,
   skin,
@@ -183,22 +183,23 @@ function SkinCard({
     >
       <span
         className="relative block h-[128px] w-full overflow-hidden"
-        style={{ background: `radial-gradient(65% 75% at 50% 82%, rgba(${VOID_RGB}, 0.3), transparent 72%)` }}
+        style={{ background: `radial-gradient(65% 75% at 44% 82%, rgba(${VOID_RGB}, 0.32), transparent 72%)` }}
       >
-        {/* The character beside its Void skin: what the card sells. Placed by percent so both fit a 320px phone. */}
-        <span aria-hidden data-skin-figure className="absolute bottom-0 flex left-[74%] -translate-x-1/2 opacity-90">
-          <motion.span layoutId={sharedId.shopLook(skin.id)} layoutCrossfade={false} transition={spring.smooth} className="flex">
-            <CharacterPreview avatarId={skin.id} pose="idle" locked={false} figurePx={74} sizePx={88} still />
-          </motion.span>
+        {/* The Classic look, small and dimmed behind: what the skin dresses. Placed by percent so both fit a 320px phone. */}
+        <span aria-hidden data-character-figure className="absolute bottom-[6px] flex left-[78%] -translate-x-1/2 opacity-45">
+          <CharacterPreview avatarId={character.id} pose="idle" locked={false} figurePx={62} sizePx={76} still />
         </span>
-        <span aria-hidden data-character-figure className="absolute bottom-0 flex left-[38%] -translate-x-1/2">
-          <FloorShadow width={56} />
-          <CharacterPreview avatarId={character.id} pose="idle" locked={false} figurePx={100} sizePx={116} still />
+        {/* The Void skin is what the card sells, so it stands in front at full size. */}
+        <span aria-hidden data-skin-figure className="absolute bottom-0 flex left-[42%] -translate-x-1/2">
+          <FloorShadow width={60} />
+          <motion.span layoutId={sharedId.shopLook(skin.id)} layoutCrossfade={false} transition={spring.smooth} className="relative flex">
+            <CharacterPreview avatarId={skin.id} pose="idle" locked={false} figurePx={100} sizePx={116} still />
+          </motion.span>
         </span>
       </span>
       <span className="flex flex-col gap-1 border-t border-white/5 px-3 pb-3 pt-2">
         <span className="truncate font-display text-body font-black uppercase leading-tight text-text-primary">
-          {character.name}
+          {skin.name}
         </span>
         <PriceTag entry={skin} owned={owned} />
       </span>

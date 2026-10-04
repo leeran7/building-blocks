@@ -269,6 +269,24 @@ describe("climberFrame: cycles", () => {
     expect(inside.bx).toBe(inside.sx);
   });
 
+  it("a character's own cycleBlend widens its climb crossfade to a continuous dissolve", async () => {
+    const { climberFrame, CELL, CYCLE_BLEND } = await loaded();
+    // Three-quarters into a frame: crisp inside the Wraith's window, mid-dissolve at 0.5.
+    expect(climberFrame("climb", 0, 0.75 * 0.65, false, WRAITH)!.blend).toBe(0);
+    climberFrame("climb", 0, 0, false, "otter-void"); // requests the Void sheets
+    sheet("otter-void-poses-192.png").decode();
+    sheet("otter-void-climb-192.png").decode();
+    const voidSkin = climberFrame("climb", 0, 0.75 * 0.65, false, "otter-void")!;
+    expect(voidSkin.character).toBe("otter-void");
+    expect(voidSkin.geom.cycleBlend).toEqual({ walk: CYCLE_BLEND, climb: 0.5 });
+    expect(voidSkin.blend).toBeCloseTo(0.5 * (0.5 * 0.5 * (3 - 2 * 0.5)), 6); // smoothstep(0.5) / 2
+    expect([voidSkin.sx, voidSkin.bx]).toEqual([0, CELL]);
+    // Frame centres stay crisp, and the walk keeps the default window.
+    expect(climberFrame("climb", 0, 0.5 * 0.65, false, "otter-void")!.blend).toBe(0);
+    expect(climberFrame("walk", 0.75 * 4.5, 0, false, "otter-void")!.blend).toBe(0);
+    expect(climberFrame("walk", (1 - CYCLE_BLEND / 2) * 4.5, 0, false, "otter-void")!.blend).toBeGreaterThan(0);
+  });
+
   it("climb steps through all six back-view frames by height", async () => {
     const { climberFrame, CELL } = await loaded();
     const seen = new Set<number>();
