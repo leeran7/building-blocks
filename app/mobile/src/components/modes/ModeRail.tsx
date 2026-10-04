@@ -163,15 +163,18 @@ export function ModeRail() {
         )}
       </AnimatePresence>
 
-      {queue.state.status !== "idle" && (
-        <SearchingOverlay
-          status={queue.state.status}
-          errorMessage={queue.state.errorMessage}
-          onCancel={queue.cancel}
-          onRetry={queue.join}
-          onDismiss={queue.reset}
-        />
-      )}
+      <AnimatePresence>
+        {/* Matched: the overlay fades out as the duel zooms in (ModeRail navigates). */}
+        {queue.state.status !== "idle" && queue.state.status !== "matched" && (
+          <SearchingOverlay
+            status={queue.state.status}
+            errorMessage={queue.state.errorMessage}
+            onCancel={queue.cancel}
+            onRetry={queue.join}
+            onDismiss={queue.reset}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

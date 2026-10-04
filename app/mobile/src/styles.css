@@ -172,25 +172,6 @@ textarea {
   --motion-ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Reusable soft fade-in for root-level swaps (auth splash → sign in → app) so
-   the first launch never hard-cuts. Reduced-motion users get it instantly. */
-.app-fade {
-  animation: appFade var(--motion-duration-base) var(--motion-ease-out) both;
-}
-@keyframes appFade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .app-fade {
-    animation: none;
-  }
-}
-
 /*
   Shared surfaces for the redesigned hub screens (Home, Ranks, Profile and the
   Profile push screens). Text sits on these, so they stay >= 0.94 opaque: at

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence } from "motion/react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { TICK_HZ } from "@app/game/types";
@@ -281,38 +282,42 @@ export function LevelPlayScreen() {
           Checking your run…
         </div>
       )}
-      {stage.kind === "result" && (
-        <LevelResultCard
-          result={player ? { ...stage.result, player } : stage.result}
-          costsLife={node.costsLife}
-          nearMiss={stage.result.cleared ? null : nearMiss(stage.result.peakFt)}
-          hasNextLevel={season !== null && level < season.levels.length}
-          retryBusy={retryBusy}
-          retryError={retryError}
-          onNext={() => toMap(level + 1)}
-          onRetry={() => void retry()}
-          onMap={() => toMap()}
-          onPractice={() => navigate("/climb", { replace: true })}
-          onPracticeLevel={() => navigate(`/levels/${level}/play?practice=1`, { replace: true })}
-          refill={refill.offer}
-        />
-      )}
+      <AnimatePresence>
+        {stage.kind === "result" && (
+          <LevelResultCard
+            key="result"
+            result={player ? { ...stage.result, player } : stage.result}
+            costsLife={node.costsLife}
+            nearMiss={stage.result.cleared ? null : nearMiss(stage.result.peakFt)}
+            hasNextLevel={season !== null && level < season.levels.length}
+            retryBusy={retryBusy}
+            retryError={retryError}
+            onNext={() => toMap(level + 1)}
+            onRetry={() => void retry()}
+            onMap={() => toMap()}
+            onPractice={() => navigate("/climb", { replace: true })}
+            onPracticeLevel={() => navigate(`/levels/${level}/play?practice=1`, { replace: true })}
+            refill={refill.offer}
+          />
+        )}
+        {stage.kind === "failed" && (
+          <SubmitFailedCard key="failed" level={level} busy={false} onRetry={() => void submit(stage.report)} onMap={() => toMap()} />
+        )}
+        {stage.kind === "practice-over" && (
+          <PracticeResultCard
+            key="practice"
+            level={level}
+            goalFt={goalFt}
+            peakFt={stage.report.peakFt}
+            outOfTime={stage.report.outOfTime}
+            nearMiss={stage.report.finished ? null : nearMiss(stage.report.peakFt)}
+            timeMs={stage.report.finishedTick !== null ? Math.round((stage.report.finishedTick / TICK_HZ) * 1000) : null}
+            onRetry={() => void retry()}
+            onMap={() => toMap()}
+          />
+        )}
+      </AnimatePresence>
       {refill.overlays}
-      {stage.kind === "failed" && (
-        <SubmitFailedCard level={level} busy={false} onRetry={() => void submit(stage.report)} onMap={() => toMap()} />
-      )}
-      {stage.kind === "practice-over" && (
-        <PracticeResultCard
-          level={level}
-          goalFt={goalFt}
-          peakFt={stage.report.peakFt}
-          outOfTime={stage.report.outOfTime}
-          nearMiss={stage.report.finished ? null : nearMiss(stage.report.peakFt)}
-          timeMs={stage.report.finishedTick !== null ? Math.round((stage.report.finishedTick / TICK_HZ) * 1000) : null}
-          onRetry={() => void retry()}
-          onMap={() => toMap()}
-        />
-      )}
     </div>
   );
 }

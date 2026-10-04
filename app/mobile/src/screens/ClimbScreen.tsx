@@ -1,4 +1,5 @@
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import { SHEET_MOTION } from "../components/SheetPortal";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "../lib/motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -476,35 +477,37 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
           </Overlay>
         )}
 
-        {finished && (
-          <ResultsCard
-            peakY={player?.peakY ?? 0}
-            saveInfo={saveInfo}
-            dailyResult={isDaily ? dailyResult : null}
-            dailySave={isDaily ? dailySave : null}
-            onRetryDaily={retryDailySave}
-            onSeeBoard={
-              isDaily && isAuthed
-                ? () => {
-                    void tapLight();
-                    // Replace the finished run: Back from the board must not
-                    // land on a fresh Daily lobby (the board is a pushed screen).
-                    navigate(TODAY_BOARD_PATH, { replace: true });
-                  }
-                : undefined
-            }
-            shareable={shareReady}
-            isGuest={!isAuthed}
-            onPlayAgain={handleStart}
-            playAgainState={playAgainState}
-            onShare={share}
-            onHome={() => {
-              void tapLight();
-              goBack();
-            }}
-            onSignIn={onSignIn}
-          />
-        )}
+        <AnimatePresence>
+          {finished && (
+            <ResultsCard
+              peakY={player?.peakY ?? 0}
+              saveInfo={saveInfo}
+              dailyResult={isDaily ? dailyResult : null}
+              dailySave={isDaily ? dailySave : null}
+              onRetryDaily={retryDailySave}
+              onSeeBoard={
+                isDaily && isAuthed
+                  ? () => {
+                      void tapLight();
+                      // Replace the finished run: Back from the board must not
+                      // land on a fresh Daily lobby (the board is a pushed screen).
+                      navigate(TODAY_BOARD_PATH, { replace: true });
+                    }
+                  : undefined
+              }
+              shareable={shareReady}
+              isGuest={!isAuthed}
+              onPlayAgain={handleStart}
+              playAgainState={playAgainState}
+              onShare={share}
+              onHome={() => {
+                void tapLight();
+                goBack();
+              }}
+              onSignIn={onSignIn}
+            />
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {runNudge && onSignIn && (
@@ -669,6 +672,8 @@ function ResultsCard({
   onSignIn?: () => void;
 }) {
   const shown = useCountUp(peakY);
+  // Sliding away after Play again: nothing on it may be pressed.
+  const present = useIsPresent();
   const isDailySave = dailySave !== null;
   const isBest = isDailySave
     ? dailySave.status === "saved" && dailySave.improved
@@ -686,17 +691,18 @@ function ResultsCard({
       ? `#${saveInfo.rank}${saveInfo.totalClimbers ? ` of ${saveInfo.totalClimbers.toLocaleString()}` : ""}${topPct ? ` · top ${topPct}%` : ""}`
       : "your highest climb";
   return (
-    <div className="rc-card absolute inset-x-0 bottom-0 z-30 animate-[resultsUp_0.28s_cubic-bezier(0.16,1,0.3,1)] rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-3 backdrop-blur-xl">
+    <motion.div
+      {...SHEET_MOTION.panel}
+      inert={!present}
+      className="rc-card absolute inset-x-0 bottom-0 z-30 rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-3 backdrop-blur-xl">
       {/* iOS sheet grabber */}
       <span aria-hidden className="mx-auto mb-5 block h-1 w-9 rounded-full bg-border-strong" />
       <style>{`
-        @keyframes resultsUp { from { transform: translateY(100%);} to { transform: translateY(0);} }
         @keyframes rcBestPop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .rc-best-pill { animation: rcBestPop 0.4s 0.5s cubic-bezier(0.16,1,0.3,1) both; }
         .rc-best-glow { text-shadow: 0 0 40px rgba(203,242,77,0.5); }
         @media (prefers-reduced-motion: reduce) {
           .rc-best-pill { animation: none; }
-          .rc-card { animation: none; }
         }
       `}</style>
 
@@ -790,6 +796,6 @@ function ResultsCard({
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

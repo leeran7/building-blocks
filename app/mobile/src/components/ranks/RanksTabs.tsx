@@ -3,6 +3,8 @@
  * shared WAI-ARIA keyboard model. Split out of LeaderboardScreen (RV-DC-7).
  */
 import type { KeyboardEvent } from "react";
+import { motion } from "motion/react";
+import { spring } from "../../lib/motionTokens";
 import { tapLight } from "../../lib/haptics";
 import { GlobeIcon, PeopleIcon } from "./icons";
 
@@ -97,14 +99,24 @@ export function ScopeTabs({ scope, onChange }: { scope: Scope; onChange: (next: 
             aria-controls={PANEL_ID}
             tabIndex={selected ? 0 : -1}
             onClick={() => select(id)}
-            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-full font-display text-meta font-black uppercase tracking-chip transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
-              selected
-                ? "bg-signal text-void shadow-[0_0_18px_-4px_rgba(203,242,77,0.6)]"
-                : "text-text-secondary active:bg-white/5"
+            className={`relative flex min-h-[44px] items-center justify-center gap-2 rounded-full font-display text-meta font-black uppercase tracking-chip transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void ${
+              selected ? "text-void" : "text-text-secondary active:bg-white/5"
             }`}
           >
-            {id === "global" ? <GlobeIcon /> : <PeopleIcon />}
-            {label}
+            {/* One pill that slides to the selected scope. */}
+            {selected && (
+              <motion.span
+                layoutId="ranks-scope-pill"
+                data-tab-pill
+                aria-hidden
+                transition={spring.snappy}
+                className="absolute inset-0 rounded-full bg-signal shadow-[0_0_18px_-4px_rgba(203,242,77,0.6)]"
+              />
+            )}
+            <span className="relative flex items-center gap-2">
+              {id === "global" ? <GlobeIcon /> : <PeopleIcon />}
+              {label}
+            </span>
           </button>
         );
       })}
@@ -147,7 +159,17 @@ export function PeriodTabs({ period, onChange }: { period: Period; onChange: (ne
             }`}
           >
             {label}
-            <span aria-hidden className={`h-0.5 w-full rounded-full ${selected ? "bg-accent" : "bg-transparent"}`} />
+            {/* One bar that slides under the selected period. */}
+            <span aria-hidden className="relative h-0.5 w-full">
+              {selected && (
+                <motion.span
+                  layoutId="ranks-period-bar"
+                  data-tab-bar
+                  transition={spring.snappy}
+                  className="absolute inset-0 rounded-full bg-accent"
+                />
+              )}
+            </span>
           </button>
         );
       })}

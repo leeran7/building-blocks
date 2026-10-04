@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { MotionConfig } from "motion/react";
+import { useEffect, type ReactNode } from "react";
+import { AnimatePresence, MotionConfig, motion, useIsPresent } from "motion/react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ClimbScreen } from "./screens/ClimbScreen";
 import { SignInScreen } from "./screens/SignInScreen";
@@ -25,6 +25,11 @@ import { launchReady, useLaunchSplash } from "./lib/launchSplash";
 import { GuestShell } from "./components/GuestShell";
 import { LogoMark } from "./components/LogoMark";
 import { useGuestMode } from "./lib/guestMode";
+import { isGameRoute } from "./lib/navigation";
+import { fade } from "./lib/motionTokens";
+
+/** How the backdrop and the app's top-level states (splash, Sign In, guest, the app) come and go. */
+const SHELL_FADE = { className: "absolute inset-0", ...fade } as const;
 
 /**
  * Root of the native game shell. The animated backdrop is persistent behind
@@ -60,37 +65,44 @@ export function App() {
 
   // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();
-  const onClimb =
-    authed && (location.pathname === "/climb" || location.pathname === "/tutorial" || isLevelPlay(location.pathname));
+  // A run draws its own world, so the backdrop fades away under it (duels keep it).
+  const onClimb = authed && isGameRoute(location.pathname) && !location.pathname.startsWith("/duel/");
   const showNav = authed && isTabRoot(location.pathname);
   const guestActive = guestMode && !authed;
+  const shell = loading || !launched ? "splash" : authed ? "app" : guestActive ? "guest" : "signin";
 
   return (
     // One motion policy for the app: Motion drops movement (keeps fades) when
     // the OS asks for reduced motion.
     <MotionConfig reducedMotion="user">
     <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-void">
-      {!onClimb && !guestActive && <AnimatedBackdrop />}
+      <AnimatePresence initial={false}>
+        {!onClimb && !guestActive && (
+          <motion.div key="backdrop" {...SHELL_FADE}>
+            <AnimatedBackdrop />
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="relative z-10 flex-1 overflow-hidden">
-        {loading || !launched ? (
-          <AuthSplash />
-        ) : authed ? (
-          <Routes>
-            <Route path="/climb" element={<ClimbScreen />} />
-            {/* Keyed by entry so "Practice this level" from a result starts fresh. */}
-            <Route path="/levels/:level/play" element={<LevelPlayScreen key={location.key} />} />
-            <Route path="/duel/:id" element={<DuelRoomScreen />} />
-            {/* First-run tutorial: opened by the map on a first launch, and from Profile. */}
-            <Route path="/tutorial" element={<TrainingScreen />} />
-            <Route
-              path="*"
-              element={
-                <RouteTransition>
-                  {(routeLocation) => (
+        {/* Splash, Sign In, guest mode and the app cross-fade into each other. */}
+        <AnimatePresence>
+          <ShellLayer key={shell}>
+            {shell === "splash" ? (
+              <AuthSplash />
+            ) : shell === "app" ? (
+              <RouteTransition tabSwipe>
+                {(routeLocation) => (
                   <Routes location={routeLocation}>
                     {/* Levels are the main game: the map is home (design doc §2).
                         Endless sits on its Play bar; Daily, Versus and Ranks on its mode rail. */}
                     <Route path="/" element={<LevelMapScreen />} />
+                    {/* The full-screen runs: they zoom in and out (RouteTransition's launch / land). */}
+                    <Route path="/climb" element={<ClimbScreen />} />
+                    {/* Keyed by entry so "Practice this level" from a result starts fresh. */}
+                    <Route path="/levels/:level/play" element={<LevelPlayScreen key={routeLocation.key} />} />
+                    <Route path="/duel/:id" element={<DuelRoomScreen />} />
+                    {/* First-run tutorial: opened by the map on a first launch, and from Profile. */}
+                    <Route path="/tutorial" element={<TrainingScreen />} />
                     <Route path="/leaderboard" element={<LeaderboardScreen />} />
                     <Route path="/profile" element={<ProfileScreen />} />
                     <Route path="/profile/edit" element={<EditProfileScreen />} />
@@ -101,16 +113,15 @@ export function App() {
                     <Route path="/settings" element={<SettingsScreen />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
-                  )}
-                </RouteTransition>
-              }
-            />
-          </Routes>
-        ) : guestActive ? (
-          <GuestShell onSignIn={exitGuest} />
-        ) : (
-          <SignInScreen onGuestContinue={enterGuest} />
-        )}
+                )}
+              </RouteTransition>
+            ) : shell === "guest" ? (
+              <GuestShell onSignIn={exitGuest} />
+            ) : (
+              <SignInScreen onGuestContinue={enterGuest} />
+            )}
+          </ShellLayer>
+        </AnimatePresence>
       </div>
       {/* Single BottomNav instance — never unmounts on hub route changes, and
           slides away (or back) with the screen when leaving a tab. */}
@@ -120,9 +131,14 @@ export function App() {
   );
 }
 
-/** The full-screen level run, which like /climb hides the backdrop. */
-function isLevelPlay(pathname: string): boolean {
-  return /^\/levels\/\d+\/play$/.test(pathname);
+/** One of the app's top-level states, inert once it starts fading out. */
+function ShellLayer({ children }: { children: ReactNode }) {
+  const present = useIsPresent();
+  return (
+    <motion.div {...SHELL_FADE} inert={!present} aria-hidden={!present || undefined}>
+      {children}
+    </motion.div>
+  );
 }
 
 /** Branded loader shown until the first screen is ready (useLaunchSplash). */
@@ -131,7 +147,7 @@ function AuthSplash() {
     <div
       role="status"
       aria-label="Loading"
-      className="app-fade flex min-h-[100dvh] items-center justify-center"
+      className="flex min-h-[100dvh] items-center justify-center"
     >
       <span className="auth-splash-mark">
         <LogoMark size={96} />

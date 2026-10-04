@@ -23,6 +23,7 @@ import { useGameHaptics } from "../lib/useGameHaptics";
 import { markTutorialsSeen } from "../lib/levels/tutorialSeen";
 import { guestOnboarding, markOnboardingDone, TOUR_STATE } from "../lib/onboarding";
 import { GUEST_MAP_PATH, useGuest } from "../contexts/GuestContext";
+import { PageSwap } from "../components/PageSwap";
 
 type Phase = "intro" | "controls" | "train" | "ready";
 
@@ -63,19 +64,27 @@ export function TrainingScreen() {
   }, [navigate, guest, guestThen]);
 
   const nextLabel = !guest || guestThen === GUEST_MAP_PATH ? "Show me around" : guestThen === "/climb" ? "Start climbing" : "Done";
-  if (phase === "intro") return <Intro onStart={() => setPhase(touch ? "controls" : "train")} onSkip={toTour} />;
-  if (phase === "controls") return <PickControls onStart={() => setPhase("train")} onSkip={toTour} />;
-  if (phase === "ready") return <Ready onNext={toTour} nextLabel={nextLabel} />;
+  // Each card hands over to the next on the push axis, like a pushed screen.
   return (
-    <TrainingClimb
-      onDone={() => {
-        // The level 1 demo shows what training just taught.
-        markTutorialsSeen(["basics"]);
-        void notifySuccess();
-        setPhase("ready");
-      }}
-      onSkip={toTour}
-    />
+    <PageSwap page={phase}>
+      {phase === "intro" ? (
+        <Intro onStart={() => setPhase(touch ? "controls" : "train")} onSkip={toTour} />
+      ) : phase === "controls" ? (
+        <PickControls onStart={() => setPhase("train")} onSkip={toTour} />
+      ) : phase === "ready" ? (
+        <Ready onNext={toTour} nextLabel={nextLabel} />
+      ) : (
+        <TrainingClimb
+          onDone={() => {
+            // The level 1 demo shows what training just taught.
+            markTutorialsSeen(["basics"]);
+            void notifySuccess();
+            setPhase("ready");
+          }}
+          onSkip={toTour}
+        />
+      )}
+    </PageSwap>
   );
 }
 
@@ -172,7 +181,7 @@ function Card({
   return (
     <main
       aria-labelledby="training-card-title"
-      className="app-fade fixed inset-0 z-40 flex flex-col overflow-y-auto bg-void px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[calc(env(safe-area-inset-top)+0.75rem)]"
+      className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-void px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[calc(env(safe-area-inset-top)+0.75rem)]"
     >
       <div className="flex min-h-[44px] items-center justify-end">
         {onSkip && (
