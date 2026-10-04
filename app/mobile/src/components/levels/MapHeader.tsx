@@ -7,8 +7,9 @@ import { ChestMeter } from "./LevelChests";
 /**
  * The level map's header: one glass panel in one row of cells: the player
  * level in an XP ring (it opens the XP sheet), lives, the star chest's ring
- * and gems. The season and episode sit under the panel. A guest has no chest
- * or gems, so their panel is the level and lives. Every tap target is 44px+.
+ * (it opens the chest sheet) and gems. The season and episode sit under the
+ * panel. A guest has no chest or gems, so their panel is the level and lives.
+ * Every tap target is 44px+.
  */
 export function MapHeader({
   seasonName,
@@ -19,6 +20,7 @@ export function MapHeader({
   showGems,
   onLives,
   onXp,
+  onChest,
 }: {
   seasonName: string;
   episode: number;
@@ -31,6 +33,8 @@ export function MapHeader({
   /** Opens the lives sheet; without it the lives cell is not a button. */
   onLives?: () => void;
   onXp: () => void;
+  /** Opens the chest sheet; without it the chest cell is not a button. */
+  onChest?: () => void;
 }) {
   const divider = "border-l border-white/[0.06]";
   return (
@@ -44,7 +48,7 @@ export function MapHeader({
         </span>
         {chests && (
           <span data-tour="chest" className={`flex min-w-0 flex-1 ${divider}`}>
-            <ChestMeter chests={chests} boosters={boosters} />
+            <ChestMeter chests={chests} boosters={boosters} onPress={onChest} />
           </span>
         )}
         {showGems && (

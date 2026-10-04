@@ -7,6 +7,7 @@ import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
 import { LivesSheet } from "../components/levels/LivesSheet";
 import { XpSheet } from "../components/levels/XpSheet";
+import { ChestSheet } from "../components/levels/ChestSheet";
 import { useOptionalShop } from "../contexts/ShopContext";
 import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelStartExtras } from "../components/levels/LevelStartExtras";
@@ -70,6 +71,7 @@ export function LevelMapScreen() {
   const showRail = useHasAppData() && guest === null;
   const [livesOpen, setLivesOpen] = useState(false);
   const [xpOpen, setXpOpen] = useState(false);
+  const [chestOpen, setChestOpen] = useState(false);
   const avatar = useEquippedAvatar();
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
@@ -265,6 +267,10 @@ export function LevelMapScreen() {
             void tapLight();
             setXpOpen(true);
           }}
+          onChest={() => {
+            void tapLight();
+            setChestOpen(true);
+          }}
         />
       </header>
 
@@ -375,6 +381,11 @@ export function LevelMapScreen() {
       </AnimatePresence>
       <AnimatePresence>
         {xpOpen && <XpSheet season={season} guest={guest !== null} onClose={() => setXpOpen(false)} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {chestOpen && !guest && season.chests && (
+          <ChestSheet chests={season.chests} boosters={season.boosters} onClose={() => setChestOpen(false)} />
+        )}
       </AnimatePresence>
       {refill.overlays}
       {touring && (
