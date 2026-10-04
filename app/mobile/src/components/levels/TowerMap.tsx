@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { CharacterPreview, PREVIEW_FOOT_PAD } from "../CharacterPreview";
 import { StarRow } from "./LevelBits";
+import { MapClimber } from "./MapClimber";
 import { EPISODE_SIZE, isHardLevel, type LevelNode } from "../../lib/levels/model";
 import type { EquippedAvatar } from "../../contexts/AppDataContext";
 import {
@@ -36,6 +37,15 @@ const LADDER_SHADOW_Y = 4;
 
 type FloorState = "open" | "current" | "locked";
 
+/** A climb up the tower: see MapClimber. */
+export interface MapClimb {
+  from: number;
+  to: number;
+  onMove?: (y: number) => void;
+  onLand?: (floor: number) => void;
+  onDone: () => void;
+}
+
 /**
  * The level map drawn as the tower: slab floors climbing from level 1 at the
  * bottom, a ladder from each floor to the next (lit up to the frontier, dim
@@ -45,6 +55,10 @@ type FloorState = "open" | "current" | "locked";
  * above them; `height` is the map's height (towerHeight of the top shown
  * floor), which the screen also scrolls by. The figure waits for `avatar` to
  * resolve, so a saved character never shows as the default one first.
+ *
+ * The figure stands on `standOn` (the frontier by default). With `climb` set
+ * it climbs from `climb.from` up to `climb.to` instead (MapClimber), and the
+ * screen moves `standOn` up when the climb calls `onDone`.
  */
 export function TowerMap({
   seasonName,
@@ -56,6 +70,8 @@ export function TowerMap({
   onOpen,
   signInLocked,
   onSignIn,
+  standOn,
+  climb,
 }: {
   seasonName: string;
   levels: LevelNode[];
@@ -67,9 +83,13 @@ export function TowerMap({
   /** A guest's floors above the taster: locked, and a tap asks them to sign in. */
   signInLocked?: (level: number) => boolean;
   onSignIn?: (node: LevelNode) => void;
+  /** The floor the figure stands on; the frontier when unset. */
+  standOn?: number;
+  /** A climb to play in place of the standing figure. */
+  climb?: MapClimb | null;
 }) {
   const top = levels.length;
-  const playerFloor = avatar.loading ? null : frontier;
+  const playerFloor = avatar.loading || climb ? null : (standOn ?? frontier);
   const avatarId = avatar.loading ? null : avatar.avatarId;
   const landings = Math.floor((top - 1) / EPISODE_SIZE);
 
@@ -85,6 +105,20 @@ export function TowerMap({
       />
       <Structure top={top} frontier={frontier} height={height} />
       <ol aria-label={`${seasonName} levels`} className="absolute inset-0">
+        {/* Before the floors, so a figure on a ladder passes behind the slab above, as the ladders do. */}
+        {climb && !avatar.loading && (
+          <li aria-hidden className="contents">
+            <MapClimber
+              key={`${climb.from}-${climb.to}`}
+              from={climb.from}
+              to={climb.to}
+              avatarId={avatarId}
+              onMove={climb.onMove}
+              onLand={climb.onLand}
+              onDone={climb.onDone}
+            />
+          </li>
+        )}
         {Array.from({ length: landings }, (_, i) => (
           <Landing key={`landing-${i + 2}`} episode={i + 2} />
         ))}

@@ -337,6 +337,16 @@ describe("tower map", () => {
     act(() => due.forEach((cb) => cb(performance.now())));
   }
 
+  /** Runs animation frames 1/60 s apart on a fake clock until none are queued, or `seconds` pass. */
+  let clockMs = 0;
+  function runFrames(seconds = 20) {
+    for (let i = 0; i < seconds * 60 && frames.length > 0; i++) {
+      clockMs += 1000 / 60;
+      const due = frames.splice(0);
+      act(() => due.forEach((cb) => cb(clockMs)));
+    }
+  }
+
   const floor = (label: string) =>
     [...container.querySelectorAll<HTMLButtonElement>("ol button")]
       .find((b) => b.getAttribute("aria-label") === label)
@@ -418,18 +428,33 @@ describe("tower map", () => {
     expect(figures[0].closest("button")).toBeNull();
   });
 
-  it("moves the character up when the frontier moves", async () => {
+  it("moves the character up when the frontier moves, climbing the floor cleared since", async () => {
     const client = memoryClient();
     await renderMap(client);
     expect(floor("Level 1, next to play")?.querySelector("[data-character-preview]")).toBeTruthy();
+    runFrames();
 
     await clearLevels(client, 1);
     act(() => root.unmount());
     root = createRoot(container);
     await renderMap(client);
+    // One figure, climbing: on no floor until it lands.
+    expect(container.querySelectorAll("[data-character-preview]").length).toBe(1);
+    expect(container.querySelector("[data-climbing]")).toBeTruthy();
+    expect(floor("Level 2, next to play")?.querySelector("[data-character-preview]")).toBeNull();
+
+    runFrames();
+    expect(container.querySelector("[data-climbing]")).toBeNull();
     expect(container.querySelectorAll("[data-character-preview]").length).toBe(1);
     expect(floor("Level 2, next to play")?.querySelector("[data-character-preview]")).toBeTruthy();
     expect(floor("Level 1, 3 of 3 stars")?.querySelector("[data-character-preview]")).toBeNull();
+
+    // Seen: coming back again stands the figure on floor 2 with no climb.
+    act(() => root.unmount());
+    root = createRoot(container);
+    await renderMap(client);
+    expect(container.querySelector("[data-climbing]")).toBeNull();
+    expect(floor("Level 2, next to play")?.querySelector("[data-character-preview]")).toBeTruthy();
   });
 
   it("points the first-run tour's level step at the frontier floor and no other", async () => {
@@ -1055,7 +1080,12 @@ describe("tower map", () => {
       await act(async () => refresh?.());
       await settle();
       expect(floor("Level 9, next to play")).toBeTruthy();
-      expect(scrolls).toEqual([openAt(8, 183), openAt(9, 183)]);
+      // The character climbs from floor 8 (on the taller map), and the view follows it up to 9.
+      const floor8 = 183 + towerHeight(9 + 10) - pinBottom(8) - VIEW_PX * 0.55;
+      expect(scrolls.slice(0, 2)).toEqual([openAt(8, 183), floor8]);
+      runFrames();
+      expect(container.querySelector("[data-climbing]")).toBeNull();
+      expect(scrolls[scrolls.length - 1]).toBeCloseTo(openAt(9, 183), 6);
     });
   });
 });
