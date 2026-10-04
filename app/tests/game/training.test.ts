@@ -13,6 +13,7 @@ import {
   createTraining,
   type Training,
   type TrainingGoalId,
+  trainingHint,
 } from "../../src/game/levels/training";
 import { createRouteBot } from "../../src/game/levels/routeBot";
 import { isPowerUpActive, POWER_UP_SPECS } from "../../src/game/powerups";
@@ -222,5 +223,32 @@ describe("training", () => {
     for (let i = 0; i < 60 * TICK_HZ; i++) t.step(IDLE);
     expect(t.state.players[0].status).toBe("climbing");
     expect(t.state.hazardY).toBeLessThan(t.state.players[0].y);
+  });
+});
+
+describe("trainingHint", () => {
+  it("names the controls of the player's input", () => {
+    const walk = TRAINING_GOALS.find((g) => g.id === "walk")!;
+    expect(trainingHint(walk, "keys")).toBe(walk.keys);
+    expect(trainingHint(walk, "buttons")).toBe(walk.touch);
+    expect(trainingHint(walk, "joystick")).toBe(walk.stick);
+    expect(walk.stick).toMatch(/stick/);
+    expect(walk.touch).not.toMatch(/stick/);
+  });
+
+  it("falls back to the button copy where the layouts agree", () => {
+    const grab = TRAINING_GOALS.find((g) => g.id === "grab")!;
+    expect(grab.stick).toBeUndefined();
+    expect(trainingHint(grab, "joystick")).toBe(grab.touch);
+  });
+
+  it("never points button players at a stick, or joystick players at an ↑ button", () => {
+    let checked = 0;
+    for (const g of TRAINING_GOALS) {
+      expect(trainingHint(g, "buttons")).not.toMatch(/stick/i);
+      expect(trainingHint(g, "joystick")).not.toMatch(/↑/);
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });
