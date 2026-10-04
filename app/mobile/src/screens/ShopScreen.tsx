@@ -3,7 +3,8 @@ import { motion } from "motion/react";
 import { riseIn, sharedId, spring } from "../lib/motionTokens";
 import { CHARACTER_ENTRIES, formatGems, gemPrice, skinsOf, type AvatarEntry } from "@app/lib/avatars";
 import { useShop } from "../contexts/ShopContext";
-import { CharacterPreview } from "../components/CharacterPreview";
+import { CharacterPreview, previewSize } from "../components/CharacterPreview";
+import { useSceneKind } from "../components/RouteTransition";
 import { RetryPanel, ScreenHeader } from "../components/ui";
 import { GemBalance } from "../components/store/GemBalance";
 import { GemIcon } from "../components/store/GemIcon";
@@ -17,6 +18,15 @@ export const SHOP_CHARACTERS: readonly AvatarEntry[] = CHARACTER_ENTRIES.filter(
 /** The character the Shop features: the one sold outright, whose skins are recolours. */
 export const FEATURED_CHARACTER_ID = "wraith";
 
+/**
+ * The featured figure's skull height and canvas. Its one character's horns are
+ * sized by hand rather than by previewSize: the headroom test measures them.
+ */
+export const FEATURED_FIGURE = { figurePx: 124, sizePx: 164 } as const;
+/** A card's Void skin, and its Classic look small behind it: skull heights (figurePx). */
+const CARD_SKIN_PX = 100;
+const CARD_CLASSIC_PX = 62;
+
 /** The Void glow behind every figure: the Void Walker's violet. */
 const VOID_RGB = "155, 92, 255";
 
@@ -28,6 +38,7 @@ const VOID_RGB = "155, 92, 255";
  */
 export function ShopScreen() {
   const navigate = useNavigate();
+  const arrivedBy = useSceneKind();
   const { shop, error, loading, refresh } = useShop();
   const owned = new Set(shop?.ownedIds ?? []);
   const featured = SHOP_CHARACTERS.find((c) => c.id === FEATURED_CHARACTER_ID);
@@ -64,8 +75,15 @@ export function ShopScreen() {
                 </span>
               )}
             </div>
-            {/* The cards rise in one after another as the Shop opens. */}
-            <motion.ul initial="hidden" animate="shown" aria-label="Characters" className="grid grid-cols-2 gap-2.5">
+            {/* The cards rise in one after another as the Shop opens. Coming back from
+                Skin Details they are in place already, so the look that flew up
+                flies straight back into its card over a Shop that holds still. */}
+            <motion.ul
+              initial={arrivedBy === "pop" ? false : "hidden"}
+              animate="shown"
+              aria-label="Characters"
+              className="grid grid-cols-2 gap-2.5"
+            >
               {grid.map((c, i) => {
                 const skin = skinsOf(c.id)[0];
                 return (
@@ -127,7 +145,7 @@ function FeaturedCard({ character, owned, onOpen }: { character: AvatarEntry; ow
       <span className="relative flex w-[44%] shrink-0 items-end justify-center">
         <FloorShadow width={96} />
         <motion.span layoutId={sharedId.shopLook(character.id)} layoutCrossfade={false} transition={spring.smooth} className="relative flex">
-          <CharacterPreview avatarId={character.id} pose="walk" locked={false} figurePx={124} sizePx={150} ambient />
+          <CharacterPreview avatarId={character.id} pose="walk" locked={false} {...FEATURED_FIGURE} ambient />
         </motion.span>
       </span>
       <span className="flex min-w-0 flex-1 flex-col justify-center gap-1.5 py-4 pr-4">
@@ -181,19 +199,23 @@ function SkinCard({
         owned ? "border-signal/45" : "border-white/10"
       }`}
     >
+      {/* As tall as the skin's canvas, so horns and crests above its skull stay in view. */}
       <span
-        className="relative block h-[128px] w-full overflow-hidden"
-        style={{ background: `radial-gradient(65% 75% at 44% 82%, rgba(${VOID_RGB}, 0.32), transparent 72%)` }}
+        className="relative block w-full overflow-hidden"
+        style={{
+          height: previewSize(CARD_SKIN_PX),
+          background: `radial-gradient(65% 75% at 44% 82%, rgba(${VOID_RGB}, 0.32), transparent 72%)`,
+        }}
       >
         {/* The Classic look, small and dimmed behind: what the skin dresses. Placed by percent so both fit a 320px phone. */}
         <span aria-hidden data-character-figure className="absolute bottom-[6px] flex left-[78%] -translate-x-1/2 opacity-45">
-          <CharacterPreview avatarId={character.id} pose="idle" locked={false} figurePx={62} sizePx={76} still />
+          <CharacterPreview avatarId={character.id} pose="idle" locked={false} figurePx={CARD_CLASSIC_PX} sizePx={previewSize(CARD_CLASSIC_PX)} still />
         </span>
         {/* The Void skin is what the card sells, so it stands in front at full size. */}
         <span aria-hidden data-skin-figure className="absolute bottom-0 flex left-[42%] -translate-x-1/2">
           <FloorShadow width={60} />
           <motion.span layoutId={sharedId.shopLook(skin.id)} layoutCrossfade={false} transition={spring.smooth} className="relative flex">
-            <CharacterPreview avatarId={skin.id} pose="idle" locked={false} figurePx={100} sizePx={116} still />
+            <CharacterPreview avatarId={skin.id} pose="idle" locked={false} figurePx={CARD_SKIN_PX} sizePx={previewSize(CARD_SKIN_PX)} still />
           </motion.span>
         </span>
       </span>

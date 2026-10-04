@@ -14,7 +14,7 @@ import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useShop } from "../contexts/ShopContext";
 import { echoedSetting, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
-import { CharacterPreview, type PreviewPose } from "../components/CharacterPreview";
+import { CharacterPreview, previewSize, type PreviewPose } from "../components/CharacterPreview";
 import { RewardReveal } from "../components/RewardReveal";
 import { HexAvatar } from "../components/HexAvatar";
 import { ScreenHeader } from "../components/ui";
@@ -25,6 +25,11 @@ import { buyWithGems, ShopError } from "../lib/shop";
 import { useBackOr } from "../lib/navigation";
 import { riseIn, sharedId, spring } from "../lib/motionTokens";
 import { notifyError, notifySuccess, tapLight } from "../lib/haptics";
+
+/** The preview figure's skull height; its canvas (previewSize) leaves room for horns above it. */
+const PREVIEW_FIGURE_PX = 200;
+/** The figure in the purchase reveal. */
+const REVEAL_FIGURE_PX = 190;
 
 const POSES: ReadonlyArray<{ id: PreviewPose; label: string }> = [
   { id: "idle", label: "Idle" },
@@ -210,14 +215,14 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
           ))}
         </motion.div>
 
-        <section aria-label="Preview" className="flex h-[250px] items-end justify-center">
+        <section aria-label="Preview" className="flex items-end justify-center" style={{ height: previewSize(PREVIEW_FIGURE_PX) }}>
           {/* The figure the Shop card showed flies up into this spot (sharedId). */}
           <motion.div
             // A new look is a new shared element: Motion registers layoutIds at mount.
             key={selected.id}
             layoutId={sharedId.shopLook(selected.id)}
             layoutCrossfade={false} transition={spring.smooth} className="flex">
-            <CharacterPreview avatarId={selected.id} pose={pose} locked={false} figurePx={200} sizePx={250} />
+            <CharacterPreview avatarId={selected.id} pose={pose} locked={false} figurePx={PREVIEW_FIGURE_PX} sizePx={previewSize(PREVIEW_FIGURE_PX)} />
           </motion.div>
         </section>
 
@@ -338,7 +343,7 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
       </AnimatePresence>
       {bought && (
         <RewardReveal
-          subject={<CharacterPreview avatarId={bought.entry.id} pose="idle" locked={false} figurePx={190} sizePx={230} />}
+          subject={<CharacterPreview avatarId={bought.entry.id} pose="idle" locked={false} figurePx={REVEAL_FIGURE_PX} sizePx={previewSize(REVEAL_FIGURE_PX)} />}
           eyebrow={bought.entry.skinOf !== undefined ? "New skin unlocked" : "New character unlocked"}
           title={bought.entry.name}
           detail={bought.equipped ? "Equipped. Your next climb wears it." : "It's yours. Equip it from Choose Character."}
