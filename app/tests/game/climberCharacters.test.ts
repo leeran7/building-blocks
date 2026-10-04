@@ -181,6 +181,25 @@ describe("registry", () => {
     expect(skins).toBeGreaterThan(0);
   });
 
+  it("every paid character skin resolves to its own calibrated art, preserving Wraith tints", async () => {
+    const { CLIMBER_CHARACTERS, VOID_SKIN_SHEETS } = await import("../../src/components/Game/climberCharacters");
+    const { climberCharacter, resolveClimberCharacter } = await load();
+    const paid = AVATARS.filter((a) => a.skinOf !== undefined && a.skinOf !== "wraith");
+    expect(paid).toHaveLength(18);
+    expect(Object.keys(VOID_SKIN_SHEETS).sort()).toEqual(paid.map((a) => a.id).sort());
+    for (const { id } of paid) {
+      expect(resolveClimberCharacter(id)).toBe(id);
+      expect(climberCharacter(id)).toMatchObject({
+        kind: "sheets", poses: `/climb/${id}-poses-192.png`, climb: `/climb/${id}-climb-192.png`,
+        cell: 192, rootX: 96, rootY: 172.5,
+        refH: 172.5 - VOID_SKIN_SHEETS[id].headTop!,
+      });
+    }
+    for (const a of AVATARS.filter((a) => a.skinOf === "wraith")) {
+      expect(CLIMBER_CHARACTERS[a.id].kind).toBe("tint");
+    }
+  });
+
   it("RECOLOR_PALETTE: every colour parses, keyed by catalogue avatars other than the Wraith", async () => {
     const { RECOLOR_PALETTE, parseHexColor } = await import("../../src/components/Game/climberCharacters");
     const ids = Object.keys(RECOLOR_PALETTE);

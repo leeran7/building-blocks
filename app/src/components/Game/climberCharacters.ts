@@ -17,10 +17,9 @@
  * Green Stick is what every player without a character climbs as.
  *
  * A fourth kind, `tint` (the Wraith sheets recoloured by climberTint.ts), is
- * the placeholder for a paid Void skin (`<id>-void`, src/lib/avatars.ts)
- * until its own art lands: the Wraith in that character's colours, which is
- * the Wraith style the paid versions are drawn in. Giving a Void skin its
- * art is one line in VOID_SKIN_SHEETS below plus its two sheet files.
+ * used for the Wraith colour skins. The 18 paid character skins have their
+ * own portrait-faithful art and skull calibration in VOID_SKIN_SHEETS below.
+ * Their original Choose Character portraits remain the identity reference.
  */
 
 import { AVATARS, stickColorOf, type AvatarEntry } from "../../lib/avatars";
@@ -111,8 +110,8 @@ export function sheets(id: string, opts: SheetOptions = {}): SheetCharacter {
 }
 
 /**
- * Wraith sheets recoloured: `accent` for the lime, optional `body` tone. Not
- * used by the live registry (real art only); kept for the recolour feature.
+ * Wraith sheets recoloured: `accent` for the lime, optional `body` tone.
+ * Used for the Wraith colour skins; character skins have dedicated art.
  */
 export function tint(accent: string, body: string | null = null): TintCharacter {
   return { kind: "tint", accent, body };
@@ -179,9 +178,29 @@ export const RECOLOR_PALETTE: Readonly<Record<string, RecolorColors>> = {
 /**
  * Void skins whose own sheets have landed in public/climb/
  * (`<id>-void-poses-192.png` and `-climb-192.png`), with their sheet options.
- * Every other Void skin draws as its placeholder tint.
+ * Skull tops exclude crests, ears and horns; calibrated from the approved
+ * normalized idle cells. Wraith colour skins retain their tint entries.
  */
-export const VOID_SKIN_SHEETS: Readonly<Record<string, SheetOptions>> = {};
+export const VOID_SKIN_SHEETS: Readonly<Record<string, SheetOptions>> = {
+  "kestrel-void": { headTop: 52 },
+  "lynx-void": { headTop: 46 },
+  "raven-void": { headTop: 50 },
+  "panther-void": { headTop: 39 },
+  "wolf-void": { headTop: 54 },
+  "otter-void": { headTop: 43 },
+  "heron-void": { headTop: 52 },
+  "yak-void": { headTop: 49 },
+  "mantis-void": { headTop: 55 },
+  "cobra-void": { headTop: 27 },
+  "badger-void": { headTop: 30 },
+  "falcon-void": { headTop: 49 },
+  "marmot-void": { headTop: 48 },
+  "bison-void": { headTop: 48 },
+  "ibex-void": { headTop: 55 },
+  "sentinel-void": { headTop: 48 },
+  "viking-void": { headTop: 35 },
+  "gecko-void": { headTop: 27 },
+};
 
 /** The near-black the Wraith-style placeholders lean their body greys toward. */
 const VOID_BODY = "#0e0e12";
