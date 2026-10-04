@@ -1,3 +1,4 @@
+==================== CHANGELOG.md
 # Changelog
 
 All notable changes to Tower are documented in this file.
@@ -77,6 +78,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mobile build (docs/deploy.md). PR:
   https://github.com/leeran7/building-blocks/pull/155
 
+- **First-run tutorial (mobile)** — a new player's first map opens a short
+  intro, a practice climb played one goal at a time (walk, jump, climb, orb,
+  Super Jump, summit diamond), then a spotlight tour of the map and tabs. It
+  can be skipped, and Profile → How to play replays it. PR:
+  https://github.com/leeran7/building-blocks/pull/232
+
+- **Guest mode (mobile)** — guests get the training climb and levels 1–3 on
+  the normal map (level 4 and up opens an "Unlock all 300 levels" sheet), a
+  one-time sign-in nudge after their third Endless run, and guest mode that
+  survives a relaunch. PR:
+  https://github.com/leeran7/building-blocks/pull/239
+
+- **Guest home is the Play screen (mobile)** — guests land on the same level
+  map as a signed-in player instead of a separate landing page; the cells
+  that need an account (star chest, gems, mode rail, tab bar) are hidden and
+  Sign In takes the gems' cell in the header. PR:
+  https://github.com/leeran7/building-blocks/pull/260
+
+- **Controls (mobile)** — Buttons is now the default; the tutorial lets
+  touch players try Buttons and Joystick, jump reads **Jump** in both layouts
+  (↑ only means climb), and the button row is as tall as the joystick area so
+  switching layouts no longer moves the game view. PRs:
+  https://github.com/leeran7/building-blocks/pull/233,
+  https://github.com/leeran7/building-blocks/pull/244
+
+- **In-run settings cog (mobile)** — the mute button is now a cog with Sound,
+  Vibration and the layout picker, which swaps controls live; Profile gains a
+  Settings screen (Game / Privacy / Account) behind a gear, and both read and
+  write the same Sound and Vibration settings. PRs:
+  https://github.com/leeran7/building-blocks/pull/233,
+  https://github.com/leeran7/building-blocks/pull/237
+
+- **Interrupted runs explained (mobile)** — a run cut off by a restart,
+  reload or stale link lands on the level card with "Your last run of level
+  N was interrupted, so it counts as a loss." Reloading mid-run no longer
+  replays a spent ticket. PR:
+  https://github.com/leeran7/building-blocks/pull/238
+
+- **Levels map drawn as the tower (mobile)** — the map is drawn in the game's
+  own vocabulary: floors as 3D slab ledges with ladders, lit lime up to the
+  frontier, ember for Hard floors, unlit wireframes for locked floors; the
+  lava now crests just above the Play bar on every phone instead of a thin
+  glow under it. PRs:
+  https://github.com/leeran7/building-blocks/pull/229,
+  https://github.com/leeran7/building-blocks/pull/240
+
+- **Mode rail on the map (mobile)** — the Modes tab is gone; a rail on the
+  map's right edge holds Daily (one tap into today's tower, badged with
+  today's rank, a ✓ once played, or the hours to reset), Versus (a sheet with
+  Quick Play and Challenge) and Ranks (the leaderboard, badged with your
+  rank). PRs:
+  https://github.com/leeran7/building-blocks/pull/235,
+  https://github.com/leeran7/building-blocks/pull/248
+
+- **Gems and lives on the map (mobile)** — the map header shows the gem
+  balance with a + for gem packs; tapping the lives pill opens a Lives sheet
+  with the hearts, the next-life countdown and the same paid refill the
+  out-of-lives card sells; the Shop gets a matching Lives refill row. PRs:
+  https://github.com/leeran7/building-blocks/pull/234,
+  https://github.com/leeran7/building-blocks/pull/236
+
+- **Map header and rings (mobile)** — one-row header panel: player level
+  inside a ring of XP (tap to open the XP sheet: XP to the next level, what
+  each action pays, the upcoming power-ups, characters and star chest), lives,
+  the star chest inside a ring of stars (tap to see the boosters you own),
+  and gems. PRs:
+  https://github.com/leeran7/building-blocks/pull/250,
+  https://github.com/leeran7/building-blocks/pull/245,
+  https://github.com/leeran7/building-blocks/pull/255
+
+- **The character climbs your cleared floors (mobile)** — coming back to the
+  map after a win, your character climbs up from where you last saw them, one
+  floor per level cleared, and the view scrolls up with them. PR:
+  https://github.com/leeran7/building-blocks/pull/257
+
+- **Profile cleanup (mobile)** — the daily streak shows once (the streak card
+  carries today's status and the reset countdown); Wins becomes its own card
+  with a new trophy icon. PR:
+  https://github.com/leeran7/building-blocks/pull/254
+
+- **Shop shows the characters (mobile)** — the Wraith gets a featured card
+  with its three colour skins as swatches; every other card shows the
+  character standing next to its Void skin; owned cards get a lime border and
+  an Owned pill; swipe back from Skin Details is instant, with no bare-lava
+  flash and no cut-off horns or crests. PRs:
+  https://github.com/leeran7/building-blocks/pull/246,
+  https://github.com/leeran7/building-blocks/pull/256
+
+- **Void skins for all 18 characters (mobile)** — every character's Void skin
+  now draws with its own poses and animated climb sheets instead of a
+  recoloured Wraith. PR:
+  https://github.com/leeran7/building-blocks/pull/253
+
+- **One animation system (mobile)** — Motion drives the whole app shell:
+  screens hand over together, tabs cross-fade, runs zoom on a depth axis,
+  sheets spring. Every page transition (runs, splash, Sign In, guest mode,
+  tutorial, result panels, matchmaking) runs on shared tokens, tabs swipe
+  sideways, and Profile's avatar flies into Choose character and Edit profile
+  as a hero transition. PRs:
+  https://github.com/leeran7/building-blocks/pull/247,
+  https://github.com/leeran7/building-blocks/pull/258,
+  https://github.com/leeran7/building-blocks/pull/259
+
 ### Security
 
 - **Daily seed is a server secret** — the tower seed is
@@ -125,6 +229,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   closed by this pass. PR:
   https://github.com/leeran7/building-blocks/pull/80
 
+- **Tab bar is Play, Shop, Profile (mobile)** — the Modes tab is gone; Daily,
+  Versus and Ranks moved onto the map as a mode rail, and Endless stays on
+  the Play bar. PRs:
+  https://github.com/leeran7/building-blocks/pull/235,
+  https://github.com/leeran7/building-blocks/pull/248
+
+- **Buttons are the default controls (mobile)** — new players start on
+  Buttons and pick their layout in the tutorial. PR:
+  https://github.com/leeran7/building-blocks/pull/233
+
+- **Lava Clearance stays readable (mobile)** — Height, Lava Clearance and the
+  in-run buttons each keep their own column in the header in every state:
+  Endless with no power-up active, after a level win. PRs:
+  https://github.com/leeran7/building-blocks/pull/241,
+  https://github.com/leeran7/building-blocks/pull/230
+
 ### Infrastructure
 
 - **CI required to merge into `main`** — workflow job names are now the
@@ -172,3 +292,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **TypeScript strict mode** — full `tsc --noEmit` clean across all 70 source files.
 
 [1.0.0]: https://github.com/leeran7/building-blocks/releases/tag/v1.0.0
+
