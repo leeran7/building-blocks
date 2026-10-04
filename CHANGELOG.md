@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- **Climb HUD after a win** — with no goal bar or power-up chips showing
+  (after clearing a level, and in the endless climb), the back and sound
+  buttons jumped to the left and squeezed Lava Clearance off the right edge,
+  one digit per line. The readouts now keep their columns in every state.
+
 ### Changed
 
 - **Tighter climb HUD** — on a level, the stars and progress bar now sit
