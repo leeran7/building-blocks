@@ -7,7 +7,7 @@ import { encodeRunReplay } from "@app/game/runReplay";
 import { hazardPhase } from "@app/game/hazard";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud } from "@app/components/Game/ExpeditionHud";
-import { TouchControls, useTouchControlsInset } from "@app/components/Game/TouchControls";
+import { TouchControls, touchControlsInset } from "@app/components/Game/TouchControls";
 import { usePowerUpFeedback } from "@app/components/Game/usePowerUpFeedback";
 import { lavaMusicIntensity } from "@app/components/Game/powerUpCues";
 import { isLavaInProximity } from "@app/components/Game/lava";
@@ -93,7 +93,7 @@ export function LevelRun({
   const myAvatarId = useSettings().data?.avatarId ?? null;
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });
   const safeArea = useSafeAreaInsets();
-  const bottomInset = useTouchControlsInset(safeArea.bottom);
+  const bottomInset = touchControlsInset(safeArea.bottom);
 
   const phase = state.phase;
   const ended = useRef(false);
