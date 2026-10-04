@@ -170,9 +170,17 @@ export interface RunStart {
  * Bookkeeping for a run the server just issued `ticketId` for: it is this
  * session's live ticket, and the device notes it so a reload or restart mid-run
  * is mentioned later. With no `run` (season not loaded) only the first holds.
+ * `live: false` is a ticket that arrived after its screen was left (Retry, then
+ * Map before the reply): nobody plays it, so only the note is kept and the map
+ * reports the spent run instead of taking it for one still being played.
  */
-export function noteRunStarted(store: RunNoteStore, ticketId: string, run: RunStart | null): void {
-  markTicketLive(ticketId);
+export function noteRunStarted(
+  store: RunNoteStore,
+  ticketId: string,
+  run: RunStart | null,
+  opts: { live?: boolean } = {},
+): void {
+  if (opts.live !== false) markTicketLive(ticketId);
   if (run) store.save({ ...run, ticketId });
 }
 

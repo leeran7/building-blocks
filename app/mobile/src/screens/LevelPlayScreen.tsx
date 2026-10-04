@@ -112,10 +112,22 @@ export function LevelPlayScreen() {
     return () => releaseLiveTicket(ticketId, () => runNotes.clear(ticketId));
   }, [ticketId, runNotes]);
 
+  // Set once the screen is left, so a Retry reply that lands afterwards is not
+  // taken for a run still being played. Reset on mount for StrictMode's remount.
+  const left = useRef(false);
+  useEffect(() => {
+    left.current = false;
+    return () => {
+      left.current = true;
+    };
+  }, []);
+
   const toMap = useCallback(
     (openLevel?: number) => {
       void tapLight();
-      // Leaving on purpose: the player knows how this run ended.
+      left.current = true;
+      // Leaving on purpose: the player knows how this run ended. The unmount
+      // release clears it too, but only after the map has read it.
       if (ticketId !== null) runNotes.clear(ticketId);
       navigate("/", { replace: true, state: openLevel ? { openLevel } : null });
     },
@@ -165,7 +177,9 @@ export function LevelPlayScreen() {
     try {
       const res = await client.startLevel(level);
       if (res.ok) {
-        noteRunStarted(runNotes, res.ticket.id, seasonNo !== null && node ? { season: seasonNo, level, costsLife: node.costsLife } : null);
+        const run = seasonNo !== null && node ? { season: seasonNo, level, costsLife: node.costsLife } : null;
+        noteRunStarted(runNotes, res.ticket.id, run, { live: !left.current });
+        if (left.current) return;
         setPlayer(res.ticket.player);
         setTicket(res.ticket);
         setAutoStart(true);

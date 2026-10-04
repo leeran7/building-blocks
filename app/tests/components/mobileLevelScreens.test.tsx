@@ -685,6 +685,37 @@ describe("interrupted level runs", () => {
     expect(document.body.textContent).not.toContain("interrupted");
   });
 
+  it("reports a retry whose ticket arrives after the player went to the map", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    await click(button("stub-lose"));
+
+    // Hold the retry's reply until after the player has left for the map.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const startLevel = client.startLevel.bind(client);
+    client.startLevel = async (...args) => {
+      await gate;
+      return startLevel(...args);
+    };
+    await click(button("Retry"));
+    await click(button("Map"));
+    expect(where.pathname).toBe("/");
+    await act(async () => release());
+    await flush();
+
+    // The life is spent on a run nobody plays: it is noted, not live, so the
+    // next map visit says so instead of keeping quiet about it.
+    const noted = notes().get();
+    expect(noted).toMatchObject({ season: 1, level: 11, costsLife: true });
+    expect(runs.mounted).toHaveLength(1);
+    await remount(client);
+    expect(statuses()).toContain(LOST_A_LIFE);
+  });
+
   it("does not replay the run after Back then Forward: the level's card says the run ended", async () => {
     const client = memoryClient();
     await clearLevels(client, 10);
@@ -715,6 +746,12 @@ describe("interrupted level runs", () => {
     expect(where.pathname).toBe("/levels/11/play");
     expect(button("stub-lose")).toBeDefined();
     expect(notes().get()?.ticketId).toBe(ticket?.id);
+
+    // The dev remount does not count as leaving: a retry still starts a run.
+    await click(button("stub-lose"));
+    await click(button("Retry"));
+    expect(button("Retry")).toBeUndefined();
+    expect(notes().get()?.ticketId).not.toBe(ticket?.id);
 
     await act(async () => history.back());
     await flush();
