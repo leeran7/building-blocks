@@ -6,9 +6,9 @@
  * @vitest-environment happy-dom
  */
 
-import { act, createElement, useEffect, type ReactElement } from "react";
+import { Fragment, StrictMode, act, createElement, useEffect, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -22,6 +22,13 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
   tapHeavy: vi.fn(async () => {}),
   notifySuccess: vi.fn(async () => {}),
   notifyError: vi.fn(async () => {}),
+}));
+// The map's gem pill reads the Shop: a fixed balance, no server.
+vi.mock("../../mobile/src/lib/shop", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../mobile/src/lib/shop")>()),
+  fetchShop: async () => ({ gems: 300, ownedIds: [], appleAccountToken: null, webCheckout: false }),
+  settleUnfinishedPurchases: async () => null,
+  watchAppleTransactions: () => () => {},
 }));
 vi.mock("@app/components/Game/lava", () => ({ drawLava: vi.fn(), isLavaInProximity: () => false }));
 
@@ -69,7 +76,7 @@ import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
 import { ShopProvider } from "../../mobile/src/contexts/ShopContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
 import type { BuyLivesResult, LevelResult, LevelRunReport, LevelsClient } from "../../mobile/src/lib/levels/model";
-import { LevelMapScreen, MAP_FADE, pinBottom } from "../../mobile/src/screens/LevelMapScreen";
+import { LevelMapScreen, MAP_FADE, interruptedFromState, pinBottom } from "../../mobile/src/screens/LevelMapScreen";
 import { LevelPlayScreen, ticketFromState } from "../../mobile/src/screens/LevelPlayScreen";
 import { LevelResultCard, UNLOCK_REVEAL_DELAY_MS } from "../../mobile/src/components/levels/LevelResultCard";
 import { REVEAL_BURST_MS, REVEAL_CHARGE_MS } from "../../mobile/src/components/RewardReveal";
@@ -77,17 +84,24 @@ import type { RefillOffer } from "../../mobile/src/components/levels/LevelStartS
 import { TICK_HZ } from "../../src/game/types";
 import { POWER_UP_SPECS, POWER_UP_TYPES } from "../../src/game/powerups";
 import { markTutorialsSeen } from "../../mobile/src/lib/levels/tutorialSeen";
+import { createRunNoteStore, noteRunStarted } from "../../mobile/src/lib/levels/runNote";
+import { parentRoute, useBackOr } from "../../mobile/src/lib/navigation";
 import { markOnboardingDone } from "../../mobile/src/lib/onboarding";
 
 let container: HTMLDivElement;
 let root: Root;
 let where: { pathname: string; state: unknown };
+/** The app's back (Android hardware back calls it), the browser's Forward, and a link. */
+let history: { back: () => void; forward: () => void; push: (to: string) => void };
 
 function Where() {
   const loc = useLocation();
+  const navigate = useNavigate();
+  const back = useBackOr(parentRoute(loc.pathname));
   useEffect(() => {
     where = { pathname: loc.pathname, state: loc.state };
-  }, [loc]);
+    history = { back, forward: () => void navigate(1), push: (to) => void navigate(to) };
+  }, [loc, back, navigate]);
   return null;
 }
 
@@ -137,19 +151,26 @@ async function flush() {
   });
 }
 
-async function renderMap(client: LevelsClient, initial: string | { pathname: string; state: unknown } = "/") {
+async function renderMap(
+  client: LevelsClient,
+  initial: string | { pathname: string; state: unknown } = "/",
+  { strict = false }: { strict?: boolean } = {},
+) {
+  const Mode = strict ? StrictMode : Fragment;
   await act(async () => {
     root.render(
-      <MemoryRouter initialEntries={[initial]}>
-        <LevelsProvider client={client}>
-          <Where />
-          <Routes>
-            <Route path="/" element={<LevelMapScreen />} />
-            <Route path="/levels/:level/play" element={<LevelPlayScreen />} />
-            <Route path="/climb" element={<p>practice</p>} />
-          </Routes>
-        </LevelsProvider>
-      </MemoryRouter>,
+      <Mode>
+        <MemoryRouter initialEntries={[initial]}>
+          <LevelsProvider client={client}>
+            <Where />
+            <Routes>
+              <Route path="/" element={<LevelMapScreen />} />
+              <Route path="/levels/:level/play" element={<LevelPlayScreen />} />
+              <Route path="/climb" element={<p>practice</p>} />
+            </Routes>
+          </LevelsProvider>
+        </MemoryRouter>
+      </Mode>,
     );
   });
   await flush();
@@ -224,10 +245,10 @@ describe("level map", () => {
 
   describe("paid lives refill", () => {
     /** The local store out of lives at level 11, selling refills at `cost` from `gems`. */
-    async function outOfLivesClient(gems: number, cost: number, refused?: BuyLivesResult) {
+    async function outOfLivesClient(gems: number, cost: number, refused?: BuyLivesResult, losses = 5) {
       const base = memoryClient();
       await clearLevels(base, 10);
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < losses; i++) {
         const s = await base.startLevel(11);
         if (!s.ok) throw new Error("refused");
         await base.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false });
@@ -273,7 +294,8 @@ describe("level map", () => {
     });
 
     it("opens the gem packs from a short balance when the Shop is mounted", async () => {
-      const { client } = await outOfLivesClient(20, 50);
+      // The Shop's balance (300) is the one shown once it loads: price above it.
+      const { client } = await outOfLivesClient(20, 500);
       await act(async () => {
         root.render(
           <MemoryRouter initialEntries={["/"]}>
@@ -289,8 +311,106 @@ describe("level map", () => {
       });
       await flush();
       await click(pin("Level 11, next to play"));
-      await click(button("Get gems"));
+      // The card's own Get gems, not the gem pill's "+" in the map header.
+      const getGems = [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+        (b) => b.textContent === "Get gems",
+      );
+      await click(getGems);
       expect(document.body.querySelector("#gem-packs-title")?.textContent).toBe("Get gems");
+    });
+
+    async function renderMapWithShop(client: LevelsClient) {
+      await act(async () => {
+        root.render(
+          <MemoryRouter initialEntries={["/"]}>
+            <LevelsProvider client={client}>
+              <ShopProvider>
+                <Routes>
+                  <Route path="/" element={<LevelMapScreen />} />
+                </Routes>
+              </ShopProvider>
+            </LevelsProvider>
+          </MemoryRouter>,
+        );
+      });
+      await flush();
+    }
+    const livesPill = () => document.body.querySelector<HTMLButtonElement>("button[data-lives-pill]");
+    const livesSheet = () => document.body.querySelector("[data-lives-sheet]");
+
+    it("shows the gem balance on the map, and its + opens the gem packs", async () => {
+      const { client } = await outOfLivesClient(120, 50, undefined, 0);
+      await renderMapWithShop(client);
+      const pill = document.body.querySelector("header [data-gem-balance]");
+      expect(pill?.textContent).toContain("300");
+      await click(pill?.querySelector<HTMLButtonElement>('button[aria-label="Get gems"]') ?? undefined);
+      expect(document.body.querySelector("#gem-packs-title")?.textContent).toBe("Get gems");
+    });
+
+    it("leaves the gem pill out without the Shop", async () => {
+      const { client } = await outOfLivesClient(120, 50, undefined, 0);
+      await renderMap(client);
+      expect(document.body.querySelector("[data-gem-balance]")).toBeNull();
+    });
+
+    it("sells a refill from the lives pill before the player runs out", async () => {
+      const { client, buyLives } = await outOfLivesClient(120, 50, undefined, 2);
+      await renderMap(client);
+      expect(livesPill()?.getAttribute("aria-label")).toBe("Lives, 3 of 5");
+      await click(livesPill() ?? undefined);
+      expect(livesSheet()?.textContent).toMatch(/3 of 5 lives · Next life in \d+:\d\d/);
+      expect(livesSheet()?.textContent).toContain("Your balance: 120 gems");
+
+      await click(button("Refill lives for 50 gems"));
+      expect(buyLives).toHaveBeenCalledTimes(1);
+      // The sheet closes so the payoff plays on the map, and the pill is full.
+      expect(livesSheet()).toBeNull();
+      expect(document.querySelector("[data-reward-phase]")?.getAttribute("aria-label")).toBe("Lives refilled: 5 lives");
+      expect(livesPill()?.getAttribute("aria-label")).toBe("Lives, 5 of 5");
+    });
+
+    it("closes only the gem packs on Escape when opened from the lives sheet, and hands focus back", async () => {
+      // The Shop's balance (300) is short of the price.
+      const { client } = await outOfLivesClient(20, 500, undefined, 2);
+      await renderMapWithShop(client);
+      await click(livesPill() ?? undefined);
+      const getGems = [...(livesSheet()?.querySelectorAll<HTMLButtonElement>("button") ?? [])].find((b) => b.textContent === "Get gems");
+      getGems?.focus();
+      await click(getGems);
+      expect(document.body.querySelector("#gem-packs-title")).not.toBeNull();
+
+      await act(async () => {
+        document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      });
+      await flush();
+      expect(document.body.querySelector("#gem-packs-title")).toBeNull();
+      expect(livesSheet()).not.toBeNull();
+      expect(document.activeElement).toBe(getGems);
+    });
+
+    it("keeps the lives sheet open with the reason when a refill is refused", async () => {
+      const { client } = await outOfLivesClient(120, 50, { ok: false, code: "NETWORK" }, 2);
+      await renderMap(client);
+      await click(livesPill() ?? undefined);
+      await click(button("Refill lives for 50 gems"));
+      expect(livesSheet()?.querySelector('[role="alert"]')?.textContent).toBe(
+        "Couldn’t reach the server. Check your connection and try again.",
+      );
+    });
+
+    it("sells nothing from the lives sheet when lives are full", async () => {
+      const { client, buyLives } = await outOfLivesClient(120, 50, undefined, 0);
+      await renderMap(client);
+      await click(livesPill() ?? undefined);
+      expect(livesSheet()?.textContent).toContain("5 of 5 lives · Full");
+      expect(button("Refill lives for 50 gems")).toBeUndefined();
+      expect(buyLives).not.toHaveBeenCalled();
+    });
+
+    it("leaves the lives pill a plain readout when no refill can be sold", async () => {
+      await renderMap(memoryClient());
+      expect(livesPill()).toBeNull();
+      expect(document.body.querySelector("header")?.textContent).toContain("5 of 5 lives");
     });
 
     it("has no Get gems button without the Shop", async () => {
@@ -585,6 +705,310 @@ describe("level play route", () => {
     expect(ticketFromState({ ticket }, 5)).toBeNull();
     expect(ticketFromState({ ticket: { ...ticket, seed: 7 } }, 4)).toBeNull();
     expect(ticketFromState(null, 4)).toBeNull();
+  });
+});
+
+describe("interrupted level runs", () => {
+  // The provider's store: the mocked account is "me".
+  const notes = () => createRunNoteStore({ accountId: "me" });
+  const LOST_A_LIFE = "Your last run of level 11 was interrupted, so it counts as a loss and used a life.";
+  const sheet = () => document.body.querySelector('[role="dialog"]');
+  const statuses = () => [...document.body.querySelectorAll('[role="status"]')].map((el) => el.textContent ?? "");
+
+  /** A fresh mount of the app on `initial`, as after a reload or restart. */
+  async function remount(client: LevelsClient, initial: string | { pathname: string; state: unknown } = "/") {
+    act(() => root.unmount());
+    root = createRoot(container);
+    await renderMap(client, initial);
+  }
+
+  it("notes the run when it starts, a retry replaces it, and scoring forgets it", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    const first = ticketFromState(where.state, 11);
+    expect(first).not.toBeNull();
+    expect(notes().get()).toEqual({ season: 1, level: 11, ticketId: first?.id, costsLife: true });
+
+    await click(button("stub-lose"));
+    expect(notes().get()).toBeNull();
+
+    await click(button("Retry"));
+    const retried = notes().get();
+    expect(retried).toMatchObject({ season: 1, level: 11, costsLife: true });
+    expect(retried?.ticketId).not.toBe(first?.id);
+
+    await click(button("stub-lose"));
+    expect(notes().get()).toBeNull();
+    await click(button("Map"));
+    expect(where.pathname).toBe("/");
+    expect(document.body.textContent).not.toContain("interrupted");
+  });
+
+  it("says once, on the launch after a restart, that the cut-off run counted as a loss", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    // Left by the previous launch: its ticket is not one this session issued.
+    notes().save({ season: 1, level: 11, ticketId: "ticket-from-last-launch", costsLife: true });
+    await renderMap(client);
+    expect(statuses()).toContain(LOST_A_LIFE);
+    expect(sheet()).toBeNull();
+    expect(notes().get()).toBeNull();
+
+    await remount(client);
+    expect(document.body.textContent).not.toContain("interrupted");
+  });
+
+  it("keeps quiet about this session's own run while it is still being started", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    const started = await client.startLevel(11);
+    if (!started.ok) throw new Error("refused");
+    // Issued and noted by this session; the play screen has not taken it yet.
+    noteRunStarted(notes(), started.ticket.id, { season: 1, level: 11, costsLife: true });
+    await renderMap(client);
+    expect(document.body.textContent).not.toContain("interrupted");
+    expect(notes().get()?.ticketId).toBe(started.ticket.id);
+  });
+
+  it("ends the run like Quit when the player backs out of it: no note, no notice later", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    const ticket = ticketFromState(where.state, 11);
+    expect(notes().get()?.ticketId).toBe(ticket?.id);
+
+    // Android hardware back (useNativeShell calls this) or browser Back.
+    await act(async () => history.back());
+    await flush();
+    expect(where.pathname).toBe("/");
+    expect(notes().get()).toBeNull();
+    expect(document.body.textContent).not.toContain("interrupted");
+
+    // The next launch has nothing to say about a run the player left.
+    await remount(client);
+    expect(document.body.textContent).not.toContain("interrupted");
+  });
+
+  it("reports a retry whose ticket arrives after the player went to the map", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    await click(button("stub-lose"));
+
+    // Hold the retry's reply until after the player has left for the map.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const startLevel = client.startLevel.bind(client);
+    client.startLevel = async (...args) => {
+      await gate;
+      return startLevel(...args);
+    };
+    await click(button("Retry"));
+    await click(button("Map"));
+    expect(where.pathname).toBe("/");
+    await act(async () => release());
+    await flush();
+
+    // The life is spent on a run nobody plays: it is noted, not live, so the
+    // next map visit says so instead of keeping quiet about it.
+    const noted = notes().get();
+    expect(noted).toMatchObject({ season: 1, level: 11, costsLife: true });
+    expect(runs.mounted).toHaveLength(1);
+    await remount(client);
+    expect(statuses()).toContain(LOST_A_LIFE);
+  });
+
+  it("does not replay the run after Back then Forward: the level's card says the run ended", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    expect(runs.mounted).toHaveLength(1);
+
+    await act(async () => history.back());
+    await flush();
+    expect(where.pathname).toBe("/");
+    // Forward lands on the same history entry, ticket and all.
+    await act(async () => history.forward());
+    await flush();
+    expect(runs.mounted).toHaveLength(1);
+    expect(where.pathname).toBe("/");
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 11");
+    expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe("That run has ended.");
+  });
+
+  it("keeps a run and its note through StrictMode's dev remount, and still ends it on Back", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client, "/", { strict: true });
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    const ticket = ticketFromState(where.state, 11);
+    expect(where.pathname).toBe("/levels/11/play");
+    expect(button("stub-lose")).toBeDefined();
+    expect(notes().get()?.ticketId).toBe(ticket?.id);
+
+    // The dev remount does not count as leaving: a retry still starts a run.
+    await click(button("stub-lose"));
+    await click(button("Retry"));
+    expect(button("Retry")).toBeUndefined();
+    expect(notes().get()?.ticketId).not.toBe(ticket?.id);
+
+    await act(async () => history.back());
+    await flush();
+    expect(notes().get()).toBeNull();
+    await act(async () => history.forward());
+    await flush();
+    expect(where.pathname).toBe("/");
+    expect(button("stub-lose")).toBeUndefined();
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 11");
+    expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe("That run has ended.");
+  });
+
+  it("keeps the bounce's notice on its card under StrictMode, once the season is loaded", async () => {
+    // As in the app, which waits for the season: the map mounts with it, so
+    // StrictMode runs the map's landing effect twice on one history entry.
+    await renderMap(memoryClient(), "/", { strict: true });
+    await act(async () => history.push("/levels/1/play"));
+    await flush();
+    expect(where.pathname).toBe("/");
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 1");
+    expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe("That run has ended.");
+  });
+
+  it("opens the cut-off run's own card when a bounce names another level", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    notes().save({ season: 1, level: 11, ticketId: "ticket-from-last-launch", costsLife: true });
+    await remount(client, "/levels/4/play");
+    expect(where.pathname).toBe("/");
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 11");
+    expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe(LOST_A_LIFE);
+    expect(statuses().filter((t) => t === LOST_A_LIFE)).toHaveLength(1);
+  });
+
+  it("shows only the banner when the cut-off run's level is not open", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    const above = "Your last run of level 14 was interrupted, so it counts as a loss and used a life.";
+    notes().save({ season: 1, level: 14, ticketId: "ticket-from-last-launch", costsLife: true });
+    await remount(client, "/levels/4/play");
+    expect(where.pathname).toBe("/");
+    expect(sheet()).toBeNull();
+    expect(statuses()).toContain(above);
+  });
+
+  it("does not replay a ticket a reload left in history: the level's card says the run was lost", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    // The run before the reload: router state survives it, this session does not.
+    const before = await client.startLevel(11);
+    if (!before.ok) throw new Error("refused");
+    notes().save({ season: 1, level: 11, ticketId: before.ticket.id, costsLife: true });
+
+    await remount(client, { pathname: "/levels/11/play", state: { ticket: before.ticket } });
+    expect(runs.mounted).toHaveLength(0);
+    expect(where.pathname).toBe("/");
+    expect(where.state).toBeNull();
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 11");
+    expect(sheet()?.querySelector('[role="status"]')?.textContent).toBe(LOST_A_LIFE);
+    // Said once: on the card, not again in a map banner behind it.
+    expect(statuses().filter((t) => t === LOST_A_LIFE)).toHaveLength(1);
+    expect(notes().get()).toBeNull();
+  });
+
+  it("says only that the run ended on a stale link, with nothing about lives", async () => {
+    await renderMap(memoryClient(), "/levels/1/play");
+    expect(where.pathname).toBe("/");
+    expect(sheet()?.querySelector("h2")?.textContent).toBe("Level 1");
+    const notice = sheet()?.querySelector('[role="status"]')?.textContent;
+    expect(notice).toBe("That run has ended.");
+
+    await click(button("Close"));
+    expect(document.body.textContent).not.toContain("That run has ended.");
+  });
+
+  it("shows the notice on the map when the level's card cannot open", async () => {
+    await renderMap(memoryClient(), "/levels/5/play");
+    expect(where.pathname).toBe("/");
+    expect(sheet()).toBeNull();
+    expect(statuses()).toContain("That run has ended.");
+
+    await click(button("Dismiss"));
+    expect(document.body.textContent).not.toContain("That run has ended.");
+  });
+
+  it("keeps the note while a result could not be saved, and drops it when the player leaves", async () => {
+    const base = memoryClient();
+    await clearLevels(base, 10);
+    const offline: LevelsClient = { ...base, submitResult: () => Promise.reject(new Error("offline")) };
+    await renderMap(offline);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    const ticket = ticketFromState(where.state, 11);
+    await click(button("stub-lose"));
+    expect(document.body.textContent).toContain("Couldn\u2019t save this run");
+    expect(notes().get()?.ticketId).toBe(ticket?.id);
+
+    await click(button("Map"));
+    expect(notes().get()).toBeNull();
+    expect(document.body.textContent).not.toContain("interrupted");
+  });
+
+  it("keeps the retried run's note until the player backs out of it", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    await renderMap(client);
+    await click(pin("Level 11, next to play"));
+    await click(button("Play level 11"));
+    await click(button("stub-lose"));
+    await click(button("Retry"));
+    const retried = notes().get();
+    expect(retried).not.toBeNull();
+    expect(runs.mounted).toHaveLength(2);
+
+    await act(async () => history.back());
+    await flush();
+    expect(notes().get()).toBeNull();
+    expect(document.body.textContent).not.toContain("interrupted");
+  });
+
+  it("drops a note from another season on the map without a notice", async () => {
+    const client = memoryClient();
+    await clearLevels(client, 10);
+    expect((await client.getSeason()).season).toBe(1);
+    notes().save({ season: 2, level: 11, ticketId: "ticket-from-season-2", costsLife: true });
+    await renderMap(client);
+    expect(statuses().filter((t) => /\brun\b/.test(t))).toEqual([]);
+    expect(document.body.textContent).not.toContain("interrupted");
+    expect(notes().get()).toBeNull();
+  });
+
+  it("leaves practice runs alone: no bounce, no note, no notice", async () => {
+    await renderMap(memoryClient(), "/levels/1/play?practice=1");
+    expect(where.pathname).toBe("/levels/1/play");
+    expect(runs.mounted).toHaveLength(1);
+    await click(button("stub-lose"));
+    expect(notes().get()).toBeNull();
+    await click(button("Map"));
+    expect(where.pathname).toBe("/");
+    expect(statuses().filter((t) => /\brun\b/.test(t))).toEqual([]);
+    expect(document.body.textContent).not.toContain("That run has ended.");
+  });
+
+  it("takes only interrupted: true as a bounced run", () => {
+    expect(interruptedFromState({ openLevel: 3, interrupted: true })).toBe(true);
+    for (const state of [null, undefined, "interrupted", { openLevel: 3 }, { interrupted: "true" }, { interrupted: 1 }, { interrupted: null }, { interrupted: false }]) {
+      expect(interruptedFromState(state)).toBe(false);
+    }
   });
 });
 

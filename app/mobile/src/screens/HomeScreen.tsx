@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
+import { ChevronRight } from "../components/ui";
 import { useNavigate } from "react-router-dom";
-import { tapHeavy } from "../lib/haptics";
+import { tapHeavy, tapLight } from "../lib/haptics";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { useDailyLeaderboard, useHubPrefetch } from "../contexts/AppDataContext";
 import { dailySummary, formatReset, type DailySummary } from "@app/lib/daily";
@@ -10,16 +11,16 @@ import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 
 /**
  * Modes = the game's other ways to play, beside the level map (the home tab):
- * Endless (the endless climb), the Daily, Quick Play and Challenge. It was
- * the title screen before levels. Play-first and hub-centric: the wordmark and
- * the player's standing sit up top over the volcanic scene, and a dominant
- * PLAY button plus the secondary modes are anchored above the tab bar.
+ * the Daily, Quick Play and Challenge, plus the way into the Leaderboard
+ * (no longer a tab). Endless lives on the map's Play bar only. The wordmark
+ * sits up top over the volcanic scene, and the modes are anchored above the
+ * tab bar.
  */
 export function HomeScreen() {
   const navigate = useNavigate();
 
-  // Warm the shared cache from the landing screen so Profile / Ranks are instant
-  // on first visit; the returned dashboard slice also feeds the Best card.
+  // Warm the shared cache so Profile / Leaderboard are instant on first visit;
+  // the returned dashboard slice also feeds the Leaderboard row.
   const hub = useHubPrefetch();
   const standing = hub.data?.freeClimb ?? null;
   const standingLoading = hub.data === null && (hub.loading || hub.fetchedAt === null);
@@ -38,11 +39,6 @@ export function HomeScreen() {
   const todayBoard = useDailyLeaderboard(clock.day).data;
   const todayMe = todayBoard && todayBoard.day === clock.day ? todayBoard.me : null;
 
-  const play = () => {
-    void tapHeavy();
-    navigate("/climb");
-  };
-
   const playDaily = () => {
     void tapHeavy();
     navigate("/climb?daily=1");
@@ -51,6 +47,11 @@ export function HomeScreen() {
   const openChallenge = useCallback(() => {
     navigate("/challenge");
   }, [navigate]);
+
+  const openLeaderboard = () => {
+    void tapLight();
+    navigate("/leaderboard");
+  };
 
   // Quick Play = random matchmaking queue. The hook encapsulates POST (join),
   // GET polling, DELETE (cancel), and cleanup on unmount.
@@ -81,15 +82,10 @@ export function HomeScreen() {
           </span>
         </header>
 
-        <div className="mt-6 flex justify-end [@media(max-height:640px)]:mt-2">
-          <BestCard standing={standing} loading={standingLoading} failed={standingFailed} />
-        </div>
-
         {/* Scene gap — the volcanic backdrop shows through here */}
         <div className="min-h-8 flex-1 [@media(max-height:640px)]:min-h-2" />
 
         <div className="flex w-full flex-col gap-3 pb-4 [@media(max-height:640px)]:pb-2">
-          <PlayButton onPress={play} />
           <DailyCard daily={daily} today={todayMe} resetMs={clock.msUntilReset} onPress={playDaily} />
           <div className="grid grid-cols-2 gap-2.5">
             <ModeTile
@@ -107,6 +103,12 @@ export function HomeScreen() {
               onPress={openChallenge}
             />
           </div>
+          <LeaderboardRow
+            standing={standing}
+            loading={standingLoading}
+            failed={standingFailed}
+            onPress={openLeaderboard}
+          />
         </div>
       </div>
 
@@ -133,74 +135,46 @@ export function HomeScreen() {
   );
 }
 
-/** The player's standing: best height + global rank, top-right over the scene. */
-function BestCard({
+/** The way into the Leaderboard, with the player's all-time best height and global rank. */
+function LeaderboardRow({
   standing,
   loading,
   failed,
+  onPress,
 }: {
   standing: { peakY: number; rank: number } | null;
   loading: boolean;
-  /** The dashboard didn't load: show a neutral dash, not "Unranked". */
+  /** The dashboard didn't load: a neutral line, never "Unranked". */
   failed: boolean;
+  onPress: () => void;
 }) {
-  return (
-    <div
-      aria-live="polite"
-      className="glass min-w-[8rem] rounded-[20px] border border-white/10 px-3.5 pb-2.5 pt-3"
-    >
-      <div className="flex items-center gap-2">
-        <CrownIcon />
-        <span className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">
-          Best
-        </span>
-      </div>
-      {loading ? (
-        <div className="mt-2 flex flex-col items-center gap-3" aria-label="Loading your best climb">
-          <span className="h-6 w-24 animate-pulse rounded-md bg-elevated" />
-          <span className="h-px w-full bg-white/10" />
-          <span className="h-5 w-10 animate-pulse rounded-md bg-elevated" />
-        </div>
-      ) : (
-        <>
-          <p className="mt-1 text-right font-display text-headline font-black leading-none tabular-nums text-text-primary">
-            {standing ? standing.peakY.toLocaleString() : "—"}
-            <span className="ml-1 text-meta font-bold uppercase text-text-secondary">
-              {ALTITUDE_UNIT}
-            </span>
-          </p>
-          <span className="mt-2 block h-px w-full bg-white/10" />
-          <p
-            className={`mt-1.5 text-center font-display font-black tabular-nums ${standing ? "text-lead text-signal" : "font-mono text-label uppercase tracking-label text-text-muted"}`}
-          >
-            {standing ? `#${standing.rank.toLocaleString()}` : failed ? "—" : "Unranked"}
-          </p>
-          {failed && <span className="sr-only">Couldn&apos;t load your best climb</span>}
-        </>
-      )}
-    </div>
-  );
-}
-
-function PlayButton({ onPress }: { onPress: () => void }) {
+  const subId = useId();
+  const sub = loading
+    ? "Loading your rank…"
+    : standing
+      ? `#${standing.rank.toLocaleString()} · best ${standing.peakY.toLocaleString()} ${ALTITUDE_UNIT}`
+      : failed
+        ? "World and friends rankings"
+        : "Unranked · climb to get ranked";
   return (
     <button
       onClick={onPress}
-      aria-label="Endless, climb as high as you can"
-      className="cta-lime flex min-h-[56px] w-full items-center gap-4 rounded-[22px] py-3 pl-3 pr-3 text-left text-void transition-transform active:scale-[0.97] [@media(max-height:640px)]:py-2.5"
+      aria-label="Leaderboard"
+      aria-describedby={subId}
+      className="glass flex w-full items-center gap-3 rounded-[20px] border border-white/10 px-3.5 py-3 text-left transition-transform active:scale-[0.98] [@media(max-height:640px)]:py-2.5"
     >
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#141612] text-signal shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_12px_rgba(0,0,0,0.35)]">
-        <PlayGlyph />
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-signal/50 bg-signal/10">
+        <CrownIcon />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-display text-cta font-black uppercase tracking-[-0.01em] text-void">
-          Endless
+        <span className="block font-display text-body font-black uppercase tracking-wide text-text-primary">
+          Leaderboard
         </span>
-        <span className="mt-1 block font-mono text-label font-bold uppercase tracking-label text-void/80">
-          Climb as high as you can
+        <span id={subId} className="mt-1 block truncate text-meta tabular-nums text-text-secondary">
+          {sub}
         </span>
       </span>
-      <ChevronRight size={24} className="text-void" />
+      <ChevronRight className="text-text-secondary" />
     </button>
   );
 }
@@ -313,26 +287,10 @@ function CrownIcon() {
   );
 }
 
-function PlayGlyph() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.79-6.86a1 1 0 0 0 0-1.7L9.53 4.29A1 1 0 0 0 8 5.14Z" />
-    </svg>
-  );
-}
-
 function FlameIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-ember" aria-hidden>
       <path d="M12 2c.5 3-1.5 4.5-3 6.5C7.4 10.6 6.5 12.3 6.5 14a5.5 5.5 0 0 0 11 0c0-1.7-.8-3.2-2-4.5-.6 1-1.6 1.6-2.6 1.6 1-2 .3-4.4-1.4-6.1C11.6 5 12 3.4 12 2Z" />
-    </svg>
-  );
-}
-
-function ChevronRight({ className = "text-text-muted", size = 18 }: { className?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`} aria-hidden>
-      <path d="m9 18 6-6-6-6" />
     </svg>
   );
 }

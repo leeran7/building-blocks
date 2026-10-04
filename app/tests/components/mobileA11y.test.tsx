@@ -147,20 +147,20 @@ describe("BottomNav", () => {
   const current = () => tabs().filter((t) => t.getAttribute("aria-current") === "page").map((t) => t.textContent);
 
   it("is a labelled nav landmark whose tabs are named by their visible label", async () => {
-    await render("/leaderboard", createElement(BottomNav));
-    expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual(["Levels", "Modes", "Ranks", "Shop", "Profile"]);
-    expect(tabs().map((t) => t.textContent)).toEqual(["Levels", "Modes", "Ranks", "Shop", "Profile"]);
+    await render("/modes", createElement(BottomNav));
+    expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual(["Levels", "Modes", "Shop", "Profile"]);
+    expect(tabs().map((t) => t.textContent)).toEqual(["Levels", "Modes", "Shop", "Profile"]);
   });
 
   it("marks exactly the current route's tab with aria-current=page, and moves it on navigation", async () => {
-    await render("/leaderboard", createElement(BottomNav));
-    expect(current()).toEqual(["Ranks"]);
+    await render("/modes", createElement(BottomNav));
+    expect(current()).toEqual(["Modes"]);
     await click(tabs().find((t) => t.textContent === "Profile"));
     expect(current()).toEqual(["Profile"]);
   });
 
-  it("marks no tab on a route that is not a tab (a pushed screen)", async () => {
-    await render("/profile/edit", createElement(BottomNav));
+  it.each(["/profile/edit", "/leaderboard"])("marks no tab on %s, a pushed screen", async (path) => {
+    await render(path, createElement(BottomNav));
     expect(current()).toEqual([]);
   });
 });
@@ -288,7 +288,11 @@ describe("Hub header shared by Ranks and Profile", () => {
     const header = headers[0] as HTMLElement | undefined;
     expect(header).toBeTruthy();
     const h1s = container.querySelectorAll("h1");
-    const [eyebrow, titleRow, ...rest] = [...header!.children] as HTMLElement[];
+    const children = [...header!.children] as HTMLElement[];
+    // A pushed hub puts Back on the eyebrow's row: [Back, eyebrow, spacer].
+    const back = children[0]?.querySelector(':scope > button[aria-label="Back"]') ?? null;
+    if (back) children[0] = children[0].children[1] as HTMLElement;
+    const [eyebrow, titleRow, ...rest] = children;
     const status = rest.find((el) => el.hasAttribute("data-hub-status"));
     const subtitle = rest.find((el) => !el.hasAttribute("data-hub-status"));
     return {
@@ -300,7 +304,8 @@ describe("Hub header shared by Ranks and Profile", () => {
       subtitleClass: subtitle?.className,
       subtitle: subtitle ? [...subtitle.children].map((c) => (c.getAttribute("aria-hidden") ? "·" : c.textContent)) : [],
       status: status ? { className: status.className, label: status.querySelector(".sr-only")?.textContent } : null,
-      childCount: header!.children.length,
+      childCount: children.length,
+      hasBack: back !== null,
     };
   }
 
@@ -316,7 +321,7 @@ describe("Hub header shared by Ranks and Profile", () => {
     expect(profile.titleInHeader).toBe(true);
   });
 
-  it("renders the same eyebrow and title on both; Ranks has a status pill, Profile keeps its subtitle", async () => {
+  it("renders the same eyebrow and title on both; Ranks has a status pill and Back, Profile keeps its subtitle", async () => {
     net.climbers = [climber(1, "a")];
     const ranks = await headerOf("/leaderboard", createElement(LeaderboardScreen));
     act(() => root.unmount());
@@ -331,6 +336,8 @@ describe("Hub header shared by Ranks and Profile", () => {
     // Ranks: no tracked-mono subtitle any more, one status pill instead (dashboard total 9).
     expect(ranks.subtitle).toEqual([]);
     expect(ranks.status?.label).toBe("9 climbers on the all-time board");
+    // Ranks is pushed from Modes (not a tab), so it also gets a Back button.
+    expect(ranks.hasBack).toBe(true);
     expect(ranks.childCount).toBe(3);
     // Profile: the same tracked-mono subtitle as before, and no pill.
     expect(profile.subtitle).toEqual(["Your climb"]);
@@ -338,6 +345,7 @@ describe("Hub header shared by Ranks and Profile", () => {
       "mt-2 flex items-center gap-2 font-mono text-label uppercase tracking-label text-text-muted",
     );
     expect(profile.status).toBeNull();
+    expect(profile.hasBack).toBe(false);
     expect(profile.childCount).toBe(3);
   });
 

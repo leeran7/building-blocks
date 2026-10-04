@@ -179,17 +179,7 @@ export interface PushHeaderProps {
 export function PushHeader({ title, onBack, headingRef }: PushHeaderProps) {
   return (
     <header className="flex items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
-      <button
-        type="button"
-        aria-label="Back"
-        onClick={() => {
-          void tapLight();
-          onBack();
-        }}
-        className="glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-primary transition-transform active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
-      >
-        <ChevronLeft size={22} />
-      </button>
+      <BackButton onBack={onBack} />
       <h1
         ref={headingRef}
         tabIndex={headingRef ? -1 : undefined}
@@ -198,6 +188,32 @@ export function PushHeader({ title, onBack, headingRef }: PushHeaderProps) {
         {title}
       </h1>
     </header>
+  );
+}
+
+/** The 48px glass back button of PushHeader, also used by HubHeader on a pushed hub (Leaderboard). */
+export function BackButton({ onBack, className = "" }: { onBack: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      aria-label="Back"
+      onClick={() => {
+        void tapLight();
+        onBack();
+      }}
+      className={`glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-primary transition-transform active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal ${className}`}
+    >
+      <ChevronLeft size={22} />
+    </button>
+  );
+}
+
+/** Row chevron for tappable cards (Modes rows, Profile streak card). */
+export function ChevronRight({ className = "text-text-muted", size = 18 }: { className?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`} aria-hidden>
+      <path d="m9 18 6-6-6-6" />
+    </svg>
   );
 }
 

@@ -4,6 +4,9 @@ import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
 import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
+import { LivesSheet } from "../components/levels/LivesSheet";
+import { GemBalance } from "../components/store/GemBalance";
+import { useOptionalShop } from "../contexts/ShopContext";
 import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelStartExtras } from "../components/levels/LevelStartExtras";
 import { BoosterPicker, ChestMeter } from "../components/levels/LevelChests";
@@ -16,6 +19,7 @@ import {
   type StartResult,
 } from "../lib/levels/model";
 import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
+import { isTicketLive, mapLanding, noteRunStarted, runNoticeFor, type RunNotice } from "../lib/levels/runNote";
 import { markOnboardingOffered, needsOnboarding, wantsTour } from "../lib/onboarding";
 import { AppTour } from "../components/onboarding/AppTour";
 import { MAP_TOUR } from "../components/onboarding/mapTour";
@@ -30,6 +34,10 @@ const BOTTOM_PAD = 150;
 const TOP_PAD = 140;
 /** Locked levels shown above the frontier before the map fades out. */
 const LOOKAHEAD = 10;
+/** Height of the Play bar: pb-3 (12px) under the 56px buttons, px. */
+const PLAY_BAR_HEIGHT = 68;
+/** Gap between the Play bar and the run notice banner above it, px. */
+const NOTICE_GAP = 16;
 /**
  * Fades the map out behind the Play bar, so pins never run under Play and the
  * bar needs no dark scrim of its own: the backdrop's lava shows through down
@@ -58,13 +66,19 @@ export function pinX(level: number): number {
 export function LevelMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { client, season, loading, error, refresh, setPlayer } = useLevels();
+  const { client, season, loading, error, refresh, setPlayer, runNotes } = useLevels();
   const refill = useLivesRefillOffer();
+  // The gem pill needs the Shop's balance; without a ShopProvider it is left out.
+  const hasShop = useOptionalShop() !== null;
+  const [livesOpen, setLivesOpen] = useState(false);
   const [selected, setSelectedNode] = useState<LevelNode | null>(null);
   // The booster equipped on the open start card; every card opens without one.
   const [booster, setBooster] = useState<BoosterType | null>(null);
+  // An interrupted run's one-line notice: on its level's card, else on the map.
+  const [notice, setNotice] = useState<RunNotice | null>(null);
   const setSelected = useCallback((node: LevelNode | null) => {
     setBooster(null);
+    setNotice(null);
     setSelectedNode(node);
   }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -85,13 +99,25 @@ export function LevelMapScreen() {
     el.scrollTop = Math.max(0, height - pinBottom(frontier) - el.clientHeight * 0.55);
   }, [season, frontier, height]);
 
-  // "Next level" on a result card lands here with the next level's card open.
+  // "Next level" on a result card lands here with the next level's card open,
+  // and so does a level run that lost its ticket (marked `interrupted`).
   const openLevel = openLevelFromState(location.state);
+  const interrupted = interruptedFromState(location.state);
+  // Once per history entry: a note left by an earlier session (the launch
+  // after a restart) or by the bounced run is said once, then forgotten. A
+  // re-run for the same entry (a season refresh, StrictMode's dev re-run) does
+  // nothing, so it cannot reopen the card and wipe the notice just shown.
+  const noticeCheckedKey = useRef<string | null>(null);
   useLayoutEffect(() => {
-    if (!season || openLevel === null) return;
-    navigate(".", { replace: true, state: null });
-    if (openLevel <= season.frontier) setSelected(season.levels[openLevel - 1]);
-  }, [season, openLevel, navigate, setSelected]);
+    if (!season || noticeCheckedKey.current === location.key) return;
+    noticeCheckedKey.current = location.key;
+    const verdict = runNoticeFor({ note: runNotes.get(), season: season.season, bounced: interrupted, live: isTicketLive });
+    if (verdict.consume) runNotes.take();
+    const landing = mapLanding({ notice: verdict.notice, openLevel, bounced: interrupted, frontier: season.frontier });
+    if (openLevel !== null || interrupted) navigate(".", { replace: true, state: null });
+    if (landing.open !== null) setSelected(season.levels[landing.open - 1]);
+    if (landing.notice) setNotice(landing.notice);
+  }, [season, openLevel, interrupted, location.key, navigate, setSelected, runNotes]);
 
   const startLevel = useCallback(
     async (level: number, equipped: BoosterType | null) => {
@@ -103,6 +129,9 @@ export function LevelMapScreen() {
       }
       if (res.ok) {
         void tapHeavy();
+        // Noted before the run, so a reload or restart mid-run is mentioned later.
+        const node = season?.levels[level - 1];
+        noteRunStarted(runNotes, res.ticket.id, season && node ? { season: season.season, level, costsLife: node.costsLife } : null);
         setPlayer(res.ticket.player);
         // A spent booster leaves the inventory: reload it for the map.
         if (res.ticket.startPowerUp?.source === "booster") void refresh();
@@ -117,7 +146,7 @@ export function LevelMapScreen() {
       }
       return res;
     },
-    [client, navigate, setPlayer, refresh],
+    [client, navigate, setPlayer, refresh, season, runNotes],
   );
 
   // First launch: the training climb, which comes back here with the tour.
@@ -179,7 +208,18 @@ export function LevelMapScreen() {
       <header className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         <div className="flex items-center justify-between gap-2">
           <span data-tour="lives" className="inline-flex">
-            <LivesPill player={season.player} />
+            <LivesPill
+              player={season.player}
+              // Only a client that sells refills makes the pill a button.
+              onPress={
+                refill.offer
+                  ? () => {
+                      void tapLight();
+                      setLivesOpen(true);
+                    }
+                  : undefined
+              }
+            />
           </span>
           <span data-tour="xp" className="inline-flex">
             <XpBar player={season.player} compact />
@@ -188,9 +228,20 @@ export function LevelMapScreen() {
         <p className="mt-2.5 text-center font-mono text-label uppercase tracking-eyebrow text-text-secondary">
           {season.name} · Episode {episode}
         </p>
-        {season.chests && (
-          <div data-tour="chest" className="mx-auto mt-2 flex w-fit justify-center">
-            <ChestMeter chests={season.chests} boosters={season.boosters} />
+        {/* The economy row: the star chest and the gem balance. A third pill
+            in the row above does not fit a 375pt-wide phone. Wraps on narrower ones. */}
+        {(season.chests || hasShop) && (
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            {season.chests && (
+              <div data-tour="chest" className="flex w-fit justify-center">
+                <ChestMeter chests={season.chests} boosters={season.boosters} />
+              </div>
+            )}
+            {hasShop && (
+              <span data-tour="gems" className="inline-flex">
+                <GemBalance compact />
+              </span>
+            )}
           </div>
         )}
       </header>
@@ -236,6 +287,10 @@ export function LevelMapScreen() {
         </div>
       </div>
 
+      {notice && (notice.level === null || selected?.level !== notice.level) && (
+        <MapNotice text={notice.text} onDismiss={() => setNotice(null)} />
+      )}
+
       {/* Clear bar: no scrim, so the lava crest shows behind it. MAP_FADE
           fades the pins out before they reach it. */}
       <div data-play-bar className="absolute inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 px-4 pb-3">
@@ -279,6 +334,7 @@ export function LevelMapScreen() {
             navigate(`/levels/${selected.level}/play?practice=1`);
           }}
           onClose={() => setSelected(null)}
+          notice={notice && notice.level === selected.level ? notice.text : null}
           refill={refill.offer}
           extras={
             <LevelStartExtras
@@ -303,6 +359,9 @@ export function LevelMapScreen() {
           }
         />
       )}
+      {livesOpen && refill.offer && (
+        <LivesSheet player={season.player} offer={refill.offer} onClose={() => setLivesOpen(false)} />
+      )}
       {refill.overlays}
       {touring && <AppTour steps={MAP_TOUR} onClose={endTour} finishLabel={`Play level ${current.level}`} />}
     </main>
@@ -313,6 +372,36 @@ function openLevelFromState(state: unknown): number | null {
   if (typeof state !== "object" || state === null || !("openLevel" in state)) return null;
   const n = (state as { openLevel: unknown }).openLevel;
   return typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : null;
+}
+
+/** Whether the map was reached from a level run that had no ticket. */
+export function interruptedFromState(state: unknown): boolean {
+  if (typeof state !== "object" || state === null || !("interrupted" in state)) return false;
+  return (state as { interrupted: unknown }).interrupted === true;
+}
+
+/** An interrupted run's notice when no level card shows it. */
+function MapNotice({ text, onDismiss }: { text: string; onDismiss: () => void }) {
+  return (
+    <div
+      style={{ bottom: PLAY_BAR_HEIGHT + NOTICE_GAP }}
+      className="absolute inset-x-4 z-30 mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-ember/40 bg-surface/95 py-1 pl-4 pr-1 backdrop-blur-xl"
+    >
+      <p role="status" className="flex-1 text-meta text-text-primary">
+        {text}
+      </p>
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={onDismiss}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-secondary transition-transform active:scale-90"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </div>
+  );
 }
 
 type PinState = "open" | "current" | "locked";

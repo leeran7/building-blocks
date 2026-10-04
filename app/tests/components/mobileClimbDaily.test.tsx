@@ -13,7 +13,7 @@
 
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -141,7 +141,13 @@ const settle = () =>
     for (let i = 0; i < 3; i++) await new Promise((r) => setTimeout(r, 0));
   });
 
-async function mountDaily(path = "/climb?daily=1") {
+/** Stands in for the Leaderboard's Back: a plain history pop. */
+function PopProbe() {
+  const navigate = useNavigate();
+  return createElement("button", { "data-testid": "pop", onClick: () => navigate(-1) }, "pop");
+}
+
+async function mountDaily(path: string | string[] = "/climb?daily=1") {
   container = document.createElement("div");
   document.body.appendChild(container);
   await act(async () => {
@@ -149,7 +155,7 @@ async function mountDaily(path = "/climb?daily=1") {
     root.render(
       createElement(
         MemoryRouter,
-        { initialEntries: [path] },
+        { initialEntries: Array.isArray(path) ? path : [path] },
         createElement(
           AppDataProvider,
           null,
@@ -158,8 +164,10 @@ async function mountDaily(path = "/climb?daily=1") {
             null,
             createElement(Route, { path: "/climb", element: <ClimbScreen onSignIn={onSignIn} /> }),
             createElement(Route, { path: "/leaderboard", element: createElement("p", null, "ranks screen") }),
+            createElement(Route, { path: "/modes", element: createElement("p", null, "modes screen") }),
           ),
           createElement(LocationProbe),
+          createElement(PopProbe),
         ),
       ),
     );
@@ -254,6 +262,14 @@ describe("ClimbScreen daily mode", () => {
     expect(text()).toContain("Today’s Best");
     await click(buttonByText("See today’s board"));
     expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/leaderboard?board=today");
+  });
+
+  it("'See today's board' replaces the finished run, so Back from the board returns to Modes, not a fresh Daily", async () => {
+    await mountDaily(["/modes", "/climb?daily=1"]);
+    await click(buttonByText("See today’s board"));
+    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/leaderboard?board=today");
+    await click(container!.querySelector('[data-testid="pop"]'));
+    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/modes");
   });
 
   it("saved while hidden says so instead of a rank", async () => {
