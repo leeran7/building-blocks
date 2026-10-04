@@ -16,6 +16,7 @@ import { season1Catalog } from "../lib/levels/catalog";
 import { withMockFallback } from "../lib/levels/fallbackClient";
 import { createBestFailStore, type BestFailStore } from "../lib/levels/nearMiss";
 import { createRunNoteStore, type RunNoteStore } from "../lib/levels/runNote";
+import { createSeenFloorStore, type SeenFloorStore } from "../lib/levels/seenFloor";
 import type { BuyLivesResult, LevelsClient, PlayerStats, SeasonView } from "../lib/levels/model";
 
 /**
@@ -37,6 +38,8 @@ interface LevelsValue {
   bestFails: BestFailStore;
   /** The run in progress on this device, so an interrupted run is mentioned on the map. */
   runNotes: RunNoteStore;
+  /** The floor the map last showed the player on, so it can climb them up from there. */
+  seenFloors: SeenFloorStore;
   /**
    * Top lives up to full with gems, and apply the new lives and balance. Null
    * when no refill can be sold (the client or the season has no price).
@@ -52,6 +55,7 @@ export function LevelsProvider({
   bestFails: injectedBestFails,
   guest = false,
   runNotes: injectedRunNotes,
+  seenFloors: injectedSeenFloors,
 }: {
   children: ReactNode;
   /** Tests and the screenshot harness pass their own client. */
@@ -63,6 +67,7 @@ export function LevelsProvider({
    */
   guest?: boolean;
   runNotes?: RunNoteStore;
+  seenFloors?: SeenFloorStore;
 }) {
   const { user, loading: authLoading, isAnonymous } = useAuth();
   // A guest has no account here, whatever the auth state says.
@@ -81,6 +86,11 @@ export function LevelsProvider({
   const runNotes = useMemo(
     () => injectedRunNotes ?? createRunNoteStore({ accountId: uid }),
     [injectedRunNotes, uid],
+  );
+  // A guest keeps their own, so a taster on a signed-out device never climbs an account's floors.
+  const seenFloors = useMemo(
+    () => injectedSeenFloors ?? createSeenFloorStore({ accountId: guest ? "guest" : uid }),
+    [injectedSeenFloors, guest, uid],
   );
   const [season, setSeason] = useState<SeasonView | null>(null);
   const [loading, setLoading] = useState(false);
@@ -140,9 +150,10 @@ export function LevelsProvider({
       setPlayer,
       bestFails,
       runNotes,
+      seenFloors,
       buyLives: canBuyLives ? buyLives : null,
     }),
-    [client, season, loading, error, refresh, setPlayer, bestFails, runNotes, canBuyLives, buyLives],
+    [client, season, loading, error, refresh, setPlayer, bestFails, runNotes, seenFloors, canBuyLives, buyLives],
   );
   return <LevelsContext.Provider value={value}>{children}</LevelsContext.Provider>;
 }
