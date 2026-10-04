@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useCallback, useState } from "react";
 import { formatGems } from "@app/lib/avatars";
 import { useLevels } from "../../contexts/LevelsContext";
@@ -52,7 +53,9 @@ export function ShopLivesTile() {
           {formatGems(refill.offer.cost)} gems
         </span>
       </button>
-      {open && <LivesSheet player={player} offer={refill.offer} onClose={() => setOpen(false)} />}
+      <AnimatePresence>
+        {open && <LivesSheet player={player} offer={refill.offer} onClose={() => setOpen(false)} />}
+      </AnimatePresence>
       {refill.overlays}
     </>
   );

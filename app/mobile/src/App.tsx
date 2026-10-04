@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { MotionConfig } from "motion/react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ClimbScreen } from "./screens/ClimbScreen";
 import { SignInScreen } from "./screens/SignInScreen";
@@ -16,7 +17,7 @@ import { TrainingScreen } from "./screens/TrainingScreen";
 import { SkinDetailsScreen } from "./screens/SkinDetailsScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
-import { BottomNav, isTabRoot } from "./components/BottomNav";
+import { BottomNavDock, isTabRoot } from "./components/BottomNav";
 import { useNativeShell } from "./lib/useNativeShell";
 import { useAuth } from "./contexts/AuthContext";
 import { useLevels } from "./contexts/LevelsContext";
@@ -65,6 +66,9 @@ export function App() {
   const guestActive = guestMode && !authed;
 
   return (
+    // One motion policy for the app: Motion drops movement (keeps fades) when
+    // the OS asks for reduced motion.
+    <MotionConfig reducedMotion="user">
     <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-void">
       {!onClimb && !guestActive && <AnimatedBackdrop />}
       <div className="relative z-10 flex-1 overflow-hidden">
@@ -82,7 +86,8 @@ export function App() {
               path="*"
               element={
                 <RouteTransition>
-                  <Routes>
+                  {(routeLocation) => (
+                  <Routes location={routeLocation}>
                     {/* Levels are the main game: the map is home (design doc §2).
                         Endless sits on its Play bar; Daily, Versus and Ranks on its mode rail. */}
                     <Route path="/" element={<LevelMapScreen />} />
@@ -96,6 +101,7 @@ export function App() {
                     <Route path="/settings" element={<SettingsScreen />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
+                  )}
                 </RouteTransition>
               }
             />
@@ -106,9 +112,11 @@ export function App() {
           <SignInScreen onGuestContinue={enterGuest} />
         )}
       </div>
-      {/* Single BottomNav instance — never unmounts on hub route changes */}
-      {showNav && <BottomNav />}
+      {/* Single BottomNav instance — never unmounts on hub route changes, and
+          slides away (or back) with the screen when leaving a tab. */}
+      {authed && <BottomNavDock show={showNav} />}
     </div>
+    </MotionConfig>
   );
 }
 

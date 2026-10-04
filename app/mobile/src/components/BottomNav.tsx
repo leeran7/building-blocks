@@ -1,5 +1,8 @@
 import { useNavigate, useLocation } from "react-router-dom";
+import { useRef } from "react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { tapLight } from "../lib/haptics";
+import { duration, ease, spring } from "../lib/motionTokens";
 
 const TABS = [
   { label: "Play", path: "/", icon: MapIcon },
@@ -19,9 +22,51 @@ export function isTabRoot(pathname: string): boolean {
   return TAB_PATHS.has(pathname);
 }
 
-export function BottomNav() {
-  const navigate = useNavigate();
+/**
+ * The tab bar's slot in the App column. Leaving a tab for a pushed screen, the
+ * bar lifts out of the layout (the screen gets the full height at once) and
+ * slides down behind it; coming back, it takes its slot and slides up. It
+ * keeps highlighting the tab it was on while it slides away.
+ */
+export function BottomNavDock({ show }: { show: boolean }) {
   const { pathname } = useLocation();
+  const lastTab = useRef(pathname);
+  if (show) lastTab.current = pathname;
+  return (
+    <AnimatePresence initial={false}>
+      {show && <DockBar key="dock" activePath={lastTab.current} />}
+    </AnimatePresence>
+  );
+}
+
+/** How the bar arrives and leaves. Exported for tests. */
+export const DOCK_MOTION = {
+  initial: { y: "100%", opacity: 0 },
+  animate: { y: 0, opacity: 1, transition: { ...spring.smooth, opacity: { duration: duration.fast } } },
+  exit: { y: "100%", opacity: 0, transition: { duration: duration.fast, ease: ease.in } },
+} as const;
+
+function DockBar({ activePath }: { activePath: string }) {
+  const present = useIsPresent();
+  return (
+    <motion.div
+      {...DOCK_MOTION}
+      className={present ? "nav-dock" : "nav-dock nav-dock-out"}
+      data-dock={present ? "in" : "out"}
+      inert={!present}
+    >
+      <BottomNav activePath={activePath} />
+      <style>{`
+        .nav-dock-out { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; pointer-events: none; }
+      `}</style>
+    </motion.div>
+  );
+}
+
+export function BottomNav({ activePath }: { activePath?: string } = {}) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const pathname = activePath ?? location.pathname;
 
   return (
     <div
@@ -50,10 +95,16 @@ export function BottomNav() {
               <span className="font-mono text-label font-bold uppercase tracking-label">
                 {label}
               </span>
-              <span
-                aria-hidden
-                className={`absolute bottom-1.5 h-1 w-14 rounded-full bg-signal shadow-[0_0_12px_rgba(203,242,77,0.7)] transition-opacity duration-200 ${active ? "opacity-100" : "opacity-0"}`}
-              />
+              {/* One highlight that slides to the tab you pick. */}
+              {active && (
+                <motion.span
+                  aria-hidden
+                  layoutId="tab-highlight"
+                  data-tab-highlight
+                  transition={spring.snappy}
+                  className="absolute bottom-1.5 h-1 w-14 rounded-full bg-signal shadow-[0_0_12px_rgba(203,242,77,0.7)]"
+                />
+              )}
             </button>
           );
         })}

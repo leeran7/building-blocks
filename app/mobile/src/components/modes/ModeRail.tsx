@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
+import { AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import { tapHeavy, tapLight } from "../../lib/haptics";
 import { ALTITUDE_UNIT } from "@app/lib/units";
@@ -146,19 +147,21 @@ export function ModeRail() {
         </RailButton>
       </div>
 
-      {versusOpen && (
-        <VersusSheet
-          onQuickPlay={() => {
-            setVersusOpen(false);
-            queue.join();
-          }}
-          onChallenge={() => {
-            setVersusOpen(false);
-            navigate("/challenge");
-          }}
-          onClose={closeVersus}
-        />
-      )}
+      <AnimatePresence>
+        {versusOpen && (
+          <VersusSheet
+            onQuickPlay={() => {
+              setVersusOpen(false);
+              queue.join();
+            }}
+            onChallenge={() => {
+              setVersusOpen(false);
+              navigate("/challenge");
+            }}
+            onClose={closeVersus}
+          />
+        )}
+      </AnimatePresence>
 
       {queue.state.status !== "idle" && (
         <SearchingOverlay

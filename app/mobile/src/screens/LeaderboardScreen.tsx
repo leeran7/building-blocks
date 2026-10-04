@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useCallback, useRef, useState, type ReactNode, type Ref } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -262,13 +263,15 @@ export function LeaderboardScreen() {
         </div>
       </PullToRefresh>
 
-      {showConsent && (
-        <LeaderboardConsentModal
-          onAccept={() => void acceptConsent()}
-          onDecline={() => setShowConsent(false)}
-          busy={consentBusy}
-        />
-      )}
+      <AnimatePresence>
+        {showConsent && (
+          <LeaderboardConsentModal
+            onAccept={() => void acceptConsent()}
+            onDecline={() => setShowConsent(false)}
+            busy={consentBusy}
+          />
+        )}
+      </AnimatePresence>
 
       <style>{`
         .lb-stone {

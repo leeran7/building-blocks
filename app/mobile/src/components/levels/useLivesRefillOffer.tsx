@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { useLevels } from "../../contexts/LevelsContext";
 import { useOptionalShop } from "../../contexts/ShopContext";
@@ -50,7 +51,9 @@ export function useLivesRefillOffer(): { offer: RefillOffer | null; overlays: Re
     },
     overlays: (
       <>
-        {packsOpen && <GemPacksSheet onClose={() => setPacksOpen(false)} />}
+        <AnimatePresence>
+          {packsOpen && <GemPacksSheet onClose={() => setPacksOpen(false)} />}
+        </AnimatePresence>
         {reveal}
       </>
     ),

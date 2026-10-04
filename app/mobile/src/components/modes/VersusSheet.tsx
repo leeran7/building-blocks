@@ -1,9 +1,8 @@
 import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import { ChevronRight } from "../ui";
 import { tapLight } from "../../lib/haptics";
 import { useSwipeToDismiss } from "../../hooks/useSwipeToDismiss";
-import { SHEET_MOTION_CSS } from "../levels/LevelStartSheet";
+import { SheetPortal } from "../SheetPortal";
 import { BoltIcon, SwordsIcon } from "./icons";
 
 /**
@@ -42,22 +41,25 @@ export function VersusSheet({
   }, []);
 
   // Portalled to the body: screens sit in a stacking context under the tab bar.
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center" role="presentation">
-      <button
-        type="button"
-        aria-label="Close"
-        tabIndex={-1}
-        ref={scrimRef}
-        onClick={onClose}
-        className="ls-scrim absolute inset-0 bg-void/70 backdrop-blur-sm"
-      />
+  return (
+    <SheetPortal
+      scrim={
+        <button
+          type="button"
+          aria-label="Close"
+          tabIndex={-1}
+          ref={scrimRef}
+          onClick={onClose}
+          className="absolute inset-0 bg-void/70 backdrop-blur-sm"
+        />
+      }
+    >
       <section
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="versus-sheet-title"
-        className="ls-sheet relative w-full max-w-md max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl"
+        className="relative w-full max-w-md max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 backdrop-blur-xl"
       >
         <div data-sheet-grabber aria-hidden className="-mx-5 -mt-2 flex h-5 items-center justify-center">
           <span className="block h-1 w-9 rounded-full bg-border-strong" />
@@ -98,9 +100,7 @@ export function VersusSheet({
           />
         </div>
       </section>
-      <style>{SHEET_MOTION_CSS}</style>
-    </div>,
-    document.body,
+    </SheetPortal>
   );
 }
 

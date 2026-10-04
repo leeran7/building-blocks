@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 import { formatGems } from "@app/lib/avatars";
 import { Button } from "../ui";
 import { tapLight } from "../../lib/haptics";
 import { useSwipeToDismiss } from "../../hooks/useSwipeToDismiss";
+import { SheetPortal } from "../SheetPortal";
 import {
   episodeOf,
   formatClock,
@@ -19,15 +19,6 @@ import {
 import { Accordion, HeartIcon, StarRow, livesLabel, useNow } from "./LevelBits";
 import { ArrowRight, TowerIcon } from "./LevelIcons";
 import { GemIcon } from "../store/GemIcon";
-
-/** The slide-up and fade for `.ls-sheet` and `.ls-scrim`, shared by the map's sheets. */
-export const SHEET_MOTION_CSS = `
-  .ls-sheet { animation: lsUp 0.28s cubic-bezier(0.16,1,0.3,1) both; }
-  .ls-scrim { animation: lsFade 0.2s ease-out both; }
-  @keyframes lsUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  @keyframes lsFade { from { opacity: 0; } to { opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .ls-sheet, .ls-scrim { animation: none; } }
-`;
 
 /** What a refused start or retry says, in the player's words. */
 export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string> = {
@@ -116,22 +107,25 @@ export function LevelStartSheet({
 
   // Portalled to the body: screens sit in a stacking context under the tab
   // bar, which clipped the sheet and hid Play behind it.
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center" role="presentation">
-      <button
-        type="button"
-        aria-label="Close"
-        tabIndex={-1}
-        ref={scrimRef}
-        onClick={onClose}
-        className="ls-scrim absolute inset-0 bg-void/70 backdrop-blur-sm"
-      />
+  return (
+    <SheetPortal
+      scrim={
+        <button
+          type="button"
+          aria-label="Close"
+          tabIndex={-1}
+          ref={scrimRef}
+          onClick={onClose}
+          className="absolute inset-0 bg-void/70 backdrop-blur-sm"
+        />
+      }
+    >
       <div
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="ls-sheet relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pt-2 backdrop-blur-xl max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain"
+        className="relative w-full max-w-md rounded-t-[28px] border-t border-border-strong bg-surface/95 px-5 pt-2 backdrop-blur-xl max-h-[calc(100%-env(safe-area-inset-top)-0.75rem)] overflow-y-auto overscroll-contain"
       >
         {/* The grabber: drag the sheet down from here (or its top) to close it. */}
         <div data-sheet-grabber aria-hidden className="-mx-5 -mt-2 flex h-5 items-center justify-center">
@@ -248,9 +242,7 @@ export function LevelStartSheet({
           )}
         </div>
       </div>
-      <style>{SHEET_MOTION_CSS}</style>
-    </div>,
-    document.body,
+    </SheetPortal>
   );
 }
 

@@ -15,6 +15,7 @@ export default defineConfig({
     globals: true,
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx", "src/__tests__/**/*.test.ts"],
     exclude: ["tests/e2e/**"],
+    setupFiles: ["tests/setup/motion.ts"],
     alias: {
       "@": resolve(rootDir, "."),
       // Mirrors mobile/vite.config.mts + mobile/tsconfig.json: the Capacitor

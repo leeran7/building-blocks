@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "../lib/motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -505,24 +506,28 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
           />
         )}
 
-        {runNudge && onSignIn && (
-          <GuestSignInSheet
-            eyebrow={`${GUEST_NUDGE_AFTER_RUNS} climbs in`}
-            title="Save your climbs"
-            body="Sign in to save your scores to the leaderboard, keep your stars, play all 300 levels and race your friends."
-            onSignIn={onSignIn}
-            onClose={() => setRunNudge(false)}
-          />
-        )}
+        <AnimatePresence>
+          {runNudge && onSignIn && (
+            <GuestSignInSheet
+              eyebrow={`${GUEST_NUDGE_AFTER_RUNS} climbs in`}
+              title="Save your climbs"
+              body="Sign in to save your scores to the leaderboard, keep your stars, play all 300 levels and race your friends."
+              onSignIn={onSignIn}
+              onClose={() => setRunNudge(false)}
+            />
+          )}
+        </AnimatePresence>
 
-        {showConsent && (
-          <LeaderboardConsentModal
-            onAccept={handleConsentAccept}
-            onDecline={handleConsentDecline}
-            busy={consentBusy}
-            error={consentError}
-          />
-        )}
+        <AnimatePresence>
+          {showConsent && (
+            <LeaderboardConsentModal
+              onAccept={handleConsentAccept}
+              onDecline={handleConsentDecline}
+              busy={consentBusy}
+              error={consentError}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
       {touchActive && <TouchControls active={touchActive} onInput={setTouch} />}

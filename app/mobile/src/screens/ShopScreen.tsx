@@ -1,4 +1,6 @@
 import { useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
+import { riseIn, sharedId, spring } from "../lib/motionTokens";
 import { CHARACTER_ENTRIES, formatGems, gemPrice, skinsOf, type AvatarEntry } from "@app/lib/avatars";
 import { useShop } from "../contexts/ShopContext";
 import { CharacterPreview } from "../components/CharacterPreview";
@@ -40,7 +42,9 @@ export function ShopScreen() {
   return (
     <main data-shop-page className="flex h-full min-h-0 flex-col">
       <ScreenHeader title="Shop" eyebrow="Gear up" trailing={<GemBalance />} />
-      <div
+      {/* layoutScroll: a card's figure flies to Skin Details from where it is scrolled to. */}
+      <motion.div
+        layoutScroll
         className="min-h-0 flex-1 overflow-y-auto px-4"
         style={{ WebkitOverflowScrolling: "touch", paddingBottom: LAVA_CLEARANCE }}
       >
@@ -60,24 +64,25 @@ export function ShopScreen() {
                 </span>
               )}
             </div>
-            <ul aria-label="Characters" className="grid grid-cols-2 gap-2.5">
-              {grid.map((c) => {
+            {/* The cards rise in one after another as the Shop opens. */}
+            <motion.ul initial="hidden" animate="shown" aria-label="Characters" className="grid grid-cols-2 gap-2.5">
+              {grid.map((c, i) => {
                 const skin = skinsOf(c.id)[0];
                 return (
-                  <li key={c.id}>
+                  <motion.li key={c.id} variants={riseIn} custom={i}>
                     <SkinCard
                       character={c}
                       skin={skin}
                       owned={owned.has(skin.id)}
                       onOpen={() => open(c.id, skin.id)}
                     />
-                  </li>
+                  </motion.li>
                 );
               })}
-            </ul>
+            </motion.ul>
           </>
         )}
-      </div>
+      </motion.div>
     </main>
   );
 }
@@ -121,7 +126,9 @@ function FeaturedCard({ character, owned, onOpen }: { character: AvatarEntry; ow
     >
       <span className="relative flex w-[44%] shrink-0 items-end justify-center">
         <FloorShadow width={96} />
-        <CharacterPreview avatarId={character.id} pose="walk" locked={false} figurePx={124} sizePx={150} ambient />
+        <motion.span layoutId={sharedId.shopLook(character.id)} layoutCrossfade={false} transition={spring.smooth} className="relative flex">
+          <CharacterPreview avatarId={character.id} pose="walk" locked={false} figurePx={124} sizePx={150} ambient />
+        </motion.span>
       </span>
       <span className="flex min-w-0 flex-1 flex-col justify-center gap-1.5 py-4 pr-4">
         <span className="font-mono text-label font-bold uppercase tracking-label" style={{ color: "#c7a8ff" }}>
@@ -180,7 +187,9 @@ function SkinCard({
       >
         {/* The character beside its Void skin: what the card sells. Placed by percent so both fit a 320px phone. */}
         <span aria-hidden data-skin-figure className="absolute bottom-0 flex left-[74%] -translate-x-1/2 opacity-90">
-          <CharacterPreview avatarId={skin.id} pose="idle" locked={false} figurePx={74} sizePx={88} still />
+          <motion.span layoutId={sharedId.shopLook(skin.id)} layoutCrossfade={false} transition={spring.smooth} className="flex">
+            <CharacterPreview avatarId={skin.id} pose="idle" locked={false} figurePx={74} sizePx={88} still />
+          </motion.span>
         </span>
         <span aria-hidden data-character-figure className="absolute bottom-0 flex left-[38%] -translate-x-1/2">
           <FloorShadow width={56} />

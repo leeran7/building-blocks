@@ -1,4 +1,6 @@
+import { motion } from "motion/react";
 import { openExternal } from "../lib/external";
+import { SHEET_MOTION } from "./SheetPortal";
 import { tapLight } from "../lib/haptics";
 
 export function LeaderboardConsentModal({
@@ -14,8 +16,11 @@ export function LeaderboardConsentModal({
   error?: string | null;
 }) {
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-center bg-void/60 backdrop-blur-sm">
-      <div className="lcm-card w-full rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-3 backdrop-blur-xl">
+    <motion.div
+      className="absolute inset-0 z-50 flex items-end justify-center bg-void/60 backdrop-blur-sm"
+      {...SHEET_MOTION.scrim}
+    >
+      <motion.div {...SHEET_MOTION.panel} className="w-full rounded-t-3xl border-t border-border-strong bg-surface/95 px-6 pb-[calc(env(safe-area-inset-bottom)+1.75rem)] pt-3 backdrop-blur-xl">
         <span aria-hidden className="mx-auto mb-5 block h-1 w-9 rounded-full bg-border-strong" />
 
         <h2 className="text-center font-display text-xl font-black uppercase tracking-tight text-text-primary">
@@ -59,19 +64,7 @@ export function LeaderboardConsentModal({
           </button>
         </div>
 
-        <style>{`
-          .lcm-card {
-            animation: lcmUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-          }
-          @keyframes lcmUp {
-            from { transform: translateY(100%); }
-            to   { transform: translateY(0); }
-          }
-          @media (prefers-reduced-motion: reduce) {
-            .lcm-card { animation: none; }
-          }
-        `}</style>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

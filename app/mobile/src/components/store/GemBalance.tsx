@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { formatGems } from "@app/lib/avatars";
 import { useShop } from "../../contexts/ShopContext";
@@ -48,7 +49,9 @@ export function GemBalance({ compact = false }: { compact?: boolean }) {
           </svg>
         </button>
       </div>
-      {open && <GemPacksSheet onClose={() => setOpen(false)} />}
+      <AnimatePresence>
+        {open && <GemPacksSheet onClose={() => setOpen(false)} />}
+      </AnimatePresence>
     </>
   );
 }

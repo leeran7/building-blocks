@@ -1,3 +1,4 @@
+import { AnimatePresence } from "motion/react";
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLevels } from "../contexts/LevelsContext";
@@ -353,46 +354,52 @@ export function LevelMapScreen() {
         </button>
       </div>
 
-      {selected && (
-        <LevelStartSheet
-          node={selected}
-          player={season.player}
-          onStart={() => startLevel(selected.level, booster)}
-          onPractice={openPractice}
-          onPracticeLevel={() => {
-            void tapHeavy();
-            navigate(`/levels/${selected.level}/play?practice=1`);
-          }}
-          onClose={() => setSelected(null)}
-          notice={notice && notice.level === selected.level ? notice.text : null}
-          refill={refill.offer}
-          extras={
-            <LevelStartExtras
-              atFrontier={selected.level === frontier}
-              streak={season.streak}
-              startPowerUp={selected.level === frontier ? season.nextStartPowerUp : null}
-              stuck={selected.level === season.stuck.level ? season.stuck : null}
-              board={guest ? null : { level: selected.level, load: loadBoard }}
-              boosters={
-                // Out of lives the card offers the wait and the refill instead.
-                selected.costsLife && season.player.lives <= 0 ? null : (
-                <BoosterPicker
-                  inventory={season.boosters}
-                  allowed={startBoosterTypes(selected.level, selected.allowedPowerUps)}
-                  selected={booster}
-                  onSelect={setBooster}
-                  freeStart={selected.level === frontier && season.nextStartPowerUp !== null}
-                />
-                )
-              }
-            />
-          }
-        />
-      )}
-      {livesOpen && refill.offer && (
-        <LivesSheet player={season.player} offer={refill.offer} onClose={() => setLivesOpen(false)} />
-      )}
-      {xpOpen && <XpSheet season={season} guest={guest !== null} onClose={() => setXpOpen(false)} />}
+      <AnimatePresence>
+        {selected && (
+          <LevelStartSheet
+            node={selected}
+            player={season.player}
+            onStart={() => startLevel(selected.level, booster)}
+            onPractice={openPractice}
+            onPracticeLevel={() => {
+              void tapHeavy();
+              navigate(`/levels/${selected.level}/play?practice=1`);
+            }}
+            onClose={() => setSelected(null)}
+            notice={notice && notice.level === selected.level ? notice.text : null}
+            refill={refill.offer}
+            extras={
+              <LevelStartExtras
+                atFrontier={selected.level === frontier}
+                streak={season.streak}
+                startPowerUp={selected.level === frontier ? season.nextStartPowerUp : null}
+                stuck={selected.level === season.stuck.level ? season.stuck : null}
+                board={guest ? null : { level: selected.level, load: loadBoard }}
+                boosters={
+                  // Out of lives the card offers the wait and the refill instead.
+                  selected.costsLife && season.player.lives <= 0 ? null : (
+                  <BoosterPicker
+                    inventory={season.boosters}
+                    allowed={startBoosterTypes(selected.level, selected.allowedPowerUps)}
+                    selected={booster}
+                    onSelect={setBooster}
+                    freeStart={selected.level === frontier && season.nextStartPowerUp !== null}
+                  />
+                  )
+                }
+              />
+            }
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {livesOpen && refill.offer && (
+          <LivesSheet player={season.player} offer={refill.offer} onClose={() => setLivesOpen(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {xpOpen && <XpSheet season={season} guest={guest !== null} onClose={() => setXpOpen(false)} />}
+      </AnimatePresence>
       {refill.overlays}
       {touring && (
         <AppTour
@@ -401,16 +408,18 @@ export function LevelMapScreen() {
           finishLabel={lockedForGuest(current.level) ? "Got it" : `Play level ${current.level}`}
         />
       )}
-      {signInPrompt && guest && (
-        <GuestSignInSheet
-          // Only a guest past the taster has done it; any locked pin opens this.
-          eyebrow={frontier > GUEST_LEVEL_CAP ? `Levels 1–${GUEST_LEVEL_CAP} done` : `Levels 1–${GUEST_LEVEL_CAP} are free`}
-          title="Unlock all 300 levels"
-          body="Sign in to keep your stars from here on, play every level, add friends and save your scores. Guest stars stay on this device."
-          onSignIn={guest.onSignIn}
-          onClose={() => setSignInPrompt(false)}
-        />
-      )}
+      <AnimatePresence>
+        {signInPrompt && guest && (
+          <GuestSignInSheet
+            // Only a guest past the taster has done it; any locked pin opens this.
+            eyebrow={frontier > GUEST_LEVEL_CAP ? `Levels 1–${GUEST_LEVEL_CAP} done` : `Levels 1–${GUEST_LEVEL_CAP} are free`}
+            title="Unlock all 300 levels"
+            body="Sign in to keep your stars from here on, play every level, add friends and save your scores. Guest stars stay on this device."
+            onSignIn={guest.onSignIn}
+            onClose={() => setSignInPrompt(false)}
+          />
+        )}
+      </AnimatePresence>
     </main>
   );
 }
