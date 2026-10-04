@@ -112,6 +112,19 @@ describe("Shop characters", () => {
     expect(lynx?.querySelector("img")).toBeNull();
   });
 
+  it("puts the Void skin in front at full size, named as the look it sells", async () => {
+    await renderShop();
+    const lynx = card("lynx");
+    const skinCanvas = lynx?.querySelector("[data-skin-figure] canvas") as HTMLCanvasElement | null;
+    const classicCanvas = lynx?.querySelector("[data-character-figure] canvas") as HTMLCanvasElement | null;
+    expect(skinCanvas).not.toBeNull();
+    expect(classicCanvas).not.toBeNull();
+    expect(parseFloat(skinCanvas!.style.width)).toBeGreaterThan(parseFloat(classicCanvas!.style.width) * 1.3);
+    // The skin paints after the Classic so it stacks in front.
+    expect(classicCanvas!.compareDocumentPosition(skinCanvas!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(lynx?.textContent).toContain("Void Lynx");
+  });
+
   it("marks owned skins and counts them", async () => {
     await renderShop();
     expect(card("kestrel")?.getAttribute("aria-label")).toBe("Void Kestrel, owned");
