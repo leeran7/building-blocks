@@ -105,14 +105,12 @@ describe("passive power cartridges", () => {
 });
 
 describe("utility controls", () => {
-  it("exposes mute state and labels and only shows fullscreen when supported", () => {
+  it("shows the settings cog closed, and fullscreen only when supported", () => {
     const quiet = renderToStaticMarkup(createElement(UtilityControls, { muted: true, onToggleMute: noop, fullscreenSupported: false, onToggleFullscreen: noop }));
-    expect(quiet).toContain('aria-label="Unmute game sound"');
-    expect(quiet).toContain('aria-pressed="true"');
+    expect(quiet).toContain('aria-label="Game settings"');
+    expect(quiet).toContain('aria-expanded="false"');
     expect(quiet.match(/<button/g)).toHaveLength(1);
     const full = renderToStaticMarkup(createElement(UtilityControls, { muted: false, onToggleMute: noop, fullscreenSupported: true, isFullscreen: true, onToggleFullscreen: noop }));
-    expect(full).toContain('aria-label="Mute game sound"');
-    expect(full).toContain('aria-pressed="false"');
     expect(full).toContain('aria-label="Exit full screen"');
     expect(full.match(/<button/g)).toHaveLength(2);
   });

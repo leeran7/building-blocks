@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { TouchControls } from "../../src/components/Game/TouchControls";
 import { ControlSchemePicker } from "../../src/components/ControlSchemePicker";
 import { ClimbControlsGuide } from "../../src/components/Game/ClimbControlsGuide";
+import { UtilityControls } from "../../src/components/Game/ExpeditionHud";
 import {
   CONTROL_SCHEME_KEY,
   DEFAULT_CONTROL_SCHEME,
@@ -234,6 +235,101 @@ describe("controls guide", () => {
       expect(text()).not.toContain("Hold ↑ climb");
     } finally {
       window.matchMedia = realMatchMedia;
+    }
+  });
+});
+
+describe("in-game settings cog", () => {
+  function stubPointer(coarse: boolean) {
+    const real = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: coarse && query === "(pointer: coarse)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    return () => {
+      window.matchMedia = real;
+    };
+  }
+
+  function mountHud(onToggleMute: () => void, muted = false) {
+    act(() => {
+      root.render(
+        createElement("div", null,
+          createElement(UtilityControls, { muted, onToggleMute }),
+          createElement(TouchControls, { active: true, onInput: () => {} })
+        )
+      );
+    });
+  }
+
+  const cog = () => container.querySelector<HTMLButtonElement>('[aria-label="Game settings"][aria-expanded]')!;
+  const soundSwitch = () => container.querySelector<HTMLButtonElement>('[role="switch"]');
+
+  it("opens a panel with sound and the touch layout, which swaps the controls mid-run", () => {
+    const restore = stubPointer(true);
+    try {
+      const onToggleMute = vi.fn();
+      mountHud(onToggleMute);
+      expect(soundSwitch()).toBeNull();
+      act(() => cog().click());
+      expect(cog().getAttribute("aria-expanded")).toBe("true");
+
+      expect(soundSwitch()!.getAttribute("aria-checked")).toBe("true");
+      act(() => soundSwitch()!.click());
+      expect(onToggleMute).toHaveBeenCalledTimes(1);
+
+      expect(container.querySelectorAll(".exp-touch-button")).toHaveLength(4);
+      act(() => radio("Joystick").click());
+      expect(localStorage.getItem(CONTROL_SCHEME_KEY)).toBe("joystick");
+      expect(container.querySelector(".exp-joystick")).not.toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it("shows sound as off when muted", () => {
+    const restore = stubPointer(true);
+    try {
+      mountHud(() => {}, true);
+      act(() => cog().click());
+      expect(soundSwitch()!.getAttribute("aria-checked")).toBe("false");
+    } finally {
+      restore();
+    }
+  });
+
+  it("leaves the layout out on a keyboard device", () => {
+    const restore = stubPointer(false);
+    try {
+      mountHud(() => {});
+      act(() => cog().click());
+      expect(soundSwitch()).not.toBeNull();
+      expect(container.querySelector('[role="radio"]')).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it("closes on Escape and on a tap outside, returning focus on Escape", () => {
+    const restore = stubPointer(true);
+    try {
+      mountHud(() => {});
+      act(() => cog().click());
+      act(() => {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      });
+      expect(soundSwitch()).toBeNull();
+      expect(document.activeElement).toBe(cog());
+
+      act(() => cog().click());
+      act(() => {
+        document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      });
+      expect(soundSwitch()).toBeNull();
+    } finally {
+      restore();
     }
   });
 });

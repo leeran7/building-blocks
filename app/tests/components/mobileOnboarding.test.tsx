@@ -270,6 +270,13 @@ describe("training climb", () => {
       expect(card?.getAttribute("data-training-goal")).toBe("walk");
       expect(card?.textContent).toContain(TRAINING_GOALS[0]!.stick);
       expect(container.querySelector(".exp-joystick")).not.toBeNull();
+
+      // Both layouts are playable here: switching swaps the controls and the coaching.
+      await click(button("Try the buttons"));
+      expect(localStorage.getItem(CONTROL_SCHEME_KEY)).toBe("buttons");
+      expect(container.querySelector(".exp-joystick")).toBeNull();
+      expect(container.querySelector("[data-training-goal]")?.textContent).toContain(TRAINING_GOALS[0]!.touch);
+      expect(button("Try the joystick")).toBeDefined();
     } finally {
       window.matchMedia = realMatchMedia;
     }

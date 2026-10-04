@@ -93,8 +93,8 @@ function PickControls({ onStart, onSkip }: { onStart: () => void; onSkip: () => 
   return (
     <Card eyebrow="Before you climb" title="Pick your controls" onSkip={onSkip} skipLabel="Skip tutorial">
       <p className="mt-6 text-meta text-text-secondary">
-        Buttons give you ← → to walk, ↑ to climb and a Jump button. The joystick walks and climbs with one thumb. You
-        can change this any time in Profile, under Edit profile.
+        Buttons give you ← → to walk, ↑ to climb and a Jump button. The joystick walks and climbs with one thumb. Not
+        sure? Switch between them any time during training, or later from the cog while you play.
       </p>
       <div className="mt-4">
         <ControlSchemePicker labelledBy="training-card-title" />
@@ -196,7 +196,8 @@ function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
   const training = useMemo(() => createTraining(), []);
   const { view, feed, setTouch } = useTrainingLoop(training);
   const touch = useCoarsePointer();
-  const [scheme] = useControlScheme();
+  const [scheme, setScheme] = useControlScheme();
+  const otherScheme = scheme === "joystick" ? "buttons" : "joystick";
 
   const boxRef = useRef<HTMLDivElement>(null);
   const size = useCanvasSize(boxRef, { fill: true });
@@ -298,6 +299,19 @@ function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
             </h2>
             {!view.done && (
               <p className="mt-1.5 text-meta leading-snug text-text-secondary">{hint}</p>
+            )}
+            {touch && !view.done && (
+              // Try both layouts on the practice tower; the choice is the saved setting.
+              <button
+                type="button"
+                onClick={() => {
+                  void tapLight();
+                  setScheme(otherScheme);
+                }}
+                className="mt-2 min-h-[44px] rounded-full border border-white/15 px-3.5 font-mono text-label uppercase tracking-label text-text-primary active:scale-95"
+              >
+                {otherScheme === "joystick" ? "Try the joystick" : "Try the buttons"}
+              </button>
             )}
           </div>
           {praise && (
