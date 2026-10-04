@@ -212,7 +212,11 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
 
         <section aria-label="Preview" className="flex h-[250px] items-end justify-center">
           {/* The figure the Shop card showed flies up into this spot (sharedId). */}
-          <motion.div layoutId={sharedId.shopLook(selected.id)} layoutCrossfade={false} transition={spring.smooth} className="flex">
+          <motion.div
+            // A new look is a new shared element: Motion registers layoutIds at mount.
+            key={selected.id}
+            layoutId={sharedId.shopLook(selected.id)}
+            layoutCrossfade={false} transition={spring.smooth} className="flex">
             <CharacterPreview avatarId={selected.id} pose={pose} locked={false} figurePx={200} sizePx={250} />
           </motion.div>
         </section>

@@ -164,6 +164,11 @@ const POP_VELOCITY = 0.55;
  */
 function Scene({ pathname, custom, children }: { pathname: string; custom: SceneCustom; children: ReactNode }) {
   const present = useIsPresent();
+  // Gesture handlers read this: a screen that has started leaving must not
+  // finish a swipe (it would stop the exit's x animation and strand the
+  // screen, or step back a second time).
+  const presentRef = useRef(present);
+  presentRef.current = present;
   // A leaving screen keeps the props it last rendered with; the transition it
   // leaves by comes from AnimatePresence's custom.
   const leavingAs = usePresenceData() as SceneCustom | undefined;
@@ -218,13 +223,22 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
 
   const onTouchMove = (e: TouchEvent<HTMLDivElement>) => {
     if (settling.current || startT.current === 0) return;
+    if (!presentRef.current) {
+      startT.current = 0;
+      axis.current = "none";
+      return;
+    }
     const t = e.touches[0];
     const dx = t.clientX - startX.current;
     const dy = t.clientY - startY.current;
     if (axis.current === "none") {
       if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
       axis.current = Math.abs(dx) > Math.abs(dy) && dx > 0 ? "h" : "v";
-      if (axis.current === "h") setDragging(true);
+      if (axis.current === "h") {
+        // The finger takes over from any entrance spring still running.
+        x.stop();
+        setDragging(true);
+      }
     }
     if (axis.current === "h") {
       const clamped = Math.max(0, dx);
@@ -241,8 +255,10 @@ function Scene({ pathname, custom, children }: { pathname: string; custom: Scene
     if (startT.current === 0) return;
     const wasHorizontal = axis.current === "h";
     startT.current = 0;
+    axis.current = "none";
     if (!wasHorizontal) return;
     setDragging(false);
+    if (!presentRef.current) return;
     const width = window.innerWidth || 1;
     const dragged = lastX.current;
     const flick = vel.current > POP_VELOCITY && dragged > 40;

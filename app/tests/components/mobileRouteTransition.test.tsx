@@ -253,6 +253,26 @@ describe("swipe-back racing another back", () => {
   });
 });
 
+describe("a swipe still in progress when its screen starts leaving", () => {
+  it("lets the screen leave and never steps back a second time", async () => {
+    await mount(["/profile", "/settings", "/shop/wraith"]);
+    const scene = sceneOf("/shop/wraith");
+    if (!scene) throw new Error("scene not found");
+    for (const [type, x] of [["touchstart", 4], ["touchmove", 30], ["touchmove", 380]] as const) {
+      await act(async () => {
+        touch(scene, type, x);
+      });
+    }
+    // Android back lands mid-drag; the finger lifts while the screen is leaving.
+    await go(-1);
+    await act(async () => {
+      touch(scene, "touchend", 0);
+    });
+    await settle();
+    expect(scenes().map((s) => s.textContent)).toEqual(["/settings"]);
+  });
+});
+
 describe("BottomNavDock", () => {
   it("slides the tab bar away with a pushed screen, still marking the tab it left", async () => {
     await mount(["/shop"]);
@@ -318,9 +338,11 @@ describe("SheetPortal", () => {
     expect(dialog()).not.toBeNull();
 
     await act(async () => close());
-    // A few frames later it is still there, on its way out...
+    // A few frames later it is still there, on its way out, but nothing in it
+    // can be pressed any more...
     await settle(80);
     expect(dialog()).not.toBeNull();
+    expect(dialog()?.closest("[inert]")).not.toBeNull();
     // ...and gone once it has slid off.
     await settle();
     expect(dialog()).toBeNull();

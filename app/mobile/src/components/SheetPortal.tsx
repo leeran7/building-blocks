@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "motion/react";
+import { motion, useIsPresent } from "motion/react";
 import { duration, ease, spring } from "../lib/motionTokens";
 
 /** How every bottom sheet arrives and leaves. Exported for tests. */
@@ -39,8 +39,16 @@ export function SheetPortal({
   /** Centre the panel on wide screens (max-w-md). */
   centered?: boolean;
 }) {
+  // Closing: the sheet is on its way out, so nothing in it may be pressed
+  // (a Play tapped mid-slide would still start the run) or read as modal.
+  const present = useIsPresent();
   return createPortal(
-    <div className={`fixed inset-0 z-50 flex items-end ${centered ? "justify-center" : ""}`} role="presentation">
+    <div
+      className={`fixed inset-0 z-50 flex items-end ${centered ? "justify-center" : ""} ${present ? "" : "pointer-events-none"}`}
+      role="presentation"
+      inert={!present}
+      data-sheet-leaving={present ? undefined : ""}
+    >
       <motion.div data-sheet-scrim-motion className="absolute inset-0" {...SHEET_MOTION.scrim}>
         {scrim}
       </motion.div>
