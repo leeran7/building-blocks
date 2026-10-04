@@ -10,6 +10,13 @@
  * (no formed entity) based in Florida, USA — see the note in privacy/page.tsx
  * if that changes.
  *
+ * Doomstack 2.0 (the native app) adds the Levels, Endless, Daily Climb and
+ * duel modes as described in §2, an on-device guest mode (§3), and gems
+ * (§4, "Gems & in-game items"): bought through Stripe Checkout on the web and
+ * Android or as App Store consumables on iOS (src/lib/gemPacks.ts), spent on
+ * characters, skins and lives refills (src/db/gems.ts, src/db/levels.ts).
+ * Gems are separate from chips; the app offers no chip duels or tournaments.
+ *
  * Chip duels and tournaments are framed as skill-based competition (not
  * gambling). Compliance controls that live in code: an 18+ *attestation*
  * (self-confirmation, not verified age — see recordAgeConfirmation /
@@ -35,7 +42,7 @@ import {
 import { buildMetadata } from "../../src/lib/seo";
 import { clearedUsRegionNames } from "../../src/lib/paidDuelGeo";
 
-const UPDATED = "September 22, 2026";
+const UPDATED = "October 4, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
 
 /** Join a list as "A, B, and C" (Oxford comma), for inline prose. */
@@ -49,7 +56,7 @@ function formatList(items: string[]): string {
 export const metadata = buildMetadata({
   title: "Doomstack — Terms of Service",
   description:
-    "The rules for using Doomstack, Free Climb, chip duels, and tournaments.",
+    "The rules for using Doomstack: its game modes, gems, chip duels, and tournaments.",
   path: "/terms",
 });
 
@@ -57,7 +64,7 @@ const TOC = [
   { id: "acceptance", label: "Acceptance of terms" },
   { id: "the-service", label: "The service" },
   { id: "eligibility", label: "Eligibility & accounts" },
-  { id: "payments", label: "Payments & purchases" },
+  { id: "payments", label: "Payments, gems & purchases" },
   { id: "competitive-play", label: "Competitive play: chips & tournaments" },
   { id: "acceptable-use", label: "Acceptable use" },
   { id: "content", label: "User content & profiles" },
@@ -103,8 +110,9 @@ export default function TermsPage() {
 
         <Section id="acceptance" title="1. Acceptance of terms">
           <p>
-            By creating an account, playing Free Climb (including as a
-            guest), buying chips, entering a tournament, or otherwise using the
+            By creating an account, playing any game mode (including as a
+            guest), buying gems or chips, entering a tournament, or otherwise
+            using the
             Service, you agree to be bound by these Terms. If you don&apos;t
             agree, don&apos;t use the Service. If you&apos;re using the Service on
             behalf of a company or other entity, you represent that you have
@@ -123,6 +131,21 @@ export default function TermsPage() {
             with a paid entry fee and predetermined cash prizes (see Section 5b).
             Rank and duel results are always computed from play — never from how
             much you spend.
+          </p>
+          <p>
+            The Doomstack app offers these free modes:{" "}
+            <strong>Levels</strong>, a season of levels where you spend lives
+            to play, earn stars and XP, and unlock characters and boosters
+            (lives refill over time, or you can refill them with gems);{" "}
+            <strong>Endless</strong> (Free Climb); the{" "}
+            <strong>Daily Climb</strong>, one tower per day with its own
+            leaderboard, where results are re-checked on our servers; and{" "}
+            <strong>duels</strong>, 1v1 races against a matched player or a
+            friend you challenge, with nothing staked. Chip duels and
+            tournaments are not offered in the app. You can buy{" "}
+            <strong>gems</strong> to spend on characters, skins, and lives
+            (see Section 4). Rank, levels, and duel results are earned through
+            play; gems buy cosmetic items and lives, not results.
           </p>
           <p>
             The Service, including gameplay formulas, is provided as a
@@ -163,7 +186,10 @@ export default function TermsPage() {
             <li>
               You may play Free Climb anonymously as a guest without an
               account; guest sessions are temporary and are not guaranteed
-              to persist or be recoverable.
+              to persist or be recoverable. Guest mode in the app keeps your
+              progress only on your device: it can be lost if you delete the
+              app or clear its data, and it isn&apos;t guaranteed to carry
+              over to an account.
             </li>
             <li>
               Accounts are for individual use. Don&apos;t create accounts through
@@ -173,15 +199,21 @@ export default function TermsPage() {
           </List>
         </Section>
 
-        <Section id="payments" title="4. Payments & purchases">
+        <Section id="payments" title="4. Payments, gems & purchases">
           <List>
             <li>
-              All payments are processed by Stripe. By making a purchase, you
-              agree to Stripe&apos;s terms in addition to ours, and you represent
-              that you&apos;re authorized to use the payment method provided.
+              Payments on the website and in our Android app are processed by
+              Stripe. In our iOS app, gem packs may be bought as in-app
+              purchases processed by Apple, and those purchases are also
+              subject to Apple&apos;s App Store terms. By making a purchase, you
+              agree to the payment provider&apos;s terms in addition to ours, and
+              you represent that you&apos;re authorized to use the payment
+              method provided. If you&apos;re under 18, get a parent or
+              guardian&apos;s permission before buying anything.
             </li>
             <li>
-              Chip prices, tournament entry fees, and any applicable fees may
+              Gem-pack prices, chip prices, tournament entry fees, and any
+              applicable fees may
               change at any time and are shown to you before you complete a
               purchase.
             </li>
@@ -191,13 +223,47 @@ export default function TermsPage() {
               discretion (for example, a duplicate or clearly erroneous
               charge). If you believe you were charged in error, contact{" "}
               <MailLink address={CONTACT_EMAIL} /> within 30 days of the
-              charge.
+              charge. Refunds for App Store purchases are handled by Apple
+              under its policies; we can&apos;t issue them ourselves.
             </li>
             <li>
               We may cancel or reverse a transaction, and freeze or reverse the
-              associated chips or entry, if we reasonably believe it was
-              fraudulent, violated these Terms, or resulted from a payment
-              dispute (e.g., a chargeback).
+              associated gems, chips, items, or entry, if we reasonably believe
+              it was fraudulent, violated these Terms, or resulted from a
+              payment dispute or refund (e.g., a chargeback or an App Store
+              refund).
+            </li>
+          </List>
+
+          <SubHeading>Gems &amp; in-game items</SubHeading>
+          <List>
+            <li>
+              <strong>Gems are a virtual currency for the Shop.</strong> You can
+              spend gems in the Service on characters, skins, and lives refills.
+              Gems have no cash value and{" "}
+              <strong>can&apos;t be cashed out, withdrawn, refunded, transferred
+              to another account, or exchanged for chips</strong>, except where
+              the law requires otherwise. Gems and the items you buy with them
+              are a limited, revocable license to use features of the Service,
+              not property you own.
+            </li>
+            <li>
+              <strong>Gem prices of items may change.</strong> The gem price of
+              each item is shown before you buy it. Spending gems is final once
+              the item or lives refill is delivered to your account.
+            </li>
+            <li>
+              <strong>Items earned through play.</strong> Lives, stars, XP,
+              player levels, boosters, star chests, streaks, and unlocked
+              characters have no monetary value and can&apos;t be bought from or
+              sold to other players. We may rebalance how they are earned or
+              work as we update the game.
+            </li>
+            <li>
+              <strong>Tied to your account.</strong> Gems and items are tied to
+              the account you were signed in to when you got them. If your
+              account is deleted or terminated, unspent gems and the items you
+              own are forfeited.
             </li>
           </List>
         </Section>
@@ -445,14 +511,16 @@ export default function TermsPage() {
 
         <Section id="termination" title="9. Termination & suspension">
           <p>
-            You may stop using the Service, or request account deletion, at
-            any time by contacting <MailLink address={CONTACT_EMAIL} />. We
+            You may stop using the Service at any time, and you can delete
+            your account in the app (Profile → Settings → Delete account) or by
+            contacting <MailLink address={CONTACT_EMAIL} />. We
             may suspend or terminate your access to the Service, remove
             content, or restrict features at any time, with or without
             notice, if we reasonably believe you&apos;ve violated these Terms,
             created risk or legal exposure for us, engaged in fraud or abuse,
-            or if we discontinue the Service. If your account is terminated,
-            purchased chips are forfeited and non-refundable; outstanding
+            or if we discontinue the Service. If your account is deleted or
+            terminated, purchased gems and chips, and items bought with gems,
+            are forfeited and non-refundable; outstanding
             tournament prizes will be handled as described in Section 5b.
             Sections that by their nature should survive termination
             (including Sections 5 and 7–15) will survive.
@@ -469,8 +537,8 @@ export default function TermsPage() {
             IMPLIED, OR STATUTORY, INCLUDING WARRANTIES OF MERCHANTABILITY,
             FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR THAT THE
             SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR SECURE. WE DO NOT
-            WARRANT THAT BUYING CHIPS OR ENTERING A TOURNAMENT WILL RESULT IN
-            ANY WINNINGS OR OTHER BENEFIT. SOME JURISDICTIONS DON&apos;T ALLOW THE
+            WARRANT THAT BUYING GEMS OR CHIPS OR ENTERING A TOURNAMENT WILL
+            RESULT IN ANY WINNINGS OR OTHER BENEFIT. SOME JURISDICTIONS DON&apos;T ALLOW THE
             EXCLUSION OF CERTAIN WARRANTIES, SO SOME OF THE ABOVE EXCLUSIONS MAY
             NOT APPLY TO YOU.
           </p>

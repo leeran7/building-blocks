@@ -26,6 +26,18 @@
  * and an IP-derived, region-level geo signal (x-vercel-ip-country-region) used
  * to enforce the geo allow-list. Disclose these consistently with the existing
  * Stripe/payment language; do not imply we verify age or precisely locate users.
+ * Doomstack 2.0 (the native app) adds: Sign in with Apple; an app guest mode
+ * kept on the device only (no account, no anonymous Firebase user); Levels
+ * progress (xp, player_level, lives, streaks, LevelProgress, boosters, star
+ * chests); Daily Climb scores and replays; gems bought through Stripe
+ * Checkout (web/Android) or App Store in-app purchases (iOS: a StoreKit 2
+ * signed transaction carrying an appAccountToken derived from the uid), with a
+ * GemLedger, GemPurchase rows and OwnedCharacter rows; device-local settings
+ * (controls, sound, vibration, tutorial flags); and in-app account deletion
+ * (Settings → Delete account, DELETE /api/account/delete). Leaderboard consent
+ * is asked for in the app; web sign-up grants it (grantWebLeaderboardConsent).
+ * The duel wins board lists anyone with a display name (topDuelStats).
+ *
  * Doomstack currently operates as a sole proprietorship (no formed entity)
  * based in Florida, USA — update the operator name in CONTACT_EMAIL/entity
  * references below if/when that changes.
@@ -42,7 +54,7 @@ import {
 } from "../../src/components/Legal/LegalArticle";
 import { buildMetadata } from "../../src/lib/seo";
 
-const UPDATED = "September 22, 2026";
+const UPDATED = "October 4, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
 
 export const metadata = buildMetadata({
@@ -98,9 +110,13 @@ export default function PrivacyPage() {
 
         <Section id="who-we-are" title="1. Who we are">
           <p>
-            Doomstack is a skill-based climbing game: a free endless-climbing
-            game (&ldquo;Free Climb&rdquo;) with a public leaderboard, ranked
-            chip duels, and bracket tournaments with cash prizes. We are the
+            Doomstack is a skill-based climbing game. Its free modes are
+            Levels (a season of levels with lives, stars, XP, and boosters),
+            Endless (also called &ldquo;Free Climb&rdquo;), the Daily Climb,
+            and head-to-head duels, with public and friends leaderboards. You
+            can buy gems to spend on characters, skins, and lives. On the
+            website, where offered, there are also ranked chip duels and
+            bracket tournaments with cash prizes. We are the
             &ldquo;data controller&rdquo; (GDPR)
             or &ldquo;business&rdquo; (CCPA/CPRA) responsible for the personal
             information described in this policy. If we form a corporate
@@ -137,9 +153,18 @@ export default function PrivacyPage() {
               Google as part of the OAuth flow.
             </li>
             <li>
-              <strong>Guest play</strong> — you can play Free Climb without an
-              account via anonymous authentication. This creates a temporary,
-              unlinked identifier with no email or personal profile attached.
+              <strong>Sign in with Apple</strong> — if you continue with Apple,
+              we receive the email address Apple shares with us (which may be a
+              private relay address if you choose to hide your email) and, the
+              first time you sign in, the name you allow Apple to share.
+            </li>
+            <li>
+              <strong>Guest play</strong> — on the website, you can play Free
+              Climb without an account via anonymous authentication. This
+              creates a temporary, unlinked identifier with no email or
+              personal profile attached. In the app, guest mode doesn&apos;t
+              create an account with us: it lets you try the first levels and
+              Endless, and your guest progress is stored only on your device.
             </li>
             <li>
               <strong>Saved social handles</strong> — you can save a handle for
@@ -154,8 +179,9 @@ export default function PrivacyPage() {
               .
             </li>
             <li>
-              <strong>Payment information</strong> — payments (chip purchases
-              and tournament entry fees) are handled by Stripe. We receive
+              <strong>Payment information</strong> — payments on the website
+              and in our Android app (gem packs, chip purchases, and tournament
+              entry fees) are handled by Stripe. We receive
               confirmation that a payment succeeded, the amount, and a Stripe
               transaction/session identifier. For chip purchases we store a record
               (the Stripe session id, amount, and timestamp). Tournament prize
@@ -163,6 +189,26 @@ export default function PrivacyPage() {
               Stripe&apos;s onboarding, and we store the Stripe Connect account id
               and transfer status. We never receive or store your full card
               number, CVC, or bank details — those go directly to Stripe.
+            </li>
+            <li>
+              <strong>App Store purchases</strong> — in our iOS app, gem packs
+              can be bought as App Store in-app purchases, which Apple
+              processes. We receive Apple&apos;s signed record of the
+              transaction (the transaction id, the product, the purchase date,
+              and whether it was refunded) and use it to verify the purchase
+              and credit your gems. To tie a purchase to your Doomstack
+              account, the app passes Apple a random-looking account token we
+              derive from your account id; it contains no email or name. Apple
+              does not share your Apple ID, card, or billing details with us.
+            </li>
+            <li>
+              <strong>Gems &amp; Shop activity</strong> — if you buy or spend
+              gems, we keep your gem balance, a record of each gem-pack
+              purchase (the Stripe session id or App Store transaction id, the
+              pack, and the date), a ledger of every change to your balance
+              (purchases and what you spent gems on, such as a character, a
+              skin, or a lives refill), and the characters and skins you own.
+              We keep this as a purchase and anti-fraud record.
             </li>
             <li>
               <strong>Age confirmation (chip duels &amp; tournaments)</strong> —
@@ -209,7 +255,15 @@ export default function PrivacyPage() {
             <li>
               <strong>Gameplay data</strong> — climb runs, peak height reached
               per category, duel results, and (for ranked runs) a replay token
-              used to verify results.
+              used to verify results. In Levels, we store the levels you clear,
+              your stars and best times (best times are reported by your
+              device), your XP and player level, your lives and when they
+              refill, your clear streak, the boosters and star chests you earn,
+              and the character you pick. For the Daily Climb, we store your
+              best verified run for each day (height, length, and a replay of
+              the run), how many runs you submitted, and a fingerprint of each
+              verified run so a copied run can&apos;t be submitted by another
+              account.
             </li>
             <li>
               <strong>Device &amp; usage data</strong> — IP address, browser
@@ -251,8 +305,9 @@ export default function PrivacyPage() {
 
           <SubHeading>Information from third parties</SubHeading>
           <p>
-            Beyond Google/Firebase (sign-in) and Stripe (payment
-            confirmation) described above, we do not purchase or receive
+            Beyond Google/Firebase and Apple (sign-in), and Stripe and Apple
+            (payment and purchase confirmation) described above, we do not
+            purchase or receive
             personal information about you from data brokers or advertising
             networks.
           </p>
@@ -267,6 +322,12 @@ export default function PrivacyPage() {
               your chip balance, settling stakes, and processing tournament
               prizes), and power social features — letting you add friends, send
               and accept challenges, and receive the related notifications.
+            </li>
+            <li>
+              Run Levels and the Shop: track your progress, lives, XP, and
+              unlocks, verify gem purchases with Stripe or Apple, credit your
+              gems, and deliver the characters, skins, and lives refills you buy
+              with them.
             </li>
             <li>
               Process payments, maintain the chip ledger, and prevent
@@ -320,13 +381,19 @@ export default function PrivacyPage() {
             disclose personal information only in the following
             circumstances:
           </p>
-          <SubHeading>Public leaderboards (with your consent)</SubHeading>
+          <SubHeading>Public leaderboards</SubHeading>
           <p>
-            Public leaderboards are part of Doomstack, but you control whether
-            you appear on them. Your peak height and rank appear on the public
-            leaderboard only if you opt in, and you can withdraw that consent at
-            any time — which removes your record from the public leaderboard.
-            Separately, when you play a chip duel or a tournament, your display
+            Public leaderboards are part of Doomstack, and you control whether
+            you appear on them. In the app, we ask before your display name,
+            character, and scores (your Endless peak height and your Daily
+            Climb results) appear on the public leaderboards. On the website,
+            creating an account adds you to them as part of signing up. Either
+            way, you can withdraw at any time in the app&apos;s Settings (or by
+            emailing us), which removes your record from the public
+            leaderboards. If you set a display name, your duel wins and
+            losses can also appear on the public duel leaderboard. Your
+            accepted friends can see your scores on the friends leaderboards,
+            including your best times on each level. Separately, when you play a chip duel or a tournament, your display
             name is shown to the other players in that lobby or bracket as part
             of the match. If you set a public username, your creator page at{" "}
             <code>/c/your-username</code> shows your saved social handles and
@@ -374,10 +441,12 @@ export default function PrivacyPage() {
               individual users.
             </li>
             <li>
-              <strong>Apple</strong> — for our native iOS app: if you join the
-              beta, we share your email with Apple (App Store Connect) to enroll
-              you in TestFlight, and iOS push notifications are delivered through
-              Apple&apos;s push service.
+              <strong>Apple</strong> — for our native iOS app: Sign in with
+              Apple, App Store in-app purchases (Apple processes the payment and
+              sends us a signed transaction record), and iOS push notifications
+              delivered through Apple&apos;s push service. If you join the beta,
+              we share your email with Apple (App Store Connect) to enroll you in
+              TestFlight.
             </li>
           </List>
           <SubHeading>Legal &amp; safety</SubHeading>
@@ -408,8 +477,11 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Functional</strong> — local storage used to remember
-              preferences on your device (for example, your Daily Climb streak
-              progress and your sound on/off setting).
+              preferences and progress on your device (for example, your Daily
+              Climb streak progress, your controls, sound, and vibration
+              settings, which tutorials you&apos;ve seen, a level run in
+              progress, and guest-mode progress). These stay on your device and
+              aren&apos;t sent to us.
             </li>
             <li>
               <strong>Analytics</strong> — we use Vercel Web Analytics to
@@ -464,12 +536,19 @@ export default function PrivacyPage() {
             active, plus a reasonable period afterward in case you return or
             to resolve disputes, and as needed to meet legal, tax, or
             accounting obligations (typically up to 7 years for financial
-            records related to payments). Chip-purchase records, the wallet
-            ledger, tournament entry and prize records, and your 18+
+            records related to payments). Gem-purchase records, the gem
+            ledger, chip-purchase records, the wallet ledger, tournament entry
+            and prize records, and your 18+
             confirmation are treated as financial and compliance records and are
             retained on that same basis even after your account is closed, to
             the extent needed to meet legal, tax, accounting, and anti-fraud
             obligations.
+          </p>
+          <p>
+            You can delete your account at any time in the app (Profile →
+            Settings → Delete account) or by emailing us. Deleting your account
+            ends your access to it, including any unspent gems and the
+            characters and skins you own.
           </p>
           <p>
             Your peak climbing height is, by design, a lasting competitive
@@ -492,7 +571,9 @@ export default function PrivacyPage() {
             today) and to non-discrimination for exercising these rights.
           </p>
           <p>
-            To exercise any of these rights, email us at{" "}
+            You can delete your account yourself in the app (Profile →
+            Settings → Delete account). To exercise any of these rights, email
+            us at{" "}
             <MailLink address={CONTACT_EMAIL} /> from the email address on
             your account (or provide enough information for us to verify
             your identity). We’ll respond within the time required by
