@@ -87,10 +87,8 @@ export function ProfileScreen() {
           <div className="flex flex-col gap-3" aria-label="Loading profile">
             <div className="h-24 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
             <div className="h-32 animate-pulse rounded-3xl border border-signal/20 bg-surface/60" />
-            <div className="grid grid-cols-2 gap-3">
-              <div className="h-24 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
-              <div className="h-24 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
-            </div>
+            <div className="h-16 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
+            <div className="h-20 animate-pulse rounded-3xl border border-white/10 bg-surface/60" />
           </div>
         ) : (
           <div className="flex flex-col gap-3 pb-6">
@@ -208,14 +206,8 @@ export function ProfileScreen() {
               </section>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <StatTile label="Wins" value={dashFailed ? "—" : String(climb?.wins ?? 0)} />
-              <StatTile
-                label="Daily streak"
-                value={daily.streak > 0 ? String(daily.streak) : "—"}
-                accent={daily.streak > 0}
-              />
-            </div>
+            {/* The daily streak lives only in the StreakCard below, with today's status. */}
+            <StatRow label="Wins" value={dashFailed ? "—" : String(climb?.wins ?? 0)} />
 
             <StreakCard
               streak={daily.streak}
@@ -269,17 +261,11 @@ function EmailText({ email }: { email: string }) {
   );
 }
 
-function StatTile({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+function StatRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="glass flex flex-col items-center rounded-3xl border border-white/10 px-3 py-4">
-      <span
-        className={`font-display text-stat font-black tabular-nums ${accent ? "text-signal" : "text-text-primary"}`}
-      >
-        {value}
-      </span>
-      <span className="mt-2 font-mono text-label font-bold uppercase tracking-label text-text-secondary">
-        {label}
-      </span>
+    <div className="glass flex items-center justify-between gap-3 rounded-3xl border border-white/10 px-5 py-3.5">
+      <span className="font-mono text-label font-bold uppercase tracking-label text-text-secondary">{label}</span>
+      <span className="font-display text-lead font-black tabular-nums text-text-primary">{value}</span>
     </div>
   );
 }
