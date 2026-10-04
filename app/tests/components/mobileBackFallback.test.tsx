@@ -199,6 +199,7 @@ describe("parentRoute", () => {
   it("maps each pushed screen to the parent its header Back uses, and anything else to Home", () => {
     expect(parentRoute("/profile/edit")).toBe("/profile");
     expect(parentRoute("/profile/avatar")).toBe("/profile");
+    expect(parentRoute("/settings")).toBe("/profile");
     expect(parentRoute("/challenge")).toBe("/");
     expect(parentRoute("/leaderboard")).toBe("/modes");
     expect(parentRoute("/duel/abc")).toBe("/");

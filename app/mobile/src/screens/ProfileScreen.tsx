@@ -14,8 +14,9 @@ import { avatarButtonLabel, identityNameFor } from "../lib/identity";
 /**
  * Profile — the player's identity and standing. The Daily Climb itself is
  * played from Modes; its streak shows here.
- * Editing (name, socials, preferences, account actions) lives on the pushed
- * Edit Profile screen so this page reads as a game card, not a form.
+ * Name and socials are edited on the pushed Edit Profile screen (the pencil);
+ * preferences and account actions live on Settings (the header gear), so this
+ * page reads as a game card, not a form.
  */
 export function ProfileScreen() {
   const navigate = useNavigate();
@@ -52,6 +53,11 @@ export function ProfileScreen() {
     navigate("/profile/edit");
   };
 
+  const openSettings = () => {
+    void tapLight();
+    navigate("/settings");
+  };
+
   const openAvatarPicker = () => {
     void tapLight();
     navigate("/profile/avatar");
@@ -63,7 +69,19 @@ export function ProfileScreen() {
         className="flex-1 overflow-y-auto px-4"
         style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}
       >
-        <HubHeader title="Profile" subtitle={["Your climb"]} />
+        {/* The gear sits over the centered header's top-right corner, level with
+            the eyebrow, so the title stays centered like the other hubs. */}
+        <div className="relative">
+          <HubHeader title="Profile" subtitle={["Your climb"]} />
+          <button
+            type="button"
+            aria-label="Settings"
+            onClick={openSettings}
+            className="glass absolute right-0 top-[calc(env(safe-area-inset-top)+0.25rem)] flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 text-text-primary transition-transform active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+          >
+            <GearIcon />
+          </button>
+        </div>
 
         {loading ? (
           <div className="flex flex-col gap-3" aria-label="Loading profile">
@@ -118,7 +136,7 @@ export function ProfileScreen() {
                 )}
               </div>
               <button
-                aria-label="Edit profile & socials"
+                aria-label="Edit profile"
                 onClick={openEdit}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-text-primary transition-transform active:scale-90"
               >
@@ -315,6 +333,15 @@ function FlameIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-ember" aria-hidden>
       <path d="M12 2c.5 3-1.5 4.5-3 6.5C7.4 10.6 6.5 12.3 6.5 14a5.5 5.5 0 0 0 11 0c0-1.7-.8-3.2-2-4.5-.6 1-1.6 1.6-2.6 1.6 1-2 .3-4.4-1.4-6.1C11.6 5 12 3.4 12 2Z" />
+    </svg>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }

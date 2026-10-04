@@ -334,7 +334,7 @@ describe("Back on a push screen", () => {
   });
 
   it("reads the hash router's history index before the location key", () => {
-    // A cold start redirected with `replace` (/settings -> /profile/edit): new key, still index 0.
+    // A cold start redirected with `replace` (an unknown path -> /): new key, still index 0.
     window.history.replaceState({ usr: null, key: "k1", idx: 0 }, "");
     expect(hasInAppHistory("k1")).toBe(false);
     window.history.replaceState({ usr: null, key: "k2", idx: 2 }, "");
