@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 
 import { tapLight, tapMedium, notifyError } from "../../lib/haptics";
+import { useHapticsSetting } from "../../lib/hapticsSetting";
 import { useGameHaptics } from "../../lib/useGameHaptics";
 import {
   formatClock,
@@ -115,6 +116,7 @@ export function LevelRun({
   const lavaFill = lavaThreatFill(state.hazardY, camY, view.viewH, bottomInsetM);
   const lavaNear = isLavaInProximity(lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM));
   const musicActive = running && (phase === "countdown" || phase === "climb");
+  const vibration = useHapticsSetting();
   const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
     player,
     state.tick,
@@ -199,6 +201,7 @@ export function LevelRun({
         lavaPhaseProgress={lavaPhaseInfo.progress}
         muted={muted}
         onToggleMute={() => setMuted(!muted)}
+        vibration={vibration}
         announcement={announcement}
         runId={runId}
         topInset={safeArea.top}

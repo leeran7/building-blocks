@@ -20,6 +20,15 @@ import { Accordion, HeartIcon, StarRow, livesLabel, useNow } from "./LevelBits";
 import { ArrowRight, TowerIcon } from "./LevelIcons";
 import { GemIcon } from "../store/GemIcon";
 
+/** The slide-up and fade for `.ls-sheet` and `.ls-scrim`, shared by the map's sheets. */
+export const SHEET_MOTION_CSS = `
+  .ls-sheet { animation: lsUp 0.28s cubic-bezier(0.16,1,0.3,1) both; }
+  .ls-scrim { animation: lsFade 0.2s ease-out both; }
+  @keyframes lsUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  @keyframes lsFade { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .ls-sheet, .ls-scrim { animation: none; } }
+`;
+
 /** What a refused start or retry says, in the player's words. */
 export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string> = {
   LOCKED: "Clear the level before this one first.",
@@ -43,6 +52,7 @@ export function LevelStartSheet({
   onClose,
   extras,
   refill,
+  notice = null,
 }: {
   node: LevelNode;
   player: PlayerStats;
@@ -55,6 +65,8 @@ export function LevelStartSheet({
   extras?: ReactNode;
   /** The paid lives refill, offered when out of lives; absent when none can be sold. */
   refill?: RefillOffer | null;
+  /** One line about this level's last run, e.g. that it was interrupted. */
+  notice?: string | null;
 }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<StartRefusal | null>(null);
@@ -71,7 +83,8 @@ export function LevelStartSheet({
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      // A sheet opened on top (the gem packs) handles its own Escape.
+      if (e.key === "Escape" && !e.defaultPrevented) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -148,6 +161,12 @@ export function LevelStartSheet({
             </svg>
           </button>
         </div>
+
+        {notice && (
+          <p role="status" className="mt-3 rounded-2xl border border-ember/40 bg-ember/10 px-3.5 py-2 text-meta text-text-primary">
+            {notice}
+          </p>
+        )}
 
         <div className="mt-3 rounded-2xl border border-white/10 bg-elevated/70 px-3.5 py-2.5">
           <div className="flex items-baseline justify-between gap-3">
@@ -229,13 +248,7 @@ export function LevelStartSheet({
           )}
         </div>
       </div>
-      <style>{`
-        .ls-sheet { animation: lsUp 0.28s cubic-bezier(0.16,1,0.3,1) both; }
-        .ls-scrim { animation: lsFade 0.2s ease-out both; }
-        @keyframes lsUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        @keyframes lsFade { from { opacity: 0; } to { opacity: 1; } }
-        @media (prefers-reduced-motion: reduce) { .ls-sheet, .ls-scrim { animation: none; } }
-      `}</style>
+      <style>{SHEET_MOTION_CSS}</style>
     </div>,
     document.body,
   );
@@ -371,7 +384,7 @@ export function OutOfLives({
  * and refuses a full player, so a double tap never pays twice. Without enough
  * gems the price and balance still show, so the player knows what it costs.
  */
-function RefillLives({ offer }: { offer: RefillOffer }) {
+export function RefillLives({ offer }: { offer: RefillOffer }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const affordable = offer.gems >= offer.cost;

@@ -21,8 +21,7 @@ import { PowerUpAudio } from "./powerUpAudio";
 import { ClimbMusic } from "./climbMusic";
 import { initialCueMemo, stepCues, type CueMemo } from "./powerUpCues";
 import type { HazardPhaseName } from "../../game/hazard";
-
-const MUTE_KEY = "doomstack:sfx-muted";
+import { isSfxMuted, setSfxMuted } from "./sfxMute";
 
 export function usePowerUpFeedback(
   player: PlayerState | undefined,
@@ -45,13 +44,7 @@ export function usePowerUpFeedback(
 
   // Restore the saved preference before the first cue can play.
   useEffect(() => {
-    let saved: string | null = null;
-    try {
-      saved = localStorage.getItem(MUTE_KEY);
-    } catch {
-      return;
-    }
-    if (saved === "1") {
+    if (isSfxMuted()) {
       setMutedState(true);
       audio.setMuted(true);
       musicEngine.setMuted(true);
@@ -159,11 +152,7 @@ export function usePowerUpFeedback(
         audio.unlock();
         musicEngine.unlock();
       }
-      try {
-        localStorage.setItem(MUTE_KEY, next ? "1" : "0");
-      } catch {
-        /* storage unavailable */
-      }
+      setSfxMuted(next);
     },
     announcement,
     unlockAudio: () => {

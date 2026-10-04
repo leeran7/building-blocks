@@ -44,7 +44,7 @@ const TouchButton = memo(function TouchButton({
   control: Control;
   held: boolean;
   onEvent: (event: HoldEvent) => void;
-  /** Joystick layout's jump: a solid signal pad with an arrow over the label. */
+  /** Joystick layout's jump: a solid signal pad with the word in large type. */
   pad?: boolean;
 }) {
   const { id, label, glyph, sub, accent, wordGlyph } = control;
@@ -91,23 +91,10 @@ const TouchButton = memo(function TouchButton({
       }}
     >
       {pad ? (
-        <>
-          {/* Drawn, not the ↑ character: at this size the font's glyph was
-              clipped by its line box and lost the top of the arrowhead. */}
-          <svg aria-hidden="true" viewBox="0 0 24 24" width="40" height="40">
-            <path
-              d="M12 20V5M5 11l7-7 7 7"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span aria-hidden="true" className="mt-2 text-lg uppercase tracking-[0.16em] leading-none">
-            {sub}
-          </span>
-        </>
+        // A word, not an arrow: ↑ means climb in every guide and tutorial.
+        <span aria-hidden="true" className="text-2xl uppercase tracking-[0.16em] leading-none">
+          {glyph}
+        </span>
       ) : (
       <>
       <span
@@ -146,7 +133,7 @@ interface Control {
   sub?: string;
   /** Signal-coloured treatment for the primary action. */
   accent?: boolean;
-  /** Glyph is a word ("JMP"), not a single arrow — needs a smaller type size. */
+  /** Glyph is a word ("Jump"), not a single arrow — needs a smaller type size. */
   wordGlyph?: boolean;
 }
 
@@ -154,11 +141,11 @@ const ALL_CONTROLS: readonly Control[] = [
   { id: "left", label: "Move left", glyph: "←" },
   { id: "right", label: "Move right", glyph: "→" },
   { id: "climb", label: "Climb up ladder", glyph: "↑", sub: "climb" },
-  { id: "jump", label: "Jump", glyph: "JMP", accent: true, wordGlyph: true },
+  { id: "jump", label: "Jump", glyph: "Jump", accent: true, wordGlyph: true },
 ];
 
-/** Jump in the joystick layout: arrow glyph over a "Jump" label. */
-const JUMP_PAD: Control = { id: "jump", label: "Jump", glyph: "↑", sub: "Jump", accent: true };
+/** Jump in the joystick layout: the same word as the button row, on a bigger pad. */
+const JUMP_PAD: Control = { id: "jump", label: "Jump", glyph: "Jump", accent: true };
 
 export function TouchControls({
   active,

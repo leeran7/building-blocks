@@ -6,6 +6,7 @@ import { HexAvatar } from "../components/HexAvatar";
 import { RetryPanel, ScreenHeader } from "../components/ui";
 import { GemBalance } from "../components/store/GemBalance";
 import { GemIcon } from "../components/store/GemIcon";
+import { ShopLivesTile } from "../components/store/ShopLivesTile";
 import { LAVA_CLEARANCE } from "../components/AnimatedBackdrop";
 import { tapLight } from "../lib/haptics";
 
@@ -13,8 +14,8 @@ import { tapLight } from "../lib/haptics";
 export const SHOP_CHARACTERS: readonly AvatarEntry[] = CHARACTER_ENTRIES.filter((c) => skinsOf(c.id).length > 0);
 
 /**
- * The Shop tab: the gem balance and every character's paid Wraith-style
- * skin. A card opens Skin Details, where skins are bought and equipped.
+ * The Shop tab: the gem balance, the lives refill, and every character's
+ * paid Wraith-style skin. A card opens Skin Details, where skins are bought and equipped.
  */
 export function ShopScreen() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export function ShopScreen() {
         className="min-h-0 flex-1 overflow-y-auto px-4"
         style={{ WebkitOverflowScrolling: "touch", paddingBottom: LAVA_CLEARANCE }}
       >
+        <ShopLivesTile />
         {error && !shop ? (
           <RetryPanel message={error} retrying={loading} attempts={0} onRetry={() => void refresh()} />
         ) : (

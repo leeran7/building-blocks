@@ -7,6 +7,7 @@ import { ALTITUDE_UNIT, formatAltitude } from "../../lib/units";
 import { isPowerUpActive } from "../../game/powerups";
 import { ActivePowerStack } from "./PowerUpHud";
 import { FullscreenButton } from "./FullscreenButton";
+import { GameSettingsButton, type GameToggle } from "./GameSettings";
 import "./expedition.css";
 
 export function HeightInstrument({ height }: { height: number }) {
@@ -61,23 +62,18 @@ export function LavaClearanceInstrument({ clearance: rawClearance, phase, progre
 type UtilitiesProps = {
   muted: boolean;
   onToggleMute: () => void;
+  /** Vibration on/off for the cog panel; only the native app has haptics to switch. */
+  vibration?: GameToggle;
   fullscreenSupported?: boolean;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   backControl?: ReactNode;
 };
 
-export function UtilityControls({ muted, onToggleMute, fullscreenSupported, isFullscreen = false, onToggleFullscreen, backControl }: UtilitiesProps) {
+export function UtilityControls({ muted, onToggleMute, vibration, fullscreenSupported, isFullscreen = false, onToggleFullscreen, backControl }: UtilitiesProps) {
   return <div className="exp-utilities">
     {backControl}
-    <button type="button" data-game-control className="exp-utility" onClick={onToggleMute}
-      onContextMenu={e => e.preventDefault()} aria-pressed={muted}
-      aria-label={muted ? "Unmute game sound" : "Mute game sound"} title={muted ? "Unmute game sound" : "Mute game sound"}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-        <path d="M10 5 5 9H2v6h3l5 4V5Z" />
-        {muted ? <path d="m15 9 6 6m0-6-6 6" /> : <path d="M14 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" />}
-      </svg>
-    </button>
+    <GameSettingsButton muted={muted} onToggleMute={onToggleMute} vibration={vibration} />
     {fullscreenSupported && onToggleFullscreen && <FullscreenButton isFullscreen={isFullscreen} onToggle={onToggleFullscreen} className="exp-utility" />}
   </div>;
 }

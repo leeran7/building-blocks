@@ -19,6 +19,7 @@ import { parseStartPowerUp } from "../lib/levels/httpClient";
 import { bestFailMarker, nearMissHeadline } from "../lib/levels/nearMiss";
 import { tutorialTopicsFor, type TutorialTopic } from "@app/game/levels/tutorial";
 import { markTutorialsSeen, unseenTutorials } from "../lib/levels/tutorialSeen";
+import { holdLiveTicket, isTicketLive, noteRunStarted, releaseLiveTicket } from "../lib/levels/runNote";
 import { LevelTutorial } from "../components/levels/LevelTutorial";
 import {
   LevelResultCard,
@@ -69,7 +70,7 @@ export function LevelPlayScreen() {
   const [search] = useSearchParams();
   const practice = search.get("practice") === "1";
   const level = Number(params.level);
-  const { client, season, setPlayer, refresh, bestFails } = useLevels();
+  const { client, season, setPlayer, refresh, bestFails, runNotes } = useLevels();
   const refill = useLivesRefillOffer();
   const seasonNo = season?.season ?? null;
   const node: LevelNode | null =
@@ -77,7 +78,13 @@ export function LevelPlayScreen() {
       ? season.levels[level - 1]
       : null;
 
-  const [ticket, setTicket] = useState<LevelTicket | null>(() => ticketFromState(location.state, level));
+  // Only a ticket this session issued and has not left: after a page reload,
+  // or browser Back then Forward, history.state still holds the old one, and
+  // replaying it would be a free retry.
+  const [ticket, setTicket] = useState<LevelTicket | null>(() => {
+    const fromState = ticketFromState(location.state, level);
+    return fromState && isTicketLive(fromState.id) ? fromState : null;
+  });
   const [attempt, setAttempt] = useState(0);
   const [stage, setStage] = useState<Stage>({ kind: "play" });
   const [retryBusy, setRetryBusy] = useState(false);
@@ -85,19 +92,46 @@ export function LevelPlayScreen() {
   const [autoStart, setAutoStart] = useState(false);
   const [tutorial, setTutorial] = useState<TutorialTopic[] | null>(null);
 
-  // A normal run needs a ticket; without one (app restart, stale link) go
-  // back to the map rather than play a run nobody can score.
+  // A normal run needs a ticket; without one (reload, app restart, stale
+  // link) go back to the level's card, which says the run was interrupted,
+  // rather than play a run nobody can score.
   const missing = !practice && ticket === null;
   useEffect(() => {
-    if (missing) navigate("/", { replace: true });
-  }, [missing, navigate]);
+    if (!missing) return;
+    const openLevel = Number.isInteger(level) && level >= 1 ? level : undefined;
+    navigate("/", { replace: true, state: { openLevel, interrupted: true } });
+  }, [missing, level, navigate]);
+
+  const ticketId = ticket?.id ?? null;
+  // Leaving the play route any way but the screen's own buttons (browser Back,
+  // Android hardware back) ends the run like Quit: the ticket is no longer
+  // live and the note is cleared. Deferred, so StrictMode's dev remount keeps it.
+  useEffect(() => {
+    if (ticketId === null) return;
+    holdLiveTicket(ticketId);
+    return () => releaseLiveTicket(ticketId, () => runNotes.clear(ticketId));
+  }, [ticketId, runNotes]);
+
+  // Set once the screen is left, so a Retry reply that lands afterwards is not
+  // taken for a run still being played. Reset on mount for StrictMode's remount.
+  const left = useRef(false);
+  useEffect(() => {
+    left.current = false;
+    return () => {
+      left.current = true;
+    };
+  }, []);
 
   const toMap = useCallback(
     (openLevel?: number) => {
       void tapLight();
+      left.current = true;
+      // Leaving on purpose: the player knows how this run ended. The unmount
+      // release clears it too, but only after the map has read it.
+      if (ticketId !== null) runNotes.clear(ticketId);
       navigate("/", { replace: true, state: openLevel ? { openLevel } : null });
     },
-    [navigate],
+    [navigate, ticketId, runNotes],
   );
 
   const submit = useCallback(
@@ -115,6 +149,9 @@ export function LevelPlayScreen() {
       setStage({ kind: "saving", report });
       try {
         const result = await client.submitResult(ticket.id, report);
+        // Scored: no longer a run in progress. A failed submit keeps the
+        // note, so a restart from the failed card still says what happened.
+        runNotes.clear(ticket.id);
         setPlayer(result.player);
         // Stars and the frontier changed: refetch before the card offers Next
         // level, so the map it lands on already has the next level open.
@@ -125,7 +162,7 @@ export function LevelPlayScreen() {
         setStage({ kind: "failed", report });
       }
     },
-    [client, practice, ticket, setPlayer, refresh, bestFails, seasonNo],
+    [client, practice, ticket, setPlayer, refresh, bestFails, seasonNo, runNotes],
   );
 
   const retry = useCallback(async () => {
@@ -140,6 +177,9 @@ export function LevelPlayScreen() {
     try {
       const res = await client.startLevel(level);
       if (res.ok) {
+        const run = seasonNo !== null && node ? { season: seasonNo, level, costsLife: node.costsLife } : null;
+        noteRunStarted(runNotes, res.ticket.id, run, { live: !left.current });
+        if (left.current) return;
         setPlayer(res.ticket.player);
         setTicket(res.ticket);
         setAutoStart(true);
@@ -154,7 +194,7 @@ export function LevelPlayScreen() {
     } finally {
       setRetryBusy(false);
     }
-  }, [client, level, practice, setPlayer]);
+  }, [client, level, practice, setPlayer, seasonNo, node, runNotes]);
 
   // The level's tutorial plays once per device before its first run: the
   // basics on level 1, and each ladder obstacle and power-up on the level

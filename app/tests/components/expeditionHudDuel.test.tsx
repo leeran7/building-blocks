@@ -73,9 +73,9 @@ describe("AC-1 — shared instruments render identically in duel mode", () => {
     expect(solo).toContain("Lava clearance 50.0 feet");
     expect(duel).toContain("Lava clearance 50.0 feet");
 
-    // Mute control present in both
-    expect(solo).toContain('aria-label="Mute game sound"');
-    expect(duel).toContain('aria-label="Mute game sound"');
+    // Settings cog (sound lives behind it) present in both
+    expect(solo).toContain('aria-label="Game settings"');
+    expect(duel).toContain('aria-label="Game settings"');
   });
 
   it("maintains surge phase display identically in duel mode", () => {

@@ -306,27 +306,11 @@ export function useClimb({
     if (!PHASES_CONSUMING_INPUT.has(state.phase)) keysRef.current.clear();
   }, [state.phase]);
 
-  const sampleInput = useCallback((): PlayerInput => {
-    const keys = keysRef.current;
-    const t = touchRef.current;
-    const left = t.left || hasAny(keys, KEY_LEFT);
-    const right = t.right || hasAny(keys, KEY_RIGHT);
-    const upKey = t.up || hasAny(keys, KEY_UP);
-    const downKey = t.down || hasAny(keys, KEY_DOWN);
-    const jump = t.jump || hasAny(keys, KEY_JUMP);
-
-    const moveX: -1 | 0 | 1 = left && !right ? -1 : right && !left ? 1 : 0;
-    const climbY: -1 | 0 | 1 =
-      upKey && !downKey ? 1 : downKey && !upKey ? -1 : 0;
-
-    // Reuse a single mutable object instead of allocating a new one every tick.
-    const inp = mutableInputRef.current;
-    inp.moveX = moveX;
-    inp.jump = jump;
-    inp.climbY = climbY;
-    inp.usePowerUp = false;
-    return inp;
-  }, []);
+  // Reuse a single mutable object instead of allocating a new one every tick.
+  const sampleInput = useCallback(
+    (): PlayerInput => fillClimbInput(mutableInputRef.current, keysRef.current, touchRef.current),
+    []
+  );
 
   const inputForTick = useCallback(
     (phase: MatchState["phase"], tick: number): PlayerInput => {
@@ -589,7 +573,27 @@ function climbTickOf(state: MatchState): number {
   return state.tick;
 }
 
-function hasAny(set: Set<string>, keys: Set<string>): boolean {
+/**
+ * Write the controls held now (keys plus on-screen touch) into `inp` and
+ * return it. Mutates rather than allocates: callers sample every tick.
+ */
+export function fillClimbInput(
+  inp: PlayerInput,
+  keys: ReadonlySet<string>,
+  t: TouchInput
+): PlayerInput {
+  const left = t.left || hasAny(keys, KEY_LEFT);
+  const right = t.right || hasAny(keys, KEY_RIGHT);
+  const upKey = t.up || hasAny(keys, KEY_UP);
+  const downKey = t.down || hasAny(keys, KEY_DOWN);
+  inp.moveX = left && !right ? -1 : right && !left ? 1 : 0;
+  inp.climbY = upKey && !downKey ? 1 : downKey && !upKey ? -1 : 0;
+  inp.jump = t.jump || hasAny(keys, KEY_JUMP);
+  inp.usePowerUp = false;
+  return inp;
+}
+
+function hasAny(set: ReadonlySet<string>, keys: Set<string>): boolean {
   for (const k of keys) if (set.has(k)) return true;
   return false;
 }

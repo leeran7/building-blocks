@@ -36,7 +36,11 @@ vi.mock("@app/components/Game/lava", async (importOriginal) => {
 vi.mock("../../mobile/src/lib/motion", () => ({ prefersReducedMotion: () => true }));
 
 import { crestOffset } from "../../src/components/Game/lava";
-import { AnimatedBackdrop, LAVA_CANVAS_VH, LAVA_CLEARANCE } from "../../mobile/src/components/AnimatedBackdrop";
+import {
+  AnimatedBackdrop,
+  LAVA_CANVAS_HEIGHT,
+  LAVA_CLEARANCE,
+} from "../../mobile/src/components/AnimatedBackdrop";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -69,11 +73,22 @@ afterEach(() => {
   while (restores.length) restores.pop()!();
 });
 
-/** The options the real LavaCanvas hands drawLava on a `width` x `viewportH` screen. */
-function drawnLava(width: number, viewportH: number) {
-  // The canvas is sized by CSS: LAVA_CANVAS_VH of the viewport (checked below).
+/** Evaluates a calc() of px, rem and env(safe-area-inset-bottom) for one screen. */
+function cssPx(length: string, insetBottom: number): number {
+  const js = length
+    .replace(/env\(safe-area-inset-bottom\)/g, `${insetBottom}`)
+    .replace(/([\d.]+)rem/g, (_, n) => `(${n}*16)`)
+    .replace(/([\d.]+)px/g, "$1")
+    .replace(/calc/g, "");
+  expect(js).toMatch(/^[\d\s.+\-*/()]+$/);
+  return Function(`return ${js};`)() as number;
+}
+
+/** The options the real LavaCanvas hands drawLava on a `width` wide screen. */
+function drawnLava(width: number, insetBottom: number) {
+  // The canvas is sized by CSS: LAVA_CANVAS_HEIGHT (checked below).
   stubProp(HTMLElement.prototype, "clientWidth", () => width);
-  stubProp(HTMLElement.prototype, "clientHeight", () => (viewportH * LAVA_CANVAS_VH) / 100);
+  stubProp(HTMLElement.prototype, "clientHeight", () => cssPx(LAVA_CANVAS_HEIGHT, insetBottom));
   root = createRoot(container);
   act(() => root.render(createElement(AnimatedBackdrop)));
   expect(captured.opts.length).toBeGreaterThan(0);
@@ -96,38 +111,28 @@ function crestAboveBottom(lava: { width: number; height: number; top: number; ui
   return lava.height - (lava.top + minOffset);
 }
 
-/** Evaluates LAVA_CLEARANCE (a calc() of vh, px and rem) for one screen. */
-function clearancePx(viewportH: number): number {
-  const js = LAVA_CLEARANCE.replace(/([\d.]+)vh/g, (_, n) => `(${n}*${viewportH / 100})`)
-    .replace(/([\d.]+)rem/g, (_, n) => `(${n}*16)`)
-    .replace(/([\d.]+)px/g, "$1")
-    .replace(/calc/g, "");
-  expect(js).toMatch(/^[\d\s.+\-*/()]+$/);
-  return Function(`return ${js};`)() as number;
-}
-
 describe("LAVA_CLEARANCE clears the lava that is actually drawn", () => {
-  it("precondition: the lava canvas really is LAVA_CANVAS_VH tall in the rendered CSS", () => {
-    drawnLava(393, 852);
+  it("precondition: the lava canvas really is LAVA_CANVAS_HEIGHT tall in the rendered CSS", () => {
+    drawnLava(393, 34);
     const css = [...container.querySelectorAll("style")].map((s) => s.textContent ?? "").join("\n");
     const block = css.match(/\.bd-lava-canvas\s*\{([^}]*)\}/)?.[1] ?? "";
-    expect(block).toMatch(new RegExp(`height:\\s*${LAVA_CANVAS_VH}vh`));
+    expect(block).toContain(`height: ${LAVA_CANVAS_HEIGHT};`);
   });
 
   it("precondition: the sampled crest is the moving wave, not the flat surface", () => {
-    const lava = drawnLava(393, 852);
+    const lava = drawnLava(393, 34);
     expect(crestAboveBottom(lava)).toBeGreaterThan(lava.height - lava.top + 10);
   });
 
   it.each([
-    ["iPhone SE", 375, 667],
-    ["iPhone 15", 393, 852],
-    ["iPhone 15 Pro Max", 430, 932],
-    ["iPhone 16 Pro Max", 440, 956],
-  ])("on %s (%dx%d) the clearance ends above the highest crest", (_device, width, viewportH) => {
-    const lava = drawnLava(width, viewportH);
+    ["iPhone SE", 375, 0],
+    ["iPhone 15", 393, 34],
+    ["iPhone 15 Pro Max", 430, 34],
+    ["iPhone 16 Pro Max", 440, 34],
+  ])("on %s (%dpx wide, %dpx home inset) the clearance ends above the highest crest", (_device, width, inset) => {
+    const lava = drawnLava(width, inset);
     const crest = crestAboveBottom(lava);
-    const clearance = clearancePx(viewportH);
+    const clearance = cssPx(LAVA_CLEARANCE, inset);
     expect(clearance).toBeGreaterThan(crest);
     // The documented 0.5rem gap is slack, not a second band.
     expect(clearance - crest).toBeLessThan(16);

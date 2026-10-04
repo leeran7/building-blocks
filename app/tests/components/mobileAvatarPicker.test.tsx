@@ -67,10 +67,9 @@ import {
   starUnlockCount,
 } from "../../mobile/src/screens/AvatarPickerScreen";
 import {
-  LAVA_CANVAS_VH,
   LAVA_CLEARANCE,
   LAVA_CREST_PX,
-  LAVA_SURFACE_FROM_TOP,
+  LAVA_SURFACE_PX,
 } from "../../mobile/src/components/AnimatedBackdrop";
 
 /** Star-ladder characters: the first two rungs (15 and 30 stars). */
@@ -665,7 +664,7 @@ describe("the picker fills the screen, Save sticks to the bottom (user report)",
     ["iPad mini portrait", 1133, 20],
   ])("on %s the last row's bottom clears the lava crest", (_device, viewportH, safeBottom) => {
     // The lava crest's height above the bottom edge, from the canvas geometry.
-    const crest = (viewportH * LAVA_CANVAS_VH * (1 - LAVA_SURFACE_FROM_TOP)) / 100 + LAVA_CREST_PX;
+    const crest = safeBottom + LAVA_SURFACE_PX + LAVA_CREST_PX;
     // The clear save bar: pt-3 (12) + the 56px button + pb 1rem (16) + inset.
     const bar = 12 + 56 + 16 + safeBottom;
     const pad = cssPx(GRID_END_PADDING, viewportH, safeBottom);

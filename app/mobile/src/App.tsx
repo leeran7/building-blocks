@@ -6,12 +6,14 @@ import { SignInScreen } from "./screens/SignInScreen";
 import { LeaderboardScreen } from "./screens/LeaderboardScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { EditProfileScreen } from "./screens/EditProfileScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
 import { AvatarPickerScreen } from "./screens/AvatarPickerScreen";
 import { DuelRoomScreen } from "./screens/DuelRoomScreen";
 import { ChallengeScreen } from "./screens/ChallengeScreen";
 import { LevelMapScreen } from "./screens/LevelMapScreen";
 import { LevelPlayScreen } from "./screens/LevelPlayScreen";
 import { ShopScreen } from "./screens/ShopScreen";
+import { TrainingScreen } from "./screens/TrainingScreen";
 import { SkinDetailsScreen } from "./screens/SkinDetailsScreen";
 import { AnimatedBackdrop } from "./components/AnimatedBackdrop";
 import { RouteTransition } from "./components/RouteTransition";
@@ -61,7 +63,8 @@ export function App() {
 
   // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();
-  const onClimb = authed && (location.pathname === "/climb" || isLevelPlay(location.pathname));
+  const onClimb =
+    authed && (location.pathname === "/climb" || location.pathname === "/tutorial" || isLevelPlay(location.pathname));
   const showNav = authed && isTabRoot(location.pathname);
   const guestActive = guestMode && !authed;
 
@@ -77,6 +80,8 @@ export function App() {
             {/* Keyed by entry so "Practice this level" from a result starts fresh. */}
             <Route path="/levels/:level/play" element={<LevelPlayScreen key={location.key} />} />
             <Route path="/duel/:id" element={<DuelRoomScreen />} />
+            {/* First-run tutorial: opened by the map on a first launch, and from Profile. */}
+            <Route path="/tutorial" element={<TrainingScreen />} />
             <Route
               path="*"
               element={
@@ -93,9 +98,7 @@ export function App() {
                     <Route path="/challenge" element={<ChallengeScreen />} />
                     <Route path="/shop" element={<ShopScreen />} />
                     <Route path="/shop/:characterId" element={<SkinDetailsScreen />} />
-                    {/* Settings live on Edit Profile — keep the path as a redirect
-                        for any stray deep links / bookmarks. */}
-                    <Route path="/settings" element={<Navigate to="/profile/edit" replace />} />
+                    <Route path="/settings" element={<SettingsScreen />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </RouteTransition>

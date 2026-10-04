@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
+import { useId, type ButtonHTMLAttributes, type ReactNode, type Ref } from "react";
 import { tapLight } from "../lib/haptics";
 
 /**
@@ -179,17 +179,7 @@ export interface PushHeaderProps {
 export function PushHeader({ title, onBack, headingRef }: PushHeaderProps) {
   return (
     <header className="flex items-center gap-3 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
-      <button
-        type="button"
-        aria-label="Back"
-        onClick={() => {
-          void tapLight();
-          onBack();
-        }}
-        className="glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-primary transition-transform active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
-      >
-        <ChevronLeft size={22} />
-      </button>
+      <BackButton onBack={onBack} />
       <h1
         ref={headingRef}
         tabIndex={headingRef ? -1 : undefined}
@@ -198,6 +188,32 @@ export function PushHeader({ title, onBack, headingRef }: PushHeaderProps) {
         {title}
       </h1>
     </header>
+  );
+}
+
+/** The 48px glass back button of PushHeader, also used by HubHeader on a pushed hub (Leaderboard). */
+export function BackButton({ onBack, className = "" }: { onBack: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      aria-label="Back"
+      onClick={() => {
+        void tapLight();
+        onBack();
+      }}
+      className={`glass flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-text-primary transition-transform active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal ${className}`}
+    >
+      <ChevronLeft size={22} />
+    </button>
+  );
+}
+
+/** Row chevron for tappable cards (Modes rows, Profile streak card). */
+export function ChevronRight({ className = "text-text-muted", size = 18 }: { className?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`} aria-hidden>
+      <path d="m9 18 6-6-6-6" />
+    </svg>
   );
 }
 
@@ -395,6 +411,78 @@ export function RetryPanel({ message, retrying, attempts, onRetry, children }: R
         {retrying ? "Retrying…" : "Try again"}
       </button>
       {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ GlassSection */
+
+export interface GlassSectionProps {
+  title: string;
+  subtitle?: string;
+  /** Makes the title a programmatic focus target (tabIndex -1), e.g. useRetry's focusOnRecover. */
+  headingRef?: Ref<HTMLHeadingElement>;
+  children: ReactNode;
+}
+
+/** A titled glass card grouping related fields (Edit Profile, Settings). */
+export function GlassSection({ title, subtitle, headingRef, children }: GlassSectionProps) {
+  return (
+    <section className="glass rounded-3xl border border-white/10 px-5 pb-5 pt-4">
+      <h2
+        ref={headingRef}
+        tabIndex={headingRef ? -1 : undefined}
+        className="font-mono text-label font-bold uppercase tracking-label text-text-secondary focus:outline-none"
+      >
+        {title}
+      </h2>
+      {subtitle && <p className="mt-1 text-meta text-text-secondary">{subtitle}</p>}
+      <div className="mt-3">{children}</div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ Toggle */
+
+export interface ToggleProps {
+  label: string;
+  description: string;
+  on: boolean;
+  onToggle: () => void;
+}
+
+/** A labelled on/off switch row. The switch's accessible name is `label`; `description` describes it. */
+export function Toggle({ label, description, on, onToggle }: ToggleProps) {
+  const descriptionId = useId();
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="text-body font-semibold text-text-primary">{label}</p>
+        <p id={descriptionId} className="mt-0.5 text-meta text-text-secondary">
+          {description}
+        </p>
+      </div>
+      {/* The 44px-tall button is the tap target; the 32px track is drawn inside it. */}
+      <button
+        role="switch"
+        aria-checked={on}
+        aria-label={label}
+        aria-describedby={descriptionId}
+        onClick={onToggle}
+        className="group flex h-11 w-16 shrink-0 items-center justify-center rounded-full focus-visible:outline-none"
+      >
+        <span
+          aria-hidden
+          className={`relative h-8 w-14 rounded-full transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-signal group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-void ${
+            on ? "bg-signal shadow-[0_0_14px_rgba(203,242,77,0.45)]" : "bg-border-strong"
+          }`}
+        >
+          <span
+            className="absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-[left] duration-200"
+            style={{ left: on ? 28 : 4 }}
+          />
+        </span>
+      </button>
     </div>
   );
 }

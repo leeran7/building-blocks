@@ -20,10 +20,17 @@ import volcanoScene from "@app/../public/climb/volcano-tile.jpg";
 const ASH_COUNT = 12;
 const LAVA_FPS = 30;
 
-/** Height of the lava canvas pinned to the bottom of the screen. */
-export const LAVA_CANVAS_VH = 26;
+/**
+ * Height of the lava surface above the safe-area bottom, px. Sized in px, not
+ * vh, because what it has to sit against is px: the tab bar plus the 68px
+ * Play bar end 160px up, so the surface rises 4px above Play and its crest
+ * shows over the bar. Level 1's stars start 205px up, clear of the crest.
+ */
+export const LAVA_SURFACE_PX = 164;
 /** Where the lava surface is drawn, as a fraction of the canvas from its top. */
 export const LAVA_SURFACE_FROM_TOP = 0.44;
+/** Height of the lava canvas pinned to the bottom of the screen (CSS length). */
+export const LAVA_CANVAS_HEIGHT = `calc((env(safe-area-inset-bottom) + ${LAVA_SURFACE_PX}px) / ${+(1 - LAVA_SURFACE_FROM_TOP).toFixed(2)})`;
 /** How far the animated wave crest rises above the lava surface. */
 export const LAVA_CREST_PX = 18;
 /**
@@ -31,7 +38,7 @@ export const LAVA_CREST_PX = 18;
  * crest (surface + crest + a 0.5rem gap). Content that must stay readable
  * over the backdrop ends at least this far up.
  */
-export const LAVA_CLEARANCE = `calc(${+(LAVA_CANVAS_VH * (1 - LAVA_SURFACE_FROM_TOP)).toFixed(2)}vh + ${LAVA_CREST_PX}px + 0.5rem)`;
+export const LAVA_CLEARANCE = `calc(env(safe-area-inset-bottom) + ${LAVA_SURFACE_PX + LAVA_CREST_PX}px + 0.5rem)`;
 
 export function AnimatedBackdrop() {
   const ash = useMemo(
@@ -148,7 +155,7 @@ export function AnimatedBackdrop() {
 
         .bd-lava-canvas {
           position: absolute; inset-inline: 0; bottom: 0;
-          width: 100%; height: ${LAVA_CANVAS_VH}vh;
+          width: 100%; height: ${LAVA_CANVAS_HEIGHT};
           display: block;
         }
 

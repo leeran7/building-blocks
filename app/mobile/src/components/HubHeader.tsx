@@ -1,4 +1,5 @@
 import type { ReactNode, Ref } from "react";
+import { BackButton } from "./ui";
 
 /**
  * A small live status pill under the title (Ranks: the reset countdown or the
@@ -26,25 +27,31 @@ export interface HubHeaderProps {
   headingRef?: Ref<HTMLHeadingElement>;
   /** Status pill under the title. Independent of `subtitle`; Profile passes only a subtitle. */
   status?: HubStatus;
+  /** Pushed (not a tab root): a back button at the top left. Leaderboard, opened from Modes. */
+  onBack?: () => void;
 }
 
 /**
- * Centered header for the tab-bar hub screens (Ranks, Profile): the lime
+ * Centered header for the hub screens (Profile, and the pushed Leaderboard): the lime
  * DOOMSTACK eyebrow between two rules, the metal page title, and an optional
- * subtitle and/or status pill. One component so the hub headers cannot drift apart. Pushed
- * screens with a back button use PushHeader. Home is the title screen and has
- * its own wordmark.
+ * subtitle and/or status pill. One component so the hub headers cannot drift apart. A pushed
+ * hub (Leaderboard) passes `onBack`, which puts Back on the eyebrow row; other pushed screens use PushHeader. Modes
+ * has its own wordmark.
  */
-export function HubHeader({ title, subtitle, trailing, headingRef, status }: HubHeaderProps) {
+export function HubHeader({ title, subtitle, trailing, headingRef, status, onBack }: HubHeaderProps) {
   return (
     <header className="flex flex-col items-center pb-5 pt-[calc(env(safe-area-inset-top)+1rem)] text-center">
-      <div className="flex items-center gap-3">
-        <span aria-hidden className="h-px w-8 bg-signal/70" />
-        <span className="pl-(--tracking-eyebrow) font-mono text-label font-bold uppercase tracking-eyebrow text-signal">
-          Doomstack
-        </span>
-        <span aria-hidden className="h-px w-8 bg-signal/70" />
-      </div>
+      {onBack ? (
+        // Back shares the eyebrow's row, not the title's: a long title (LEADERBOARD)
+        // fills a 320px screen, and a button beside it would cover its first letter.
+        <div className="grid w-full grid-cols-[3rem_1fr_3rem] items-center">
+          <BackButton onBack={onBack} />
+          <Eyebrow />
+          <span aria-hidden />
+        </div>
+      ) : (
+        <Eyebrow />
+      )}
       <div className="mt-1.5 flex items-center gap-2">
         <h1
           ref={headingRef}
@@ -64,6 +71,18 @@ export function HubHeader({ title, subtitle, trailing, headingRef, status }: Hub
       )}
       {status && <StatusPill status={status} />}
     </header>
+  );
+}
+
+function Eyebrow() {
+  return (
+    <div className="flex items-center justify-center gap-3">
+      <span aria-hidden className="h-px w-8 bg-signal/70" />
+      <span className="pl-(--tracking-eyebrow) font-mono text-label font-bold uppercase tracking-eyebrow text-signal">
+        Doomstack
+      </span>
+      <span aria-hidden className="h-px w-8 bg-signal/70" />
+    </div>
   );
 }
 

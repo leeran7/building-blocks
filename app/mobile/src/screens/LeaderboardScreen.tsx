@@ -35,6 +35,7 @@ import {
 import { ClockIcon, PeopleIcon } from "../components/ranks/icons";
 import { useUtcDay } from "../hooks/useUtcDay";
 import { prefersReducedMotion } from "../lib/motion";
+import { parentRoute, useBackOr } from "../lib/navigation";
 
 type Medal = 1 | 2 | 3;
 
@@ -76,8 +77,8 @@ interface BannerCopy {
 const ALLTIME_COPY: BannerCopy = {
   unrankedHeadline: "Not ranked yet",
   unrankedDetail: "Finish a climb to get on the board",
-  hiddenDetail: "Turn on leaderboard visibility in Edit profile",
-  hiddenActionLabel: "Edit profile",
+  hiddenDetail: "Turn on leaderboard visibility in Settings",
+  hiddenActionLabel: "Settings",
 };
 
 const TODAY_COPY: BannerCopy = {
@@ -112,11 +113,13 @@ function dailyStanding(
 export function LeaderboardScreen() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  // Pushed from Modes, Profile or a Daily result; cold-opened, Back goes to Modes.
+  const goBack = useBackOr(parentRoute("/leaderboard"));
   const [searchParams] = useSearchParams();
   const board = searchParams.get("board");
   const [period, setPeriod] = useState<Period>(() => periodFromBoardParam(board));
-  // A new deep link while Ranks is already mounted (e.g. "See today's board",
-  // or the Ranks nav tab back to plain /leaderboard) re-selects the period.
+  // A new deep link while Ranks is already mounted (e.g. "See today's board"
+  // after a Daily run) re-selects the period.
   const [linkedBoard, setLinkedBoard] = useState(board);
   if (board !== linkedBoard) {
     setLinkedBoard(board);
@@ -176,7 +179,7 @@ export function LeaderboardScreen() {
           : "ready";
 
   // Opted-out player on today's board: reuse the consent sheet from the
-  // results card instead of sending them to Edit profile.
+  // results card instead of sending them to Settings.
   const [showConsent, setShowConsent] = useState(false);
   const [consentBusy, setConsentBusy] = useState(false);
   const saveConsent = useAcceptLeaderboardConsent();
@@ -189,7 +192,7 @@ export function LeaderboardScreen() {
   }, [saveConsent]);
 
   const bannerCopy = isToday ? TODAY_COPY : ALLTIME_COPY;
-  const onHiddenAction = isToday ? () => setShowConsent(true) : () => navigate("/profile/edit");
+  const onHiddenAction = isToday ? () => setShowConsent(true) : () => navigate("/settings");
   const onPlay = () => navigate(isToday ? DAILY_PLAY_PATH : "/climb");
 
   return (
@@ -203,6 +206,7 @@ export function LeaderboardScreen() {
             isFriends ? { count: friendCount(friendsBoard, meId) } : undefined,
           )}
           headingRef={headingRef}
+          onBack={goBack}
         />
         <ScopeTabs scope={scope} onChange={setScope} />
 
@@ -286,13 +290,23 @@ export function LeaderboardScreen() {
  * scope and period, so the pill carries only what they cannot, the reset
  * countdown on Today and the climber count on All-time.
  */
-function Header({ status, headingRef }: { status: RanksStatus; headingRef: Ref<HTMLHeadingElement> }) {
+function Header({
+  status,
+  headingRef,
+  onBack,
+}: {
+  status: RanksStatus;
+  headingRef: Ref<HTMLHeadingElement>;
+  onBack: () => void;
+}) {
   const hubStatus = {
     icon: status.icon === "clock" ? <ClockIcon /> : <PeopleIcon size={14} />,
     text: status.text,
     label: status.label,
   };
-  return <HubHeader title="Leaderboard" status={hubStatus} trailing={<TrophyBadge />} headingRef={headingRef} />;
+  return (
+    <HubHeader title="Leaderboard" status={hubStatus} trailing={<TrophyBadge />} headingRef={headingRef} onBack={onBack} />
+  );
 }
 
 const HEX_BADGE_SIZE = { md: "h-11 w-11", lg: "h-14 w-14" } as const;
