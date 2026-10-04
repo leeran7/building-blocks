@@ -29,6 +29,10 @@ MIN_SHARED_SCALE = 0.65
 # frame's body may be scaled to match its cycle's reference mass, and how far it
 # may be translated onto the reference body.
 RUN_SCALE_RANGE = (0.85, 1.2)
+# A stride whose colour drifted from the idle's is rotated back in hue, within this many degrees.
+HUE_MATCH_MAX = 15.0
+HUE_MATCH_MIN = 3.0
+HUE_SAMPLE_SATURATION = 0.5
 CLIMB_SCALE_RANGE = (0.9, 1.1)
 STABILISE_SHIFT = 24
 BODY_BLUR = 3
@@ -251,6 +255,43 @@ def cycle_overrides(folder: Path) -> dict:
     return {'mirror': mirror, 'exclude': sorted(set(exclude)), 'order': order}
 
 
+HIGH_BAND = 0.15
+LOWER_BAND = 0.4
+HIGH_SIDE_MIN_OFFSET = 6
+
+
+def high_side(cell: Image.Image) -> int:
+    """Which side the highest limb is on: -1 left, +1 right, 0 centred or level.
+
+    In a rear-view climbing pose the reaching hand is the highest part of the
+    figure, so the horizontal centre of the top HIGH_BAND of the silhouette,
+    against the centre of its lower LOWER_BAND (the legs and hips), says
+    which hand is up. Both hands up, or a hand not clearly to one side, is 0.
+    """
+    mask = np.asarray(cell)[:, :, 3] > VISIBLE_ALPHA
+    _, top, _, bottom = visible_bounds(cell)
+    height = bottom - top + 1
+    high = mask[top:top + max(1, int(height * HIGH_BAND))]
+    low = mask[bottom + 1 - max(1, int(height * LOWER_BAND)):bottom + 1]
+    offset = np.where(high)[1].mean() - np.where(low)[1].mean()
+    return 0 if abs(offset) < HIGH_SIDE_MIN_OFFSET else (1 if offset > 0 else -1)
+
+
+def hand_over_hand(sides: tuple[int, ...]) -> bool:
+    """True when the high hand holds one side for a run, then the other, like a real climb.
+
+    The Wraith's cycle keeps each hand high for three frames and the other
+    for the next three; a loop whose high hand never changes sides reads as
+    a one-armed shimmy, and one that flips every frame as waving. Centred
+    frames (0) sit in either run.
+    """
+    signed = [side for side in sides if side]
+    if len(signed) < 4 or min(signed.count(1), signed.count(-1)) < 2:
+        return False
+    changes = sum(1 for a, b in zip(signed, signed[1:] + signed[:1]) if a != b)
+    return changes == 2
+
+
 def smoothest_cycle(frames: list[Image.Image], mirror: bool = True, exclude: tuple[int, ...] = (),
                     order: list[str] | None = None) -> tuple[list[Image.Image], dict]:
     """Re-sequence the six climb frames into the loop with the smallest steps.
@@ -269,6 +310,8 @@ def smoothest_cycle(frames: list[Image.Image], mirror: bool = True, exclude: tup
     """
     pool = frames + [ImageOps.mirror(frame) for frame in frames]
     names = [f'{index % 6 + 1}{"m" if index >= 6 else ""}' for index in range(len(pool))]
+    sides = [high_side(frame) for frame in frames]
+    sides = sides + [-side for side in sides]
     masks = [np.asarray(frame)[:, :, 3] > VISIBLE_ALPHA for frame in pool]
     diffs = np.array([[alpha_diff(a, b) for b in masks] for a in masks])
     # Distinctness uses the same measure as the repeat guard, so a loop that
@@ -286,7 +329,11 @@ def smoothest_cycle(frames: list[Image.Image], mirror: bool = True, exclude: tup
             raise InvalidArt('cycle overrides leave fewer than six frames to loop')
         first = allowed[0]
         sources = {i % 6 for i in allowed}
-        best: tuple[tuple[int, int], tuple[int, ...]] | None = None
+        # A loop with a hand-over-hand rhythm beats any smoother one without it:
+        # the smoothest ordering of a bag of poses tends to keep the same hand
+        # high throughout (mirroring the rest to match), which reads as a
+        # one-armed shimmy.
+        best: tuple[tuple[int, int, int], tuple[int, ...]] | None = None
         for rest in itertools.permutations([i for i in allowed if i != first], 5):
             candidate = (first, *rest)
             if {i % 6 for i in candidate} != sources:
@@ -294,7 +341,8 @@ def smoothest_cycle(frames: list[Image.Image], mirror: bool = True, exclude: tup
             if any(same[a, b] for a, b in itertools.combinations(candidate, 2)):
                 continue
             steps = [int(diffs[candidate[i], candidate[(i + 1) % 6]]) for i in range(6)]
-            key = (max(steps), sum(steps))
+            rhythm = 0 if hand_over_hand(tuple(sides[i] for i in candidate)) else 1
+            key = (rhythm, max(steps), sum(steps))
             if best is None or key < best[0]:
                 best = (key, candidate)
         if best is None:
@@ -302,10 +350,49 @@ def smoothest_cycle(frames: list[Image.Image], mirror: bool = True, exclude: tup
         chosen = best[1]
     after = [int(diffs[chosen[i], chosen[(i + 1) % 6]]) for i in range(6)]
     report = {'order': [names[index] for index in chosen],
+              'highSide': [sides[index] for index in chosen],
+              'handOverHand': hand_over_hand(tuple(sides[index] for index in chosen)),
               'stepPixelsBefore': before, 'stepPixelsAfter': after}
     if not mirror or exclude or order is not None:
         report['overrides'] = {'mirror': mirror, 'exclude': list(exclude), 'order': order}
     return [pool[index] for index in chosen], report
+
+
+def mean_hue(cell: Image.Image) -> float | None:
+    """Circular mean hue (degrees) of the cell's saturated, visible pixels; None if too few."""
+    rgba = np.asarray(cell)
+    hsv = np.asarray(Image.fromarray(rgba[:, :, :3]).convert('HSV')).astype(np.float32)
+    chosen = (rgba[:, :, 3] > VISIBLE_ALPHA) & (hsv[:, :, 1] / 255 > HUE_SAMPLE_SATURATION) & (hsv[:, :, 2] / 255 > 0.3)
+    if chosen.sum() < 200:
+        return None
+    angle = np.deg2rad(hsv[:, :, 0][chosen] * 360 / 255)
+    return float(np.rad2deg(np.arctan2(np.sin(angle).mean(), np.cos(angle).mean())) % 360)
+
+
+def hue_rotated(cell: Image.Image, degrees: float) -> Image.Image:
+    rgba = np.asarray(cell)
+    hsv = np.asarray(Image.fromarray(rgba[:, :, :3]).convert('HSV')).copy()
+    hsv[:, :, 0] = ((hsv[:, :, 0].astype(np.int32) + int(round(degrees * 255 / 360))) % 256).astype(np.uint8)
+    rgb = np.asarray(Image.fromarray(hsv, 'HSV').convert('RGB'))
+    return Image.fromarray(np.dstack((rgb, rgba[:, :, 3:4])), 'RGBA')
+
+
+def match_hue(reference: Image.Image, cell: Image.Image) -> tuple[Image.Image, float]:
+    """Rotate the cell's hue onto the reference's mean hue when it drifted by more than HUE_MATCH_MIN.
+
+    Generated strides come back a few degrees off the idle's palette (the
+    panther's run-b pinker than its idle), which pulses the figure's tint once
+    per step; the whole frame rotates together, so a two-tone character keeps
+    its contrast.
+    """
+    base, current = mean_hue(reference), mean_hue(cell)
+    if base is None or current is None:
+        return cell, 0.0
+    shift = ((base - current + 180) % 360) - 180
+    if abs(shift) < HUE_MATCH_MIN:
+        return cell, 0.0
+    shift = float(np.clip(shift, -HUE_MATCH_MAX, HUE_MATCH_MAX))
+    return hue_rotated(cell, shift), round(shift, 1)
 
 
 def stabilise_run(frames: list[Image.Image]) -> tuple[list[Image.Image], list[dict]]:
@@ -327,8 +414,9 @@ def stabilise_run(frames: list[Image.Image]) -> tuple[list[Image.Image], list[di
         frame = scaled_about_root(frames[index], factor)
         frame, dx, _ = translated(frame, int(round(centre - head_centre_x(frame))), 0)
         frame, _ = grounded(frame, MAX_SHIFT)
+        frame, hue_shift = match_hue(frames[0], frame)
         result[index] = frame
-        moves.append({'frame': index + 1, 'scale': round(factor, 3), 'dx': dx})
+        moves.append({'frame': index + 1, 'scale': round(factor, 3), 'dx': dx, 'hueShift': hue_shift})
     return result, moves
 
 

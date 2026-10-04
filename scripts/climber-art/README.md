@@ -66,13 +66,21 @@ After that, each cycle is stabilised so the engine's crossfades move limbs
 rather than the whole figure: both run strides are scaled about the anchor to
 the idle's visible height (0.85 to 1.2; not its mass, which a spread stride
 covers less of, so matching it blew the figure up every other step) and their
-head column is moved onto the idle's, then re-grounded. The climb strip is
+head column is moved onto the idle's, then re-grounded; a stride whose
+palette drifted from the idle's (mean hue of the saturated pixels off by 3 to
+15 degrees, which pulsed the panther's tint once a step) is rotated back
+(`hueShift` in the report). The climb strip is
 first re-sequenced into the smoothest loop: every kept frame is used, as
 drawn or mirrored (a rear-view hand-over-hand is symmetric, so a mirrored
 frame is the other hand's reach), no image twice, in the order with the
 smallest silhouette change between consecutive frames, the first kept frame
-staying first; the report's `cycle` lists the order (`4m` = frame 4
-mirrored) and the per-step pixel change before and after. Then climb frames
+staying first. A loop with a hand-over-hand rhythm wins over any smoother
+one without it: the high hand (the side the top of the silhouette leans to)
+holds one side for a run of frames, then the other, as the Wraith's does,
+because the smoothest ordering of a bag of poses keeps the same hand high
+throughout and reads as a one-armed shimmy. The report's `cycle` lists the
+order (`4m` = frame 4 mirrored), `highSide` per frame, `handOverHand`, and
+the per-step pixel change before and after. Then climb frames
 2 to 6 are scaled to frame 1's mass (0.9 to 1.1) and translated onto its body
 (the cross-correlation peak of the blurred alpha, up to 24px), and the strip
 is grounded as a whole. The report's `stabilised` lists each move. Generated

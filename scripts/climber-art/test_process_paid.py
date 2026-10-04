@@ -215,9 +215,15 @@ class PaidArtTests(unittest.TestCase):
             self.assertEqual(len(set(cycle['order'])), 6)
             chosen = [ranks[int(name[0]) - 1] for name in cycle['order']]
             self.assertEqual(sorted(chosen), [0, 1, 2, 3, 4, 5], cycle)
-            # Every step is one rank apart; the loop closes over the one long gap.
+            # The hand climbs rank by rank, and changes sides twice around the loop (three up on
+            # one side, three on the other) rather than staying on one side for the smoothest run.
+            self.assertTrue(cycle['handOverHand'], cycle)
+            signed = [s for s in cycle['highSide'] if s]  # mid-height ranks read as centred (0)
+            self.assertGreaterEqual(min(signed.count(1), signed.count(-1)), 2, cycle)
+            changes = sum(1 for a, b in zip(signed, signed[1:] + signed[:1]) if a != b)
+            self.assertEqual(changes, 2, cycle)
             steps = sorted(abs(chosen[(i + 1) % 6] - chosen[i]) for i in range(6))
-            self.assertEqual(steps, [1, 1, 1, 1, 1, 5], cycle)
+            self.assertLessEqual(steps[-2], 2, cycle)
 
     def test_run_strides_match_the_idle_height_and_head_column(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -242,6 +248,29 @@ class PaidArtTests(unittest.TestCase):
             self.assertIn(frames[2]['bounds'][3], range(170, 176))
             heights = [f['bounds'][3] - f['bounds'][1] for f in frames[:3]]
             self.assertLessEqual(max(heights) - min(heights), 3, heights)
+
+    def test_run_stride_hue_is_rotated_back_onto_the_idle(self):
+        from process_paid import mean_hue
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp) / 'kestrel-void'
+            folder.mkdir()
+            poses = atlas(4, 2)  # (20, 90, 210): a saturated blue body
+            draw = ImageDraw.Draw(poses)
+            # run-b drifted 12 degrees towards purple, run-a by 2 (left alone), both same shape.
+            draw.rectangle((2 * 192 + 55, 30, 2 * 192 + 135, 174), fill=(44, 60, 210, 255))
+            draw.rectangle((1 * 192 + 55, 30, 1 * 192 + 135, 174), fill=(20, 84, 210, 255))
+            poses.save(folder / 'kestrel-void-poses.png')
+            atlas(6, 1, varied=True).save(folder / 'kestrel-void-climb.png')
+            report = process_character('kestrel', Path(temp), Path(temp) / 'out')
+            moves = report['sheets']['poses']['stabilised']
+            self.assertEqual(moves[0]['hueShift'], 0.0, moves)
+            self.assertLess(moves[1]['hueShift'], -9, moves)
+            with Image.open(Path(temp) / 'out' / 'kestrel-void-poses-192.png') as out:
+                idle = out.crop((0, 0, 192, 192))
+                run_b = out.crop((2 * 192, 0, 3 * 192, 192))
+                self.assertAlmostEqual(mean_hue(idle), mean_hue(run_b), delta=2.5)
+                # Alpha and shape untouched: same silhouette as the idle.
+                self.assertEqual(visible_bounds(run_b), visible_bounds(idle))
 
     def ranked_climb(self, folder, ranks=(0, 3, 1, 4, 5, 2)):
         # The loop test's fixture: one body, a hand climbing one rank (28px) a frame, odd ranks on
