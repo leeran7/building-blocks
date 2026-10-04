@@ -380,6 +380,9 @@ describe("guest training", () => {
     expect(titles).not.toContain("Star chest");
     expect(titles).not.toContain("Gems");
     expect(titles).not.toContain("Shop");
+    // The account tour has a Modes step for the map's mode rail; a guest has no rail.
+    expect(MAP_TOUR.map((s) => s.title)).toContain("Modes");
+    expect(titles).not.toContain("Modes");
     // The tour's last button opens level 1.
     expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 1");
   });

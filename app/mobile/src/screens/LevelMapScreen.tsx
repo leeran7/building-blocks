@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
@@ -14,7 +14,8 @@ import { BoosterPicker, ChestMeter } from "../components/levels/LevelChests";
 import { LivesPill, XpBar, useWhenDue } from "../components/levels/LevelBits";
 import { TowerMap } from "../components/levels/TowerMap";
 import { pinBottom, towerHeight } from "../components/levels/towerGeometry";
-import { useEquippedAvatar } from "../contexts/AppDataContext";
+import { useEquippedAvatar, useHasAppData } from "../contexts/AppDataContext";
+import { ModeRail } from "../components/modes/ModeRail";
 import { episodeOf, type LevelNode, type StartResult } from "../lib/levels/model";
 import { startBoosterTypes, type BoosterType } from "@app/levels/engagement";
 import { isTicketLive, mapLanding, noteRunStarted, runNoticeFor, type RunNotice } from "../lib/levels/runNote";
@@ -32,7 +33,7 @@ export { pinBottom } from "../components/levels/towerGeometry";
 const LOOKAHEAD = 10;
 /** Height of the Play bar: pb-3 (12px) under the 56px buttons, px. */
 const PLAY_BAR_HEIGHT = 68;
-/** Gap between the Play bar and the run notice banner above it, px. */
+/** Gap between the Play bar and what sits above it (the mode rail, a run notice), px. */
 const NOTICE_GAP = 16;
 /**
  * Fades the map out behind the Play bar, so floors never run under Play and
@@ -47,11 +48,12 @@ export const MAP_FADE = "linear-gradient(to top, transparent 56px, #000 112px)";
  * from level 1 at the bottom. This screen owns the data, the scroll position
  * and the layout around the map: the header, the Play bar and the level start
  * card. Tapping an open floor opens its start card; Endless (the endless
- * climb) sits beside Play.
+ * climb) sits beside Play, and the mode rail (Daily, Versus, Ranks) on the
+ * right edge above it.
  *
  * A guest gets the same map for the taster (GuestShell): levels above
  * GUEST_LEVEL_CAP stay locked and ask them to sign in, and the account-only
- * parts (star chest, gems, friends board, tab tour) are left out.
+ * parts (star chest, gems, mode rail, friends board, tab tour) are left out.
  */
 export function LevelMapScreen() {
   const navigate = useNavigate();
@@ -63,6 +65,8 @@ export function LevelMapScreen() {
   const refill = useLivesRefillOffer();
   // The gem pill needs the Shop's balance; without a ShopProvider it is left out.
   const hasShop = useOptionalShop() !== null;
+  // The mode rail reads the shared app data; a guest has none of its modes.
+  const showRail = useHasAppData() && guest === null;
   const [livesOpen, setLivesOpen] = useState(false);
   const [xpOpen, setXpOpen] = useState(false);
   const avatar = useEquippedAvatar();
@@ -210,7 +214,7 @@ export function LevelMapScreen() {
 
   if (!season) {
     return (
-      <main className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+      <main className="relative flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
         {error && !loading ? (
           <>
             <p className="text-body text-text-secondary">Couldn&rsquo;t load the level map.</p>
@@ -224,6 +228,10 @@ export function LevelMapScreen() {
             Loading levels…
           </p>
         )}
+        {/* The other modes don't need the level map: keep them reachable while it
+            loads or after it fails. Keyed like the loaded map's, so the same rail
+            (and a matchmaking search in it) carries over when the season lands. */}
+        <BottomStack key="bottom-stack">{showRail && <ModeRail />}</BottomStack>
       </main>
     );
   }
@@ -307,9 +315,14 @@ export function LevelMapScreen() {
         />
       </div>
 
-      {notice && (notice.level === null || selected?.level !== notice.level) && (
-        <MapNotice text={notice.text} onDismiss={() => setNotice(null)} />
-      )}
+      {/* The rail and the run notice share one column above the Play bar, so a
+          notice pushes the rail up instead of covering it. */}
+      <BottomStack key="bottom-stack">
+        {showRail && <ModeRail />}
+        {notice && (notice.level === null || selected?.level !== notice.level) && (
+          <MapNotice text={notice.text} onDismiss={() => setNotice(null)} />
+        )}
+      </BottomStack>
 
       {/* Clear bar: no scrim, so the lava crest shows behind it. MAP_FADE
           fades the floors out before they reach it. */}
@@ -414,12 +427,22 @@ export function interruptedFromState(state: unknown): boolean {
   return (state as { interrupted: unknown }).interrupted === true;
 }
 
-/** An interrupted run's notice when no level card shows it. */
-function MapNotice({ text, onDismiss }: { text: string; onDismiss: () => void }) {
+/** The column above the Play bar: the mode rail on the right, a run notice under it. */
+function BottomStack({ children }: { children: ReactNode }) {
   return (
     <div
       style={{ bottom: PLAY_BAR_HEIGHT + NOTICE_GAP }}
-      className="absolute inset-x-4 z-30 mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-ember/40 bg-surface/95 py-1 pl-4 pr-1 backdrop-blur-xl"
+      className="pointer-events-none absolute inset-x-4 z-30 flex flex-col items-end gap-4"
+    >
+      {children}
+    </div>
+  );
+}
+
+/** An interrupted run's notice when no level card shows it. */
+function MapNotice({ text, onDismiss }: { text: string; onDismiss: () => void }) {
+  return (
+    <div className="pointer-events-auto flex w-full max-w-md items-center self-center gap-2 rounded-2xl border border-ember/40 bg-surface/95 py-1 pl-4 pr-1 backdrop-blur-xl"
     >
       <p role="status" className="flex-1 text-meta text-text-primary">
         {text}

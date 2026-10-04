@@ -27,7 +27,7 @@ export interface HubHeaderProps {
   headingRef?: Ref<HTMLHeadingElement>;
   /** Status pill under the title. Independent of `subtitle`; Profile passes only a subtitle. */
   status?: HubStatus;
-  /** Pushed (not a tab root): a back button at the top left. Leaderboard, opened from Modes. */
+  /** Pushed (not a tab root): a back button at the top left. Leaderboard, opened from the map's mode rail. */
   onBack?: () => void;
 }
 
@@ -35,8 +35,7 @@ export interface HubHeaderProps {
  * Centered header for the hub screens (Profile, and the pushed Leaderboard): the lime
  * DOOMSTACK eyebrow between two rules, the metal page title, and an optional
  * subtitle and/or status pill. One component so the hub headers cannot drift apart. A pushed
- * hub (Leaderboard) passes `onBack`, which puts Back on the eyebrow row; other pushed screens use PushHeader. Modes
- * has its own wordmark.
+ * hub (Leaderboard) passes `onBack`, which puts Back on the eyebrow row; other pushed screens use PushHeader.
  */
 export function HubHeader({ title, subtitle, trailing, headingRef, status, onBack }: HubHeaderProps) {
   return (

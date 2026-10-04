@@ -36,9 +36,15 @@ vi.mock("../../mobile/src/lib/shop", async (importOriginal) => ({
   settleUnfinishedPurchases: async () => null,
   watchAppleTransactions: () => () => {},
 }));
+// The map's mode rail reads the shared app data: no server behind it.
+vi.mock("../../mobile/src/lib/api", () => ({
+  apiFetch: async () => ({ ok: false, status: 404, json: async () => ({}) }) as Response,
+  API_BASE: "https://example.test",
+}));
 // The canvas painter needs a real 2D context; the training's engine still runs.
 vi.mock("@app/components/Game/ClimbCanvas", () => ({ ClimbCanvas: () => null }));
 
+import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
 import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
 import { ShopProvider } from "../../mobile/src/contexts/ShopContext";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
@@ -110,16 +116,18 @@ async function render(client: LevelsClient, path: string, { nav = true }: { nav?
   await act(async () => {
     root.render(
       <MemoryRouter initialEntries={[path]}>
-        <LevelsProvider client={client}>
-          <ShopProvider>
-            <Where />
-            <Routes>
-              <Route path="/" element={<LevelMapScreen />} />
-              <Route path="/tutorial" element={<TrainingScreen />} />
-            </Routes>
-            {nav && <BottomNav />}
-          </ShopProvider>
-        </LevelsProvider>
+        <AppDataProvider>
+          <LevelsProvider client={client}>
+            <ShopProvider>
+              <Where />
+              <Routes>
+                <Route path="/" element={<LevelMapScreen />} />
+                <Route path="/tutorial" element={<TrainingScreen />} />
+              </Routes>
+              {nav && <BottomNav />}
+            </ShopProvider>
+          </LevelsProvider>
+        </AppDataProvider>
       </MemoryRouter>,
     );
   });

@@ -208,7 +208,7 @@ export function BackButton({ onBack, className = "" }: { onBack: () => void; cla
   );
 }
 
-/** Row chevron for tappable cards (Modes rows, Profile streak card). */
+/** Row chevron for tappable cards (the Versus tiles, Profile streak card). */
 export function ChevronRight({ className = "text-text-muted", size = 18 }: { className?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`} aria-hidden>

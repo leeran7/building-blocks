@@ -44,9 +44,9 @@ export const MAP_TOUR: readonly TourStep[] = [
     body: "No summit and no lives. Climb as high as you can before the lava catches you.",
   },
   {
-    target: "tab-modes",
+    target: "modes",
     title: "Modes",
-    body: "The Daily Climb, Quick Play against other climbers, Challenges with your friends, and the leaderboards.",
+    body: "The Daily Climb, Versus (Quick Play against other climbers, or a Challenge with your friends) and the leaderboards.",
   },
   {
     target: "tab-shop",
@@ -62,8 +62,9 @@ export const MAP_TOUR: readonly TourStep[] = [
 
 /**
  * The guest's map tour (the levels taster): the map's own readouts only. A
- * guest has no star chest, no gems and no tab bar, so those steps are left out.
+ * guest has no star chest, no gems, no mode rail and no tab bar, so those steps
+ * are left out.
  */
 export const GUEST_MAP_TOUR: readonly TourStep[] = MAP_TOUR.filter(
-  (step) => step.target !== "chest" && step.target !== "gems" && !step.target.startsWith("tab-"),
+  (step) => step.target !== "chest" && step.target !== "gems" && step.target !== "modes" && !step.target.startsWith("tab-"),
 );

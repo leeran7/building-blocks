@@ -67,7 +67,7 @@ import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
 import { BottomNav } from "../../mobile/src/components/BottomNav";
 import { AnimatedBackdrop } from "../../mobile/src/components/AnimatedBackdrop";
 import { UserSearchSection } from "../../mobile/src/components/challenge/UserSearchSection";
-import { HomeScreen } from "../../mobile/src/screens/HomeScreen";
+import { ModeRail } from "../../mobile/src/components/modes/ModeRail";
 import { LeaderboardScreen } from "../../mobile/src/screens/LeaderboardScreen";
 import { ProfileScreen } from "../../mobile/src/screens/ProfileScreen";
 import { HubHeader } from "../../mobile/src/components/HubHeader";
@@ -147,14 +147,14 @@ describe("BottomNav", () => {
   const current = () => tabs().filter((t) => t.getAttribute("aria-current") === "page").map((t) => t.textContent);
 
   it("is a labelled nav landmark whose tabs are named by their visible label", async () => {
-    await render("/modes", createElement(BottomNav));
-    expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual(["Levels", "Modes", "Shop", "Profile"]);
-    expect(tabs().map((t) => t.textContent)).toEqual(["Levels", "Modes", "Shop", "Profile"]);
+    await render("/shop", createElement(BottomNav));
+    expect(tabs().map((t) => t.getAttribute("aria-label"))).toEqual(["Play", "Shop", "Profile"]);
+    expect(tabs().map((t) => t.textContent)).toEqual(["Play", "Shop", "Profile"]);
   });
 
   it("marks exactly the current route's tab with aria-current=page, and moves it on navigation", async () => {
-    await render("/modes", createElement(BottomNav));
-    expect(current()).toEqual(["Modes"]);
+    await render("/shop", createElement(BottomNav));
+    expect(current()).toEqual(["Shop"]);
     await click(tabs().find((t) => t.textContent === "Profile"));
     expect(current()).toEqual(["Profile"]);
   });
@@ -204,10 +204,10 @@ describe("Add friends search", () => {
   });
 });
 
-describe("Home daily climb card", () => {
+describe("Mode rail Daily button", () => {
   it("describes the button with its reset line, which its aria-label would otherwise hide", async () => {
-    await render("/", createElement(HomeScreen));
-    const daily = container.querySelector('button[aria-label="Play the daily climb"]');
+    await render("/", createElement(ModeRail));
+    const daily = container.querySelector('button[aria-label="Daily Climb"]');
     const describedBy = daily?.getAttribute("aria-describedby");
     expect(describedBy).toBeTruthy();
     const description = document.getElementById(describedBy!);

@@ -2,8 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { tapLight } from "../lib/haptics";
 
 const TABS = [
-  { label: "Levels", path: "/", icon: MapIcon },
-  { label: "Modes", path: "/modes", icon: ModesIcon },
+  { label: "Play", path: "/", icon: MapIcon },
   { label: "Shop", path: "/shop", icon: ShopIcon },
   { label: "Profile", path: "/profile", icon: UserIcon },
 ] as const;
@@ -11,7 +10,7 @@ const TABS = [
 const TAB_PATHS: ReadonlySet<string> = new Set(TABS.map((t) => t.path));
 
 /**
- * True for a bottom-nav tab root (Levels, Modes, Shop, Profile), taken from TABS so a
+ * True for a bottom-nav tab root (Play, Shop, Profile), taken from TABS so a
  * new tab cannot be missed. The tabs are peers, not a stack: App shows the nav
  * on them, RouteTransition fades them in with no swipe-back, and Android back
  * leaves the app from any of them instead of popping to another tab.
@@ -77,17 +76,6 @@ function ShopIcon({ active }: { active: boolean }) {
     <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} fillOpacity={0.25} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8Z" />
       <path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
-    </svg>
-  );
-}
-
-function ModesIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} fillOpacity={0.25} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="3.5" y="3.5" width="7" height="7" rx="2" />
-      <rect x="13.5" y="3.5" width="7" height="7" rx="2" />
-      <rect x="3.5" y="13.5" width="7" height="7" rx="2" />
-      <rect x="13.5" y="13.5" width="7" height="7" rx="2" />
     </svg>
   );
 }
