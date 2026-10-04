@@ -2,7 +2,7 @@ import { POWER_UP_SPECS } from "@app/game/powerups";
 import { BOOSTER_TYPES, type BoosterInventory, type BoosterType } from "@app/levels/engagement";
 import { tapLight } from "../../lib/haptics";
 import type { ChestProgress } from "../../lib/levels/model";
-import { Accordion, StarIcon } from "./LevelBits";
+import { Accordion, ProgressRing } from "./LevelBits";
 import { BoltIcon, BoosterGlyph, CheckBadge, NoneIcon } from "./LevelIcons";
 
 /**
@@ -19,36 +19,35 @@ export function boosterCount(inventory: BoosterInventory): number {
   return n;
 }
 
-/** The map's chest meter: stars toward the next chest, and boosters owned. */
+/**
+ * The map's chest meter, a cell of the map header (MapHeader): a ring of
+ * stars toward the next chest, the count beside it from 360px up, and a badge
+ * on the ring with the boosters owned.
+ */
 export function ChestMeter({ chests, boosters }: { chests: ChestProgress; boosters: BoosterInventory }) {
   const { starsIntoChest, perChest } = chests;
   const left = perChest - starsIntoChest;
   const owned = boosterCount(boosters);
-  const pct = Math.round((starsIntoChest / perChest) * 100);
   return (
     <div
       role="group"
       aria-label={`Star chest: ${starsIntoChest} of ${perChest} stars, ${left} to go.${owned > 0 ? ` ${owned} ${owned === 1 ? "booster" : "boosters"} owned.` : ""}`}
-      className="glass flex items-center gap-2 rounded-full border border-white/10 py-1 pl-1.5 pr-3"
+      className="flex h-14 w-full items-center justify-center gap-1.5 px-1.5"
     >
-      <ChestIcon size={22} />
-      <div className="flex min-w-0 flex-col">
-        <span aria-hidden className="flex items-center gap-1 font-mono text-label font-bold tabular-nums text-text-primary">
-          <StarIcon filled size={11} />
-          {starsIntoChest}/{perChest}
-        </span>
-        <span aria-hidden className="mt-0.5 block h-1 w-16 overflow-hidden rounded-full bg-white/10">
-          <span
-            className="block h-full origin-left rounded-full bg-signal transition-transform duration-500 ease-out motion-reduce:transition-none"
-            style={{ transform: `scaleX(${pct / 100})` }}
-          />
-        </span>
-      </div>
-      {owned > 0 && (
-        <span aria-hidden className="ml-1 rounded-md bg-signal/15 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-label text-signal">
-          {owned} boost
-        </span>
-      )}
+      <span aria-hidden className="relative inline-flex shrink-0">
+        <ProgressRing pct={(starsIntoChest / perChest) * 100} size={40}>
+          <ChestIcon size={18} />
+        </ProgressRing>
+        {owned > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-signal px-1 font-mono text-[11px] font-bold leading-none tabular-nums text-void ring-2 ring-surface">
+            {owned}
+          </span>
+        )}
+      </span>
+      <span aria-hidden className="hidden font-mono text-label font-bold tabular-nums text-text-primary min-[360px]:inline">
+        {starsIntoChest}
+        <span className="text-text-secondary">/{perChest}</span>
+      </span>
     </div>
   );
 }

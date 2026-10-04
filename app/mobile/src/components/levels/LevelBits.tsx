@@ -67,14 +67,15 @@ export function livesLabel(player: PlayerStats, now: number): string {
 }
 
 /**
- * Lives count plus the refill countdown, for the map's top bar. With
- * `onPress` it is a button (it opens the lives sheet, where a refill is sold).
+ * Lives count plus the refill countdown: the first cell of the map header
+ * (MapHeader), filling it. With `onPress` it is a button (it opens the lives
+ * sheet, where a refill is sold).
  */
 export function LivesPill({ player, onPress }: { player: PlayerStats; onPress?: () => void }) {
   const now = useNow();
   const label = livesLabel(player, now);
   const full = label === "Full";
-  const className = "glass inline-flex h-10 items-center gap-2 rounded-full border border-white/10 pl-2.5 pr-3";
+  const className = "flex h-14 w-full items-center justify-center gap-1.5 px-1 min-[360px]:gap-2 min-[360px]:px-2";
   // The countdown ticks every second, so it is not a live region: only the
   // lives count is announced, and only when it changes.
   const body = (
@@ -88,7 +89,7 @@ export function LivesPill({ player, onPress }: { player: PlayerStats; onPress?: 
           {player.lives}
         </span>
       </span>
-      <span className={`font-mono text-label font-bold tabular-nums uppercase tracking-label ${full ? "text-text-secondary" : "text-text-primary"}`}>
+      <span className={`font-mono text-label font-bold tabular-nums uppercase tracking-[0.04em] min-[360px]:tracking-label ${full ? "text-text-secondary" : "text-text-primary"}`}>
         <span className="sr-only">{full ? "Lives full" : "Next life in "}</span>
         <span aria-hidden={full || undefined}>{label}</span>
       </span>
@@ -103,22 +104,17 @@ export function LivesPill({ player, onPress }: { player: PlayerStats; onPress?: 
       aria-label={`Lives, ${player.lives} of ${player.maxLives}`}
       aria-haspopup="dialog"
       onClick={onPress}
-      className={`${className} transition-transform active:scale-95`}
+      className={`${className} transition-colors active:bg-white/5`}
     >
       {body}
     </button>
   );
 }
 
-/**
- * Player level badge and progress to the next player level. With `onPress`
- * it is a button (it opens the XP sheet: how to level up and what unlocks next).
- */
-export function XpBar({ player, compact = false, onPress }: { player: PlayerStats; compact?: boolean; onPress?: () => void }) {
-  const pct = player.xpForNext > 0 ? Math.min(100, (player.xpIntoLevel / player.xpForNext) * 100) : 0;
-  const className = `glass inline-flex items-center gap-2 rounded-full border border-white/10 ${compact ? "h-10 pl-1 pr-3" : "h-11 pl-1.5 pr-3.5"}`;
-  const body = (
-    <>
+/** Player level badge and progress to the next player level (result card, XP sheet). */
+export function XpBar({ player }: { player: PlayerStats }) {
+  return (
+    <span className="glass inline-flex h-11 items-center gap-2 rounded-full border border-white/10 pl-1.5 pr-3.5">
       <span
         aria-hidden
         className="flex h-8 min-w-8 items-center justify-center rounded-full bg-signal px-1.5 font-display text-meta font-black tabular-nums text-void"
@@ -129,31 +125,57 @@ export function XpBar({ player, compact = false, onPress }: { player: PlayerStat
         <span className="font-mono text-[10px] font-bold uppercase tracking-label text-text-secondary">
           {player.xpIntoLevel.toLocaleString()} / {player.xpForNext.toLocaleString()} XP
         </span>
-        <span
-          role="progressbar"
-          aria-label={`Player level ${player.playerLevel}`}
-          aria-valuemin={0}
-          aria-valuemax={player.xpForNext}
-          aria-valuenow={player.xpIntoLevel}
-          className="block h-1.5 w-20 overflow-hidden rounded-full bg-white/10"
-        >
-          <span className="block h-full rounded-full bg-signal" style={{ width: `${pct}%` }} />
-        </span>
+        <XpProgress player={player} className="w-20" />
       </span>
-    </>
+    </span>
   );
-  if (!onPress) return <span className={className}>{body}</span>;
+}
+
+/** The bar toward the next player level, as a progressbar. Width from `className`. */
+export function XpProgress({ player, className }: { player: PlayerStats; className: string }) {
+  const pct = player.xpForNext > 0 ? Math.min(100, (player.xpIntoLevel / player.xpForNext) * 100) : 0;
   return (
-    <button
-      type="button"
-      data-xp-pill
-      aria-label={`Player level ${player.playerLevel}, ${player.xpIntoLevel.toLocaleString()} of ${player.xpForNext.toLocaleString()} XP. Show what unlocks next`}
-      aria-haspopup="dialog"
-      onClick={onPress}
-      className={`${className} transition-transform active:scale-95`}
+    <span
+      role="progressbar"
+      aria-label={`Player level ${player.playerLevel}`}
+      aria-valuemin={0}
+      aria-valuemax={player.xpForNext}
+      aria-valuenow={player.xpIntoLevel}
+      className={`block h-1.5 overflow-hidden rounded-full bg-white/10 ${className}`}
     >
-      {body}
-    </button>
+      <span className="block h-full rounded-full bg-signal" style={{ width: `${pct}%` }} />
+    </span>
+  );
+}
+
+/**
+ * A progress ring around `children` (the map header's player level and star
+ * chest). Decorative: the caller names the progress.
+ */
+export function ProgressRing({ pct, size = 44, children }: { pct: number; size?: number; children: ReactNode }) {
+  const r = size / 2 - 3;
+  const c = 2 * Math.PI * r;
+  const shown = Math.max(0, Math.min(100, pct));
+  return (
+    <span className="relative flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
+      <svg aria-hidden width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="absolute inset-0 -rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3.5" />
+        {shown > 0 && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            strokeDasharray={`${(c * shown) / 100} ${c}`}
+            className="text-signal"
+          />
+        )}
+      </svg>
+      <span className="relative">{children}</span>
+    </span>
   );
 }
 

@@ -7,12 +7,12 @@ import { Button } from "../components/ui";
 import { LevelStartSheet } from "../components/levels/LevelStartSheet";
 import { LivesSheet } from "../components/levels/LivesSheet";
 import { XpSheet } from "../components/levels/XpSheet";
-import { GemBalance } from "../components/store/GemBalance";
 import { useOptionalShop } from "../contexts/ShopContext";
 import { useLivesRefillOffer } from "../components/levels/useLivesRefillOffer";
 import { LevelStartExtras } from "../components/levels/LevelStartExtras";
-import { BoosterPicker, ChestMeter } from "../components/levels/LevelChests";
-import { LivesPill, XpBar, useWhenDue } from "../components/levels/LevelBits";
+import { BoosterPicker } from "../components/levels/LevelChests";
+import { useWhenDue } from "../components/levels/LevelBits";
+import { MapHeader } from "../components/levels/MapHeader";
 import { TowerMap } from "../components/levels/TowerMap";
 import { pinBottom, towerHeight } from "../components/levels/towerGeometry";
 import { useEquippedAvatar, useHasAppData } from "../contexts/AppDataContext";
@@ -245,51 +245,27 @@ export function LevelMapScreen() {
     <main className="relative flex h-full flex-col">
       <header ref={headerRef} className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         {guest && <GuestMapBar onHome={() => navigate("/")} onSignIn={guest.onSignIn} />}
-        <div className="flex items-center justify-between gap-2">
-          <span data-tour="lives" className="inline-flex">
-            <LivesPill
-              player={season.player}
-              // Only a client that sells refills makes the pill a button.
-              onPress={
-                refill.offer
-                  ? () => {
-                      void tapLight();
-                      setLivesOpen(true);
-                    }
-                  : undefined
-              }
-            />
-          </span>
-          <span data-tour="xp" className="inline-flex">
-            <XpBar
-              player={season.player}
-              compact
-              onPress={() => {
-                void tapLight();
-                setXpOpen(true);
-              }}
-            />
-          </span>
-        </div>
-        <p className="mt-2.5 text-center font-mono text-label uppercase tracking-eyebrow text-text-secondary">
-          {season.name} · Episode {episode}
-        </p>
-        {/* The economy row: the star chest and the gem balance. A third pill
-            in the row above does not fit a 375pt-wide phone. Wraps on narrower ones. */}
-        {!guest && (season.chests || hasShop) && (
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-            {season.chests && (
-              <div data-tour="chest" className="flex w-fit justify-center">
-                <ChestMeter chests={season.chests} boosters={season.boosters} />
-              </div>
-            )}
-            {hasShop && (
-              <span data-tour="gems" className="inline-flex">
-                <GemBalance compact />
-              </span>
-            )}
-          </div>
-        )}
+        <MapHeader
+          seasonName={season.name}
+          episode={episode}
+          player={season.player}
+          chests={guest ? null : season.chests}
+          boosters={season.boosters}
+          showGems={!guest && hasShop}
+          // Only a client that sells refills makes the lives cell a button.
+          onLives={
+            refill.offer
+              ? () => {
+                  void tapLight();
+                  setLivesOpen(true);
+                }
+              : undefined
+          }
+          onXp={() => {
+            void tapLight();
+            setXpOpen(true);
+          }}
+        />
       </header>
 
       <div
