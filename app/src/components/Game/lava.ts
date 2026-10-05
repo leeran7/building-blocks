@@ -112,8 +112,8 @@ const HOT_RIM = "#ffd24d";
 /** Darker, cooled-skin rim tone while the lava stumbles. */
 const COOLED_RIM = "#c8662e";
 /**
- * Fraction at the END of a stumble that telegraphs the next surge (~1.2 s of
- * a 6 s stumble): amplitude, rim alpha and rim heat ramp back up with a pulse.
+ * Fraction at the END of a stumble that telegraphs the next surge (~0.8 s of
+ * a 4 s stumble): amplitude, rim alpha and rim heat ramp back up with a pulse.
  */
 export const SURGE_TELEGRAPH_FRAC = 0.2;
 /**

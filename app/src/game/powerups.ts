@@ -14,9 +14,9 @@
  *                 `resolveRandom` so re-simulation agrees (AC-11)
  *
  * BALANCE. The lava's surge speed (the envelope) ramps 0.42x -> 0.91x ladder
- * climb speed over 120 s, then creeps up to the 1x cap (~6.5 min). Every 16 s
- * it stumbles for 6 s at 0.2x envelope. So the time-averaged chase is 0.64x
- * when the ramp ends and 0.70x at the cap (hazard.ts header,
+ * climb speed over 120 s, then creeps up to the 1x cap (~6.5 min). Every 14 s
+ * it stumbles for 4 s at 0.2x envelope. So the time-averaged chase is 0.70x
+ * when the ramp ends and 0.77x at the cap (hazard.ts header,
  * `hazardMeanSpeedFrac`). The best unaided pace is ~0.55-0.62x, so every
  * unaided run ends. Power-ups are what push a climber past that threshold, and
  * they are deliberately shaped so the ceiling is raised by PLAYING WELL rather
@@ -38,18 +38,18 @@
  * LAVA-CLOCK POWER-UPS. slow-lava and harden-lava are the only pickups that
  * touch the lava clock, and their cooldowns bound how much. slow-lava runs at
  * most 8 s in every 48 s (40 s cooldown), so it cuts the mean by at most
- * TIME_SLOW_FRAC * 8/48 = 6.7% (0.70x -> 0.65x at the cap). harden-lava stops
+ * TIME_SLOW_FRAC * 8/48 = 6.7% (0.77x -> 0.72x at the cap). harden-lava stops
  * the clock for at most 7 s in every 62 s (55 s cooldown), an 11.3% cut
- * (0.70x -> 0.62x). Chained at full uptime the two leave ~0.57x at the cap
- * (~0.52x when the ramp ends), below the best unaided pace, so a run fed by
- * both is NOT guaranteed to end: orb supply, not these cooldowns, is what
- * bounds it. Cooldowns are per player, and in a duel either climber's effect
+ * (0.77x -> 0.68x). Chained at full uptime the two leave ~0.63x at the cap
+ * (~0.58x when the ramp ends). That is at the top of the best unaided pace,
+ * so a near-best climber fed by both is NOT guaranteed to end: orb supply,
+ * not these cooldowns, is what bounds it. Cooldowns are per player, and in a duel either climber's effect
  * applies to both (`hazardTimeScale`), so a duel can see up to twice that
  * uptime. A random orb that rolls either type obeys the same cooldown. Do not
  * raise TIME_SLOW_FRAC, lengthen either duration or shorten either cooldown
  * without redoing this arithmetic. powerups.test.ts pins both types' constants
- * to literals and measures the resulting means (0.6533 / 0.621, chained
- * 0.5745). The 8 s / 40 s pair keeps the same uptime fraction as the old
+ * to literals and measures the resulting means (0.72 / 0.6843, chained
+ * 0.6335). The 8 s / 40 s pair keeps the same uptime fraction as the old
  * 6 s / 30 s window.
  *
  * Spawns are a seeded GAP SCHEDULE, not independent per-floor coin flips:

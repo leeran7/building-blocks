@@ -43,29 +43,30 @@ import { botInput } from "./greedyBot";
 
 vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 
-// ── Pinned values (DAILY_SIM_VERSION 4: the free stack's hanging ladders and
-// short tops, ENDLESS_LADDERS; category towers and duels unchanged since 3) ──
+// ── Pinned values (DAILY_SIM_VERSION 5: the lava stumble shortened 6 s → 4 s
+// in a 14 s cycle, which moves every run, Daily and duel; geometry unchanged
+// since 4: the free stack's hanging ladders and short tops, ENDLESS_LADDERS) ──
 const PIN_FREE_GEOMETRY = "3d83d67129408b3d233a4b6856ee5075decf8df638386b23f36a292c45830ada";
 const PIN_CATEGORY_GEOMETRY = "7247ce3db432cf7d57e48b86b3a786dfb9912ddc93326980f35a98cbf214679d";
-const PIN_SOLO_OUTCOME = { peakY: 628.041049955388, finishedTick: 3461, ticks: 3461 };
-const PIN_SOLO_TRACE = "0d4278d76b40e3997d51f73a91d688e189a8aec9e52d6871c17c29019fa4ba3f";
+const PIN_SOLO_OUTCOME = { peakY: 607.89594026198, finishedTick: 3246, ticks: 3246 };
+const PIN_SOLO_TRACE = "4f19eebbb735c7100bedbbbb7570061ff90555bc6206e3c8cbfd82a1ed4b9bca";
 const PIN_DAILY = {
   ok: true,
-  peakY: 518.0241972076892,
-  ticks: 3195,
-  inputHash: "3e72b08e0069efe12c1ec638d040a21c5787d2ac3c6cbe4114a9ddc105b70928",
+  peakY: 543.6080763773122,
+  ticks: 3295,
+  inputHash: "a94126d121ae26d021085be3c58979840e7c86fedd39784197ca1e1421d42adf",
 };
-const PIN_DAILY_TRACE = "7545301e8891c4e0f43c487e5b9e529c45ffadc0123da1b88daeec620a4ac3df";
-const PIN_DUEL_TRACE = "03fc9d07a9d1d54a88df3a43f1381bc1bdee00e6fed42fe6edb6269baabd2f9b";
+const PIN_DAILY_TRACE = "e048e38f1acd50374c7fd7be74501928ef0f9c5e16143ef3f166005f0ec474e9";
+const PIN_DUEL_TRACE = "b3e1e37f850d990ecc95ccc8560b1fa4a21f7aa52ed28c456e282cf79c2baa98";
 const PIN_DUEL_RESULT = {
   winnerId: "p1",
-  player1Peak: 514.1702797510227,
-  player2Peak: 484.23065941979496,
+  player1Peak: 451.1868711715919,
+  player2Peak: 426.8568452123174,
   player1CheatFlagged: false,
   player2CheatFlagged: false,
   tiebreakRule: null,
-  finishedTick: 2828,
-  totalTicks: 2828,
+  finishedTick: 2506,
+  totalTicks: 2506,
 };
 
 /** Past DIFFICULTY_FLOORS (50), so the held late-game values are pinned too. */

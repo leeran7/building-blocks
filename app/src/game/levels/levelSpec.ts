@@ -266,7 +266,7 @@ export const LEVEL_LAVA_START_RATIO = 0.75;
 export const LEVEL_LAVA_RAMP_SHARE = 0.25;
 export const LEVEL_LAVA_MAX_RAMP_SECONDS = 120;
 
-/** Mean speed per unit of envelope over one surge/stumble cycle (0.7 today). */
+/** Mean speed per unit of envelope over one surge/stumble cycle (0.77 today). */
 function cycleDuty(): number {
   return hazardMeanSpeedFrac({
     ...DEFAULT_HAZARD_CONFIG,

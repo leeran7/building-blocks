@@ -1097,18 +1097,18 @@ describe("lava-clock cooldowns: slow-lava and harden-lava uptime is bounded", ()
     // state over whole cycles. At the cap the envelope is constant, so the
     // real-time mean is the cap mean times that fraction.
     const capMean = hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG, Infinity);
-    expect(capMean).toBeCloseTo(0.7, 6);
+    expect(capMean).toBeCloseTo(10 / 14 + (4 / 14) * 0.2, 6); // 0.7714
 
     const slowRatio = fedLavaClockRatio("slow-lava", 4);
     const hardenRatio = fedLavaClockRatio("harden-lava", 4);
-    // 8 s at 0.6x in every 48 s -> 0.70 x (1 - 0.4 x 8/48) = 0.6533.
-    expect(capMean * slowRatio).toBeCloseTo(0.6533, 3);
-    // 7 s frozen in every 62 s -> 0.70 x 55/62 = 0.6210.
-    expect(capMean * hardenRatio).toBeCloseTo(0.621, 3);
-    // Chained without overlap (the header's ~0.57x): both cuts add. Nominal
-    // 0.5743; the sim measures 0.5749 because an orb picked up on tick t first
+    // 8 s at 0.6x in every 48 s -> 0.7714 x (1 - 0.4 x 8/48) = 0.7200.
+    expect(capMean * slowRatio).toBeCloseTo(0.72, 3);
+    // 7 s frozen in every 62 s -> 0.7714 x 55/62 = 0.6843.
+    expect(capMean * hardenRatio).toBeCloseTo(0.6843, 3);
+    // Chained without overlap (the header's ~0.63x): both cuts add. Nominal
+    // 0.6329; the sim measures 0.6335 because an orb picked up on tick t first
     // scales the lava clock on tick t+1, so each window runs one tick short.
-    expect(capMean * (1 - (1 - slowRatio) - (1 - hardenRatio))).toBeCloseTo(0.5745, 3);
+    expect(capMean * (1 - (1 - slowRatio) - (1 - hardenRatio))).toBeCloseTo(0.6335, 3);
   });
 
   it("no other power-up touches the lava clock", () => {

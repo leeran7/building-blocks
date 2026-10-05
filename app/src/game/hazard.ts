@@ -20,8 +20,8 @@
  * ---------
  * 1. The CURVE (`DEFAULT_HAZARD_CONFIG`) sets the kill threshold: its
  *    time-averaged speed (`hazardMeanSpeedFrac`) is the sustained pace below
- *    which a climber is always caught. It is 0.64× ladder speed when the
- *    ramp ends, and the late creep lifts it to 0.70× at the cap (~6.5 min).
+ *    which a climber is always caught. It is 0.70× ladder speed when the
+ *    ramp ends, and the late creep lifts it to 0.77× at the cap (~6.5 min).
  * 2. The LEASH (`HAZARD_LEASH_M`, `HAZARD_LEASH_RANGE_M`,
  *    `HAZARD_CATCHUP_MAX_SCALE`) caps how far a climber can get ahead:
  *    beyond HAZARD_LEASH_M the lava clock runs faster in proportion to the
@@ -41,9 +41,10 @@
  * ramps, anyone faster than ~0.45× pulls ahead of it, and the leash erases
  * that lead. Measured flawless unaided play is ~0.55–0.62× ladder speed
  * (walking between ladders caps it), and at 0.50–0.62× the leash is engaged
- * for 36–46% of the run (26–46% before the creep). So the leash sets how far
- * most real runs get (curve alone → with leash: 0.50× 771 → 580 ft, 0.55×
- * 1244 → 697 ft, 0.60× 2143 → 982 ft, 0.62× 2754 → 1260 ft). Changing either
+ * for 36–46% of the run (26–46% before the creep; both measured with the old
+ * 6 s stumble). So the leash sets how far most real runs get (curve alone →
+ * with leash, 6 s stumble: 0.50× 771 → 580 ft, 0.55× 1244 → 697 ft, 0.60×
+ * 2143 → 982 ft, 0.62× 2754 → 1260 ft). Changing either
  * leash constant moves beginner reach as well as visibility; re-run
  * tests/game/hazardLeash.test.ts after touching any knob. Only the curve
  * (`endSpeedFrac`, `rampSeconds`, `creepPerMinute`, the cycle) decides who
@@ -52,27 +53,26 @@
  * Measured through the real stepMatch (tests/game/hazardLeash.test.ts drives
  * a constant-pace climber on the free tower, 9 ft/s ladder, creep on; units
  * are 1:1 feet; the camera shows ~80 ft below the climber; "was" is the
- * curve before the leash):
+ * 16 s / 6 s stumble cycle before the stumble was cut to 4 s):
  *
  *   pace (× ladder) | gap band after 30 s | caught at → peak
- *   0.45            | –                   | ~118 s → ~480 ft (was 296)
- *   0.50            | –                   | ~129 s → ~580 ft
- *   0.55            | –                   | ~141 s → ~697 ft (was 585)
- *   0.60            | –                   | ~182 s → ~982 ft (was 839)
- *   0.62            | –                   | ~226 s → ~1260 ft
+ *   0.45            | –                   | ~98 s → ~397 ft (was 480)
+ *   0.50            | –                   | ~116 s → ~523 ft (was 580)
+ *   0.55            | –                   | ~126 s → ~621 ft (was 697)
+ *   0.60            | –                   | ~136 s → ~737 ft (was 982)
+ *   0.62            | –                   | ~147 s → ~822 ft (was 1260)
  *   -- sustained paces above ~0.62× need power-ups (sprint, jetpack) --
- *   0.66            | –                   | ~362 s → ~2147 ft (never w/o creep)
- *   0.70            | ~24–88 ft           | not in 10 min (on the threshold)
- *   0.75            | ~37–92 ft           | never
- *   0.85            | ~48–101 ft          | never
- *   1.00            | ~56–111 ft          | never
- *   1.30 (jetpack)  | ~72–136 ft          | never (off screen while bursting)
+ *   0.66            | –                   | ~184 s → ~1092 ft (was 2147)
+ *   0.70            | –                   | ~264 s → ~1662 ft (was never)
+ *   0.75            | ~32–85 ft at 300 s  | ~489 s → ~3299 ft (was never)
+ *   0.85            | ~45–94 ft           | never
+ *   1.00            | ~54–103 ft          | never
+ *   1.30 (jetpack)  | ~69–123 ft          | never (off screen while bursting)
  *
  * A full stall at 0.85 pace survives 8 s from any phase and ~10 s if it
- * starts as the lava stumbles; 20 s is always fatal. At the end of the ramp
- * the kill threshold moved from ~0.70× to ~0.64× ladder pace (0.45× climbers
- * get ~60% further, 0.55–0.60× ~17–19%), and the creep raises it back to
- * 0.70× so every unaided run ends. Unaided climbers have the lava in view for
+ * starts as the lava stumbles; 20 s is always fatal. The kill threshold is
+ * ~0.70× ladder pace when the ramp ends, and the creep raises it to 0.77×,
+ * so every unaided run ends. Unaided climbers have the lava in view for
  * the whole run after the opening and are eventually caught. The steady
  * 0.75–1.30× bands hold only while a power-up carries the climber above the
  * threshold.
@@ -143,27 +143,28 @@ export const DEFAULT_HAZARD_CONFIG: HazardConfig = {
   headStartM: 9,
   graceSeconds: 5,
   // Opening is the gentler tune from main (9m head-start, 5s grace, 0.42×).
-  // Envelope ramps 0.42× → 0.91× over 120s. Each 16s cycle surges for 10s
-  // and stumbles for 6s at 0.2× envelope, so the time-averaged late-game
-  // chase is 0.91 · (10/16 + 6/16·0.2) = 0.64× — the kill threshold when
+  // Envelope ramps 0.42× → 0.91× over 120s. Each 14s cycle surges for 10s
+  // and stumbles for 4s at 0.2× envelope, so the time-averaged late-game
+  // chase is 0.91 · (10/14 + 4/14·0.2) = 0.70× — the kill threshold when
   // the ramp ends (the creep below then raises it).
   //
-  // `endSpeedFrac` is DERIVED from that target mean and the cycle duty:
-  // endSpeedFrac = mean / (surgeDuty + stumbleDuty·stumbleSpeedFrac). Change
-  // the cycle and you must recompute it (hazard.test.ts pins the 0.64 mean).
-  // The 16s / 6s @ 0.2 rhythm gives a ~29 ft gap swing at 0.85 pace — a
-  // third of the visible band, readable as breathing — while a stall that
-  // lands at the start of a surge only loses ~1s versus the old 12s cycle.
+  // The stumble was cut 6s → 4s with the surge (10s at the envelope) held,
+  // so `endSpeedFrac` was deliberately NOT recomputed: the mean rose from
+  // 0.64× to 0.70× and runs end sooner. The mean is
+  // endSpeedFrac · (surgeDuty + stumbleDuty·stumbleSpeedFrac); hazard.test.ts
+  // pins it, so a cycle edit that moves who dies goes red there.
+  // The 14s / 4s @ 0.2 rhythm gives a ~19 ft gap swing per cycle at 0.85
+  // pace (~25 ft with the old 6s stumble).
   startSpeedFrac: 0.42,
   endSpeedFrac: 0.91,
   rampSeconds: 120,
   // After the ramp the envelope creeps +0.02 per minute up to the 1× cap
-  // (reached ~6.5 min in), so the time-averaged speed goes 0.64× → 0.70×.
-  // 0.70× is above the best unaided pace (~0.55–0.62×), so every unaided run
+  // (reached ~6.5 min in), so the time-averaged speed goes 0.70× → 0.77×.
+  // 0.77× is above the best unaided pace (~0.55–0.62×), so every unaided run
   // ends; only power-ups extend one. hazard.test.ts pins both means.
   creepPerMinute: 0.02,
-  stumblePeriodSeconds: 16,
-  stumbleDurationSeconds: 6,
+  stumblePeriodSeconds: 14,
+  stumbleDurationSeconds: 4,
   stumbleSpeedFrac: 0.2,
   speedScale: 1,
 };
@@ -195,9 +196,9 @@ const SECONDS_PER_MINUTE = 60;
 /**
  * Time-averaged speed fraction over one surge/stumble cycle, at the envelope
  * reached `seconds` into the race (hazard time, grace included). Defaults to
- * the end of the ramp: 0.64× for the default tune, the kill threshold a
+ * the end of the ramp: 0.70× for the default tune, the kill threshold a
  * climber must beat when the ramp ends. Pass `Infinity` for the creep's
- * ceiling (the envelope held at `MAX_HAZARD_SPEED_FRAC`): 0.70× for the
+ * ceiling (the envelope held at `MAX_HAZARD_SPEED_FRAC`): 0.77× for the
  * default tune, reached ~395 s in.
  */
 export function hazardMeanSpeedFrac(

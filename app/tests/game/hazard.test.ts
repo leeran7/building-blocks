@@ -221,15 +221,16 @@ describe("hazardPhase: reports surge/stumble/grace with progress", () => {
 });
 
 describe("kill threshold: the documented late-game mean", () => {
-  it("time-averaged speed is 0.64× ladder speed when the ramp ends", () => {
+  it("time-averaged speed is 0.70× ladder speed when the ramp ends", () => {
     // Pins the documented mean so a cycle edit that silently moves who dies
     // goes red. endSpeedFrac is derived from this and the cycle duty.
-    expect(hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG)).toBeCloseTo(0.64, 2);
+    expect(hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG)).toBeCloseTo(0.702, 3);
   });
 
-  it("creep lifts the mean to 0.70× at the cap, above the best unaided pace", () => {
-    // 0.70 × ladder is the late kill threshold (R2-2): every unaided run ends.
-    expect(hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG, Infinity)).toBeCloseTo(0.7, 6);
+  it("creep lifts the mean to 0.77× at the cap, above the best unaided pace", () => {
+    // 0.77 × ladder (10/14 + 4/14 · 0.2) is the late kill threshold (R2-2):
+    // every unaided run ends.
+    expect(hazardMeanSpeedFrac(DEFAULT_HAZARD_CONFIG, Infinity)).toBeCloseTo(10 / 14 + (4 / 14) * 0.2, 6);
   });
 
   it("the mean matches the measured rise over the first cycle after the ramp", () => {
@@ -239,16 +240,16 @@ describe("kill threshold: the documented late-game mean", () => {
     const avg =
       (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
       period;
-    expect(avg / CLIMB).toBeCloseTo(0.64, 2);
+    expect(avg / CLIMB).toBeCloseTo(0.7, 2);
   });
 
-  it("the measured rise over a cycle after the cap is 0.70×", () => {
+  it("the measured rise over a cycle after the cap is 0.77×", () => {
     const period = CFG.stumblePeriodSeconds;
     const t = 450; // past the ~395 s cap
     const avg =
       (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
       period;
-    expect(avg / CLIMB).toBeCloseTo(0.7, 6);
+    expect(avg / CLIMB).toBeCloseTo(10 / 14 + (4 / 14) * 0.2, 6);
   });
 });
 
@@ -343,10 +344,10 @@ describe("late creep (R2-2): envelope ramp → creep → cap", () => {
   });
 
   it("with rampSeconds 0 the default mean is the end-of-ramp mean, not the start", () => {
-    // The shipped tune's end-of-ramp mean is 0.637; the start envelope's is 0.294.
+    // The shipped tune's end-of-ramp mean is 0.702; the start envelope's is 0.324.
     for (const creepPerMinute of [0, SPEC_CREEP_PER_MIN]) {
       const noRamp = { ...CFG, rampSeconds: 0, creepPerMinute };
-      expect(hazardMeanSpeedFrac(noRamp), `creep ${creepPerMinute}`).toBeCloseTo(0.637, 3);
+      expect(hazardMeanSpeedFrac(noRamp), `creep ${creepPerMinute}`).toBeCloseTo(0.702, 3);
       expect(hazardMeanSpeedFrac(noRamp), `creep ${creepPerMinute}`).toBeCloseTo(
         hazardMeanSpeedFrac(CFG),
         9
@@ -355,8 +356,10 @@ describe("late creep (R2-2): envelope ramp → creep → cap", () => {
   });
 
   // Captured from hazard.ts at d6f2429, the last commit before creep existed
-  // (hazardHeightAt at 9 m/s and hazardSpeedFracAt, default tune). creep 0
-  // must reproduce the old curve bit for bit, or stored replays shift.
+  // (hazardHeightAt at 9 m/s and hazardSpeedFracAt, the tune then: a 16 s
+  // cycle with a 6 s stumble). creep 0 must reproduce the old curve bit for
+  // bit on that cycle, or the creep code path changed the integral.
+  const OLD_CYCLE = { stumblePeriodSeconds: 16, stumbleDurationSeconds: 6 };
   const OLD_HEIGHT: ReadonlyArray<readonly [number, number]> = [
     [0, -9], [4.99, -9], [5, -9], [5.5, -7.10540625],
     [17.25, 32.522479687499995], [60, 184.70557499999998],
@@ -372,7 +375,7 @@ describe("late creep (R2-2): envelope ramp → creep → cap", () => {
   ];
 
   it("creep 0 equals the pre-creep curve exactly", () => {
-    const flat = { ...CFG, creepPerMinute: 0 };
+    const flat = { ...CFG, ...OLD_CYCLE, creepPerMinute: 0 };
     for (const [t, h] of OLD_HEIGHT) expect(hazardHeightAt(t, CLIMB, flat), `t=${t}`).toBe(h);
     for (const [t, f] of OLD_FRAC) expect(hazardSpeedFracAt(t, flat), `t=${t}`).toBe(f);
   });
@@ -381,7 +384,7 @@ describe("late creep (R2-2): envelope ramp → creep → cap", () => {
     // Also captured at d6f2429: the smooth branch, and endSpeedFrac > 1
     // (clamped to the cap) with a non-unit speedScale.
     const smooth = { ...CFG, creepPerMinute: 0, stumblePeriodSeconds: 0, stumbleDurationSeconds: 0 };
-    const hot = { ...CFG, creepPerMinute: 0, endSpeedFrac: 1.3, speedScale: 1.5 };
+    const hot = { ...CFG, ...OLD_CYCLE, creepPerMinute: 0, endSpeedFrac: 1.3, speedScale: 1.5 };
     const smoothOld: ReadonlyArray<readonly [number, number]> = [
       [5.5, -7.315916666666666], [60, 225.20833333333331], [125, 629.4],
       [133.3, 689.8240000000001], [600, 4087.3999999999996],
