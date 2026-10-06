@@ -35,6 +35,8 @@ leeran7/one-body#8 owns provider routing/tiering. This skill ships with:
 
 - `openai` — OpenAI-compatible chat completions (`OPENAI_API_KEY`,
   optional `RENDER_3D_MODEL` / `RENDER_3D_BASE_URL`).
+- `codex` — the local Codex CLI (`codex exec`), so a ChatGPT
+  subscription signed in with `codex login` can do the generation.
 - `stub` — deterministic offline scene; used by tests and when no key
   is configured.
 

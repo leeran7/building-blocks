@@ -11,7 +11,7 @@ export const name = "openai";
 // RENDER_3D_MODEL if your account uses a different model id.
 const DEFAULT_MODEL = "gpt-5";
 
-function userMessage({ prompt, placement, style, budget }) {
+export function userMessage({ prompt, placement, style, budget }) {
   return [
     `Placement: ${placement}`,
     `Performance budget: ${budget}`,
@@ -24,7 +24,7 @@ function userMessage({ prompt, placement, style, budget }) {
     .join("\n");
 }
 
-function stripFences(text) {
+export function stripFences(text) {
   const m = text.match(/```(?:js|javascript)?\s*([\s\S]*?)```/);
   return (m ? m[1] : text).trim();
 }

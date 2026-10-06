@@ -66,6 +66,13 @@ Code generation calls a model backend. No key is ever written to the repo.
 - `RENDER_3D_BACKEND=openai` (default when `OPENAI_API_KEY` is set) —
   reads `OPENAI_API_KEY`; `RENDER_3D_MODEL` and `RENDER_3D_BASE_URL`
   optional overrides (any OpenAI-compatible endpoint works).
+- `RENDER_3D_BACKEND=codex` — runs `codex exec` through the local Codex
+  CLI, so generation uses whatever account it is signed in with, including
+  a ChatGPT subscription (`npm i -g @openai/codex`, then `codex login`).
+  No key is read. The prompt goes in on stdin from a throwaway directory,
+  with a read-only sandbox, no user config, and its shell, browser, app and
+  plugin tools turned off. `RENDER_3D_MODEL` picks the
+  model and `RENDER_3D_CODEX_BIN` overrides the binary. Only used when named.
 - `RENDER_3D_BACKEND=stub` — deterministic offline scene for tests and
   demos. Forced automatically when no key is configured.
 

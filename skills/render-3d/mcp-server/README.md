@@ -43,7 +43,8 @@ Or drop it in `.mcp.json`:
 
 | Var | Notes |
 |---|---|
-| `RENDER_3D_BACKEND` | `openai` or `stub` (auto: openai when `OPENAI_API_KEY` is set) |
+| `RENDER_3D_BACKEND` | `openai`, `codex` or `stub` (auto: openai when `OPENAI_API_KEY` is set, else stub) |
+| `RENDER_3D_CODEX_BIN` | Codex CLI binary for the `codex` backend (default `codex`) |
 | `OPENAI_API_KEY` | model backend key (never committed) |
 | `RENDER_3D_MODEL` / `RENDER_3D_BASE_URL` | model / endpoint overrides |
 | `RENDER_3D_CHROME_BIN` | Chrome binary for the preview gate |
