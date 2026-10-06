@@ -58,6 +58,8 @@ Every user action must have visible feedback:
 - Animations serve a purpose (spatial, state, hierarchy) — not decoration
 - Duration appropriate (150-300ms for micro, 300-500ms for transitions)
 - `prefers-reduced-motion` respected
+- The style is named and built as its definition in `motion-styles.md` says
+  (e.g. scroll-triggered vs scroll-linked, sticky vs pinned)
 
 ## Severity
 

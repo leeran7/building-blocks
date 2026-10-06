@@ -86,6 +86,8 @@ DOM order is wrong.
 
 - Wrap all animations in `prefers-reduced-motion` media query.
 - Reduced-motion fallback is an instant state change, not a frozen animation.
+- Parallax, pinning, zooms and large travel are vestibular triggers: drop
+  them first (style names: `skills/design-review/motion-styles.md`).
 - No auto-playing video or animation without a pause control.
 - No content that flashes more than 3 times per second.
 

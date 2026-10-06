@@ -21,6 +21,29 @@ that delays the user.
 
 Respect `prefers-reduced-motion`.
 
+### Motion styles in this app
+
+Style names and what they mean: `skills/design-review/motion-styles.md`. In
+the mobile app (`app/mobile/`) they map to:
+
+| Style | Here |
+|-------|------|
+| Durations, easings, springs | `lib/motionTokens.ts` (`duration`, `ease`, `spring`); CSS reads `--motion-*` in `styles.css` |
+| Route transitions (push, pop, tab, hero, launch/land zoom) | `RouteTransition` (`TransitionKind`), sliding by `travel`, zooming by `zoom` |
+| In-screen page swap | `PageSwap`; Ranks' board uses `useSlideSwap` |
+| Shared element / hero | `sharedId` layoutIds inside RouteTransition's `LayoutGroup`; add hero routes to `HERO_MOVES` |
+| Sheets | `SheetPortal`, wrapped in `<AnimatePresence>` at the call site |
+| Stagger / rise-in | `riseIn` variants with `staggerDelay` (capped by `STAGGER_CAP`) |
+| Press | `press` (`whileTap` scale on `spring.bouncy`) |
+| Sticky | Tailwind `sticky` (e.g. the pinned CTA footer in `LevelStartSheet`) |
+| Pull to refresh | `PullToRefresh` |
+| Reduced motion | `MotionConfig reducedMotion="user"` in `App`; JS loops check `prefersReducedMotion()` |
+
+Screens scroll inside `ScreenBody`'s `overflow-y-auto`, not the window, so
+scroll-linked styles pass that element as `useScroll({ container })` and
+scroll-triggered ones as `viewport={{ root }}`. Game-canvas motion under
+`app/src/game/` is simulation, not UI motion: see `skills/sim-change/`.
+
 ## Microinteractions
 
 Obsess over: button press, pull-to-refresh, successful completion, copy, save,
