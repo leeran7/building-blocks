@@ -6,6 +6,7 @@ import { useSettings, useClearAppData } from "../contexts/AppDataContext";
 import { tapLight, notifyError, isHapticsEnabled, setHapticsEnabled } from "../lib/haptics";
 import { hasLeaderboardConsent } from "../lib/consent";
 import { clearDailyStore } from "@app/lib/daily";
+import { clearClimbBest } from "@app/lib/climbBest";
 import { ControlSchemePicker } from "@app/components/ControlSchemePicker";
 import { isSfxMuted, setSfxMuted } from "@app/components/Game/sfxMute";
 import { GlassSection, PushHeader, RetryPanel, Toggle } from "../components/ui";
@@ -120,6 +121,7 @@ export function SettingsScreen() {
       }
       clearAll();
       clearDailyStore(); // device-local streak isn't account-scoped; wipe on delete
+      clearClimbBest();
       await signOut();
       navigate("/");
     } catch {

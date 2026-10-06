@@ -15,6 +15,10 @@ import {
   touchControlsInset,
 } from "@app/components/Game/TouchControls";
 import { usePowerUpFeedback } from "@app/components/Game/usePowerUpFeedback";
+import { RunCallout, useRunMoments } from "@app/components/Game/RunCallout";
+import type { RunMoment } from "@app/components/Game/runMoments";
+import { commitClimbBest, readClimbBest } from "@app/lib/climbBest";
+import { momentHaptic } from "../lib/momentHaptics";
 import { lavaMusicIntensity } from "@app/components/Game/powerUpCues";
 import { isLavaInProximity } from "@app/components/Game/lava";
 import {
@@ -39,7 +43,7 @@ import { GUEST_NUDGE_AFTER_RUNS, recordGuestEndlessRun } from "../lib/guestMode"
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useHapticsSetting } from "../lib/hapticsSetting";
 import { useGameHaptics } from "../lib/useGameHaptics";
-import { commitDailyRun, msUntilReset, formatReset, type DailyRunResult } from "@app/lib/daily";
+import { commitDailyRun, dailySummary, msUntilReset, formatReset, type DailyRunResult } from "@app/lib/daily";
 import {
   fetchDailyInfo,
   postDailyResult,
@@ -196,7 +200,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     lavaGapBelowViewM(state.hazardY, camY, bottomInset, view.pxPerM)
   );
   const vibration = useHapticsSetting();
-  const { muted, setMuted, announcement, unlockAudio } = usePowerUpFeedback(
+  const { muted, setMuted, announcement, unlockAudio, playMoment } = usePowerUpFeedback(
     player,
     state.tick,
     runId,
@@ -209,6 +213,27 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
       lavaFill,
       dead: player?.status === "eliminated",
     },
+  );
+
+  // The best to beat for the mid-run "New best!" callout, fixed at each start.
+  const [runBest, setRunBest] = useState(0);
+  const onMoment = useCallback(
+    (moment: RunMoment) => {
+      playMoment(moment);
+      momentHaptic(moment);
+    },
+    [playMoment]
+  );
+  const callout = useRunMoments(
+    {
+      runId,
+      tick: state.tick,
+      live: phase === "climb" && player?.status === "climbing",
+      peakY: player?.peakY ?? 0,
+      clearance: lavaGap,
+      bestY: runBest,
+    },
+    onMoment
   );
 
   const handleStart = useCallback(() => {
@@ -232,6 +257,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     lastDailyPayload.current = null;
     setShareUrl(null);
     setDailyResult(null);
+    setRunBest(isDaily ? dailySummary().todayBest : readClimbBest());
     start();
   }, [start, unlockAudio, isDaily, dailyInfo]);
 
@@ -270,6 +296,8 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     if (isDaily && player) {
       const playedDay = dailyInfo && dailyInfo.seed === state.seed ? dailyInfo.day : undefined;
       setDailyResult(commitDailyRun(player.peakY ?? 0, playedDay));
+    } else if (player) {
+      commitClimbBest(player.peakY ?? 0);
     }
     // player identity is stable within a finished run; keep deps minimal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -411,6 +439,8 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
           topInset={safeArea.top} leftInset={safeArea.left} rightInset={safeArea.right}
           backControl={<button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); goBack(); }}>←</button>}
         />
+
+        <RunCallout callout={callout} topInset={safeArea.top} />
 
         {phase === "countdown" && (
           <Overlay>

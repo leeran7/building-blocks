@@ -1,0 +1,167 @@
+/* Duel emotes: the dock (trigger + repeat), the tray of 3D props and quick
+   messages, and the bubbles. Plain CSS so the web room and the native app
+   render it the same. The 3D props are drawn by one canvas (.emo-gl) laid
+   over the whole layer; every .emo-*-view box is just where a prop lands. */
+.emo-layer {
+  --emo-ivory: var(--color-text-primary, #f4f2ec);
+  --emo-signal: var(--color-signal, #cbf24d);
+  --emo-blue: #6bb8ff;
+  --emo-core: #101012;
+  --emo-emoji-font: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  position: absolute; inset: 0; z-index: 30; pointer-events: none;
+  font-family: var(--font-sans, system-ui, sans-serif);
+}
+.emo-layer[data-layer="screen"] { position: fixed; z-index: 50; }
+
+/* The one WebGL canvas, on top of everything in the layer. */
+.emo-gl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+
+/* Glyph fallback (no WebGL): the emoji sits where the prop would. */
+[data-emote-prop] { display: flex; align-items: center; justify-content: center; font-family: var(--emo-emoji-font); line-height: 1; }
+[data-emote-prop][data-fallback] { font-size: 60%; }
+
+/* ── Dock ─────────────────────────────────────────────────────────────── */
+.emo-dock {
+  position: absolute; pointer-events: none;
+  right: max(10px, var(--emo-right)); top: 46%;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  transform: translateY(-50%);
+}
+.emo-layer[data-layer="screen"] .emo-dock {
+  top: auto; transform: none; flex-direction: column-reverse;
+  bottom: calc(max(16px, var(--emo-bottom)) + env(safe-area-inset-bottom, 0px)); right: max(16px, var(--emo-right));
+}
+.emo-trigger, .emo-again {
+  position: relative; pointer-events: auto; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; color: var(--emo-ivory);
+  border: 1px solid #726b61; background: #101012db;
+  box-shadow: inset 0 1px 1px #fff1, 0 4px 12px #0008;
+  transition: transform .12s ease, border-color .12s ease, color .12s ease;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.emo-trigger { width: 48px; height: 48px; padding: 12px; }
+.emo-trigger svg:first-child { width: 22px; height: 22px; }
+.emo-trigger:hover, .emo-trigger[data-open] { border-color: var(--emo-signal); color: var(--emo-signal); }
+.emo-trigger:active, .emo-again:active { transform: scale(.94); }
+.emo-trigger:focus-visible, .emo-again:focus-visible { outline: 2px solid var(--emo-signal); outline-offset: 2px; }
+.emo-trigger[data-nope] { animation: emo-nope .35s ease; }
+@keyframes emo-nope { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
+/* Cooldown ring: unwinds over the gap between sends. */
+.emo-cool { position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px); transform: rotate(-90deg); pointer-events: none; }
+.emo-cool circle {
+  fill: none; stroke: var(--emo-signal); stroke-width: 2.5; stroke-linecap: round;
+  stroke-dasharray: 100; stroke-dashoffset: 0;
+  animation: emo-cool var(--emo-cool-ms, 1500ms) linear forwards;
+}
+@keyframes emo-cool { to { stroke-dashoffset: 100; } }
+/* Repeat the last prop with one tap. */
+.emo-again { width: 40px; height: 40px; border-color: #3a3530; background: #101012c0; }
+.emo-again-view { width: 34px; height: 34px; }
+
+.emo-scrim { position: absolute; inset: 0; pointer-events: auto; background: transparent; border: 0; padding: 0; cursor: default; }
+
+/* ── Tray ─────────────────────────────────────────────────────────────── */
+.emo-tray {
+  position: absolute; pointer-events: auto;
+  right: calc(max(10px, var(--emo-right)) + 58px); top: 46%; transform: translateY(-50%);
+  width: min(268px, calc(100% - 86px)); max-height: calc(100% - 24px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 10px; display: flex; flex-direction: column; gap: 10px;
+  border: 1px solid #3a3530; border-radius: 20px;
+  background: linear-gradient(160deg, #1d1b19f2, #0c0c0ef5);
+  box-shadow: 0 12px 32px #000b, inset 0 1px 0 #ffffff10;
+  transform-origin: right center;
+  animation: emo-tray-in .2s cubic-bezier(.16, 1, .3, 1) both;
+  scrollbar-width: none;
+}
+.emo-tray::-webkit-scrollbar { display: none; }
+.emo-layer[data-layer="screen"] .emo-tray {
+  top: auto; bottom: calc(max(16px, var(--emo-bottom)) + env(safe-area-inset-bottom, 0px) + 58px);
+  right: max(16px, var(--emo-right)); transform: none; transform-origin: bottom right;
+}
+@keyframes emo-tray-in { from { opacity: 0; scale: .85; } to { opacity: 1; scale: 1; } }
+.emo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.emo-pick {
+  display: flex; align-items: center; justify-content: center; aspect-ratio: 1; min-height: 56px; padding: 0;
+  border: 1px solid #ffffff14; border-radius: 14px;
+  background: radial-gradient(120% 90% at 50% 20%, #ffffff12, #ffffff04 70%);
+  cursor: pointer; transition: transform .1s ease, background-color .1s ease, border-color .1s ease;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.emo-pick:hover { border-color: #ffffff3a; }
+.emo-pick:active { transform: scale(.9); }
+.emo-pick-view { width: 100%; height: 100%; font-size: 30px; }
+.emo-lines { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.emo-line {
+  display: flex; align-items: center; gap: 4px; min-height: 42px; padding: 3px 8px 3px 4px;
+  border: 1px solid #ffffff14; border-radius: 999px; background: #ffffff0a; color: var(--emo-ivory);
+  font-size: 12.5px; font-weight: 700; line-height: 1.1; letter-spacing: .01em; text-align: left; white-space: nowrap;
+  cursor: pointer; transition: transform .1s ease, background-color .1s ease, border-color .1s ease;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+/* An odd last line stretches across both columns rather than sitting alone on the left. */
+.emo-line:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.emo-line[data-now] { border-color: #ffffff2a; background: #ffffff12; }
+.emo-line:hover { border-color: var(--emo-signal); }
+.emo-line:active { transform: scale(.96); }
+.emo-line-view { width: 32px; height: 32px; flex: none; font-size: 18px; }
+.emo-pick:focus-visible, .emo-line:focus-visible, .emo-mute:focus-visible { outline: 2px solid var(--emo-signal); outline-offset: 2px; }
+.emo-mute {
+  min-height: 36px; border: 0; background: none; color: #b9afa1; cursor: pointer;
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.emo-mute[aria-pressed="true"] { color: var(--emo-signal); }
+
+/* ── Bubbles ──────────────────────────────────────────────────────────── */
+.emo-bubble {
+  position: absolute; top: calc(var(--emo-top) + 39%);
+  display: flex; flex-direction: column; gap: 4px; max-width: 50%;
+  animation: emo-bubble 3.2s cubic-bezier(.16, 1, .3, 1) both;
+}
+.emo-layer[data-layer="screen"] .emo-bubble { top: calc(var(--emo-top) + 10%); }
+.emo-bubble[data-side="them"] { left: 10px; align-items: flex-start; transform-origin: left bottom; --emo-side: var(--emo-blue); }
+.emo-bubble[data-side="me"] { right: calc(max(10px, var(--emo-right)) + 60px); align-items: flex-end; transform-origin: right bottom; --emo-side: var(--emo-signal); }
+.emo-layer[data-layer="screen"] .emo-bubble[data-side="me"] { right: 16px; }
+.emo-bubble-name {
+  font: 600 10px var(--font-mono, ui-monospace, monospace); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--emo-side); text-shadow: 0 1px 3px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.emo-bubble-body { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.emo-bubble[data-kind="message"] .emo-bubble-body { flex-direction: row; align-items: center; gap: 2px; }
+.emo-bubble[data-side="me"][data-kind="message"] .emo-bubble-body { flex-direction: row-reverse; }
+/* The prop's box. A soft glow in the sender's colour reads as its light. */
+.emo-bubble-view {
+  width: 124px; height: 124px; font-size: 72px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--emo-side) 28%, transparent), transparent 72%);
+}
+.emo-bubble[data-kind="message"] .emo-bubble-view { width: 76px; height: 76px; font-size: 40px; margin: -10px -6px; }
+.emo-bubble-caption {
+  font: 700 11px var(--font-mono, ui-monospace, monospace); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--emo-ivory); text-shadow: 0 1px 4px #000; padding: 0 6px;
+}
+/* The quick-message plate: a card with a little depth, leaning toward the sender. */
+.emo-bubble-plate {
+  position: relative; padding: 10px 16px; border-radius: 18px;
+  background: var(--emo-ivory); color: var(--emo-core);
+  font-family: var(--font-display, var(--font-sans, system-ui, sans-serif)); font-weight: 800; font-size: 19px; line-height: 1.1; letter-spacing: -.01em; white-space: nowrap;
+  box-shadow: 0 8px 20px #000a, 0 0 0 2px var(--emo-side);
+  transform: perspective(500px) rotateY(var(--emo-lean, -10deg)); transform-origin: center;
+}
+.emo-bubble[data-side="them"] .emo-bubble-plate { border-bottom-left-radius: 4px; --emo-lean: 12deg; }
+.emo-bubble[data-side="me"] .emo-bubble-plate { border-bottom-right-radius: 4px; --emo-lean: -12deg; }
+@keyframes emo-bubble {
+  0% { opacity: 0; transform: translateY(14px) scale(.6); }
+  10% { opacity: 1; transform: translateY(0) scale(1); }
+  86% { opacity: 1; transform: translateY(-6px) scale(1); }
+  100% { opacity: 0; transform: translateY(-22px) scale(.96); }
+}
+.emo-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .emo-trigger, .emo-again, .emo-pick, .emo-line { transition: none; }
+  .emo-trigger[data-nope], .emo-tray { animation: none; }
+  .emo-bubble { animation: emo-fade 3.2s linear both; }
+  .emo-bubble-plate { transform: none; }
+}
+@keyframes emo-fade { 0%, 100% { opacity: 0; } 8%, 88% { opacity: 1; } }

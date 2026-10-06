@@ -23,6 +23,9 @@ import { formatAltitude } from "@app/lib/units";
 import { shareInvite } from "@app/lib/shareInvite";
 import { avatarIdsByPlayer, parseAvatarId } from "@app/lib/avatars";
 import { AddFriendButton } from "../components/challenge/AddFriendButton";
+import { DuelEmotes } from "@app/components/Duel/DuelEmotes";
+import { RunCallout, useRunMoments } from "@app/components/Game/RunCallout";
+import { momentHaptic } from "../lib/momentHaptics";
 
 /** Wall-clock buffer before countdown numerals begin (ms). */
 const COUNTDOWN_BUFFER_MS = 500;
@@ -774,6 +777,21 @@ function DuelGame({
     return new Set([opponentSlot]);
   }, [phase, opponentPresent, opponentSlot]);
 
+  // Lead changes, milestones and close calls (a stale ghost doesn't count toward the lead).
+  const oppPlayer = racers.find((p) => p.slot === opponentSlot);
+  const callout = useRunMoments(
+    {
+      runId: duelId,
+      tick: state.tick,
+      live: phase === "climb" && myPlayer?.status === "climbing",
+      peakY: myPlayer?.peakY ?? 0,
+      clearance: myPlayer ? myPlayer.y - state.hazardY : Infinity,
+      myY: myPlayer?.y ?? null,
+      opponentY: oppPlayer && !opponentStale ? oppPlayer.y : null,
+    },
+    momentHaptic
+  );
+
   const duelHudInfo: DuelHudInfo = {
     player1Name,
     player2Name,
@@ -903,6 +921,20 @@ function DuelGame({
               </svg>
             </button>
           }
+        />
+
+        <RunCallout callout={callout} topInset={safeArea.top} topPercent={44} />
+
+        <DuelEmotes
+          realtime={realtime}
+          myId={myId}
+          opponentName={mySlot === 0 ? player2Name : player1Name}
+          moment={phase === "lobby" ? "lobby" : "climb"}
+          soundMuted={muted}
+          topInset={safeArea.top}
+          rightInset={safeArea.right}
+          onSend={() => void tapLight()}
+          onReceive={() => void tapLight()}
         />
 
         {/* Lobby Ready button overlay */}
@@ -1204,6 +1236,16 @@ function MobileResult({
           Play again
         </button>
       </div>
+
+      <DuelEmotes
+        realtime={realtime}
+        myId={myId}
+        opponentName={opponentName}
+        moment="result"
+        layer="screen"
+        onSend={() => void tapLight()}
+        onReceive={() => void tapLight()}
+      />
     </div>
   );
 }

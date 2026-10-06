@@ -18,6 +18,7 @@
 import type Ably from "ably";
 import { auth } from "../lib/firebase";
 import { PlayerInput, PlayerStatus } from "../game/types";
+import { parseEmoteMessage, type Emote, type EmoteWireMessage } from "./emotes";
 
 export type DuelEvent = "ready" | "unready" | "start" | "forfeit" | "rematch";
 
@@ -68,6 +69,14 @@ export interface RealtimeHandle {
   publishEvent(msg: RealtimeEventMessage): void;
   /** Register a callback for control events. */
   onEvent(type: DuelEvent, cb: (msg: RealtimeEventMessage) => void): () => void;
+  /** Send an emote or quick message (an id from the emotes catalog). */
+  publishEmote(msg: EmoteWireMessage): void;
+  /**
+   * Register a callback for emotes. `clientId` is the sender's Ably identity,
+   * which the token server pins, so it tells a peer's emote from our own echo.
+   * Unknown ids are dropped before the callback.
+   */
+  onEmote(cb: (emote: Emote, clientId: string) => void): () => void;
   /** Ably presence: enter with client data. */
   enterPresence(data: { uid: string; displayName: string; slot: number; ready?: boolean }): void;
   /** Ably presence: update data for the current member (e.g. ready state). */
@@ -256,6 +265,21 @@ export async function connectRealtime(
       };
       channel.subscribe("event", handler);
       return () => channel.unsubscribe("event", handler);
+    },
+
+    publishEmote(msg) {
+      channel.publish("emote", { id: msg.id }).catch(() => {
+        // Fire-and-forget — a lost emote is just a lost emote.
+      });
+    },
+
+    onEmote(cb) {
+      const handler = (msg: Ably.Message) => {
+        const emote = parseEmoteMessage(msg.data);
+        if (emote && typeof msg.clientId === "string") cb(emote, msg.clientId);
+      };
+      channel.subscribe("emote", handler);
+      return () => channel.unsubscribe("emote", handler);
     },
 
     enterPresence(data) {
