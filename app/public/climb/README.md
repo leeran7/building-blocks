@@ -164,6 +164,9 @@ everything in it is periodic along the view axis, seen through an orthographic
 camera. To change it, edit
 the scene and re-render at 2× with the render-3d skill, then downscale:
 
+`scripts/backdrop/volcano-tile-b.scene.js` is an alternative, darker take
+(a lava field at night seen from above); render it the same way to try it.
+
 ```bash
 RENDER_3D_CHROME_BIN=<chrome> RENDER_3D_SETTLE_MS=900000 \
 node skills/render-3d/bin/preview-scene.mjs \

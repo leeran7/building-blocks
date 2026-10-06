@@ -121,10 +121,10 @@ function veins(x, z, cell, width, seed) {
 
 // Lava rivers: meandering channels straight down the slope.
 const RIVERS = [
-  { x: -1.0, amp: 1.5, k: 2, ph: 0.3, w: 0.34, seed: 201 },
-  { x: 3.6, amp: 1.0, k: 3, ph: 1.7, w: 0.22, seed: 211 },
-  { x: -5.0, amp: 0.8, k: 1, ph: 4.1, w: 0.18, seed: 221 },
-  { x: -8.3, amp: 0.5, k: 2, ph: 2.6, w: 0.12, seed: 231 },
+  { x: -1.0, amp: 1.5, k: 2, ph: 0.3, w: 0.24, seed: 201 },
+  { x: 3.6, amp: 1.0, k: 3, ph: 1.7, w: 0.16, seed: 211 },
+  { x: -5.0, amp: 0.8, k: 1, ph: 4.1, w: 0.13, seed: 221 },
+  { x: -8.3, amp: 0.5, k: 2, ph: 2.6, w: 0.09, seed: 231 },
 ];
 function riverX(r, z) {
   return r.x + r.amp * Math.sin((TAU * r.k * wrap(z)) / PERIOD + r.ph) + 2.2 * (fbm(r.x, z, r.seed, 4) - 0.5);
@@ -226,7 +226,7 @@ function sample(x, z) {
   const hair = veins(x, z, 0.625, 0.016, 167) * smoothstep(0.5, 0.68, fbm(x, z, 173, 3));
   // Cracks down the ribs: thin glowing seams along the gullies.
   const seam = smoothstep(0.965, 0.995, ridged(qx * 3, qz, 179, 2, 2)) * smoothstep(0.4, 0.6, fbm(x, z, 181, 3));
-  const vein = Math.max(broad, finer * 0.85, hair * 0.6, seam * 0.7) * away;
+  const vein = Math.max(broad * 0.7, finer * 0.55, hair * 0.4, seam * 0.45) * away;
   lava = Math.max(lava, vein);
   heat = Math.max(heat, Math.max(broad, finer) * 0.6);
   h -= vein * 0.05;
@@ -247,7 +247,9 @@ scene.background = new THREE.Color(0x0d0a0b);
   const lavaCol = new Float32Array(pos.count * 4);
   const ash = new THREE.Color(0x8a807a), basalt = new THREE.Color(0x353031), scorch = new THREE.Color(0x5a2416);
   const sulphurCol = new THREE.Color(0xc9b03a), rust = new THREE.Color(0x6a3a26), shade = new THREE.Color(0x140e0f);
-  const hot = new THREE.Color(0xffb040), mid = new THREE.Color(0xff4a0c), dark = new THREE.Color(0x8a1404);
+  // Kept below full brightness so platforms and the climber stay the brightest
+  // things on screen.
+  const hot = new THREE.Color(0xf08a34), mid = new THREE.Color(0xc8380c), dark = new THREE.Color(0x5a0e04);
   const rimCol = new THREE.Color(0x8a3416), skyLow = new THREE.Color(0x160d10), skyHigh = new THREE.Color(0x33181a);
   const skyGlow = new THREE.Color(0x7a2c14);
   const c = new THREE.Color(), l = new THREE.Color();
@@ -259,7 +261,7 @@ scene.background = new THREE.Color(0x0d0a0b);
     // sulphur round the vents, scorched near heat, darker as the flank
     // curves away at the sides.
     const grain = fbm(x * 3, z * 3, 97, 4);
-    c.copy(basalt).lerp(ash, clamp01(s.shelf * 0.55 + (grain - 0.5) * 0.7 + 0.12));
+    c.copy(basalt).lerp(ash, clamp01(s.shelf * 0.3 + (grain - 0.5) * 0.45));
     c.lerp(rust, smoothstep(0.55, 0.75, fbm(x * 4, z, 103, 4)) * 0.45);
     c.lerp(scorch, s.heat * 0.85);
     c.lerp(sulphurCol, s.sulphur * 0.85);
@@ -270,7 +272,7 @@ scene.background = new THREE.Color(0x0d0a0b);
     const v = clamp01(s.lava * (0.7 + 0.6 * fbm(x * 2, z * 2, 101, 4)) * (1 - crust * 0.6));
     if (v > 0.55) l.copy(mid).lerp(hot, (v - 0.55) / 0.45);
     else l.copy(dark).lerp(mid, v / 0.55);
-    let a = smoothstep(0.1, 0.6, s.lava) * (1 - crust * 0.4);
+    let a = 0.85 * smoothstep(0.1, 0.6, s.lava) * (1 - crust * 0.4);
     // Sky past the skyline, and the crater's glow catching the rock's edge.
     if (s.rim > 0 && a < s.rim * 0.55) { l.copy(rimCol); a = s.rim * 0.55; }
     if (s.sky > 0) {
@@ -335,7 +337,7 @@ export const camera = new THREE.OrthographicCamera(-viewW / 2, viewW / 2, viewH 
         y: base + 0.2 + t * 6,
         z: v.z * PERIOD - t * 1.5,
         size: 0.3 + t * 1.8 + rand() * 0.3,
-        alpha: 0.16 * (1 - t) + 0.04,
+        alpha: 0.09 * (1 - t) + 0.02,
         warm: Math.max(0, 1 - t * 4),
         steam: true,
       });
@@ -346,7 +348,7 @@ export const camera = new THREE.OrthographicCamera(-viewW / 2, viewW / 2, viewH 
     const r = RIVERS[k % RIVERS.length];
     const z = rand() * PERIOD;
     const x = riverX(r, z) + (rand() - 0.5) * 2;
-    puffs.push({ x, y: sample(x, z).h + 1 + rand() * 2, z, size: 1.2 + rand() * 1.8, alpha: 0.06, warm: 0.6, steam: false });
+    puffs.push({ x, y: sample(x, z).h + 1 + rand() * 2, z, size: 1.2 + rand() * 1.8, alpha: 0.035, warm: 0.6, steam: false });
   }
   const steamCol = new THREE.Color(0x9a9294), ashCol = new THREE.Color(0x4e4442), lit = new THREE.Color(0xe0682a);
   for (let copy = -2; copy <= 2; copy++) {
@@ -410,10 +412,10 @@ export const camera = new THREE.OrthographicCamera(-viewW / 2, viewW / 2, viewH 
 }
 
 // --- Lights --------------------------------------------------------------------
-scene.add(new THREE.HemisphereLight(0x8a8a9c, 0x5a2210, 0.7));
+scene.add(new THREE.HemisphereLight(0x8a8a9c, 0x5a2210, 0.5));
 {
   // Cool, low key light from the left: the rock steps and ribs cast shadows.
-  const sun = new THREE.DirectionalLight(0xcfc8d8, 1.5);
+  const sun = new THREE.DirectionalLight(0xcfc8d8, 1.0);
   sun.position.set(-20, 16, -4);
   sun.target.position.set(0, 0, 0);
   sun.castShadow = true;
@@ -426,7 +428,7 @@ scene.add(new THREE.HemisphereLight(0x8a8a9c, 0x5a2210, 0.7));
   scene.add(sun, sun.target);
   // Warm glow from uphill: the summit crater, somewhere above the frame,
   // lights every face that looks up the slope.
-  const crater = new THREE.DirectionalLight(0xff6a24, 0.8);
+  const crater = new THREE.DirectionalLight(0xff6a24, 0.5);
   crater.position.set(2, 6, -30);
   crater.target.position.set(0, 0, 0);
   scene.add(crater, crater.target);
