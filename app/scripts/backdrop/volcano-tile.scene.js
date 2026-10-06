@@ -1,13 +1,14 @@
-// Climb backdrop tile: a volcanic range seen from high above. Ash-grey cones
-// with glowing craters, lava flows running down their flanks into a cracked,
-// smouldering basin, and smoke rising from every vent. Rendered offline with
-// the render-3d skill into public/climb/volcano-tile.jpg (see
+// Climb backdrop tile: the flank of one volcano, seen face-on as you climb
+// it. Lava rivers pour down carved channels and over rock ledges, steam rises
+// from sulphur-crusted vents, glowing cracks run through the rock, and the
+// summit crater somewhere above warms every face that looks uphill. Rendered
+// offline with the render-3d skill into public/climb/volcano-tile.jpg (see
 // public/climb/README.md).
 //
 // The tile repeats vertically in the game, so the scene is periodic: every
 // height, colour and plume is a function of z mod PERIOD, and an orthographic
 // camera turns a z-shift of one PERIOD into a screen shift of exactly one
-// frame height. Haze is keyed on elevation, not depth, for the same reason.
+// frame height. There is no depth fog for the same reason.
 import * as THREE from 'three';
 
 // Seeded PRNG: the tile must render identically every time.
@@ -21,9 +22,9 @@ const TAU = Math.PI * 2;
 const viewH = PERIOD * Math.sin(TILT);
 const viewW = viewH * ASPECT;
 const SPAN_X = viewW * 1.25;
-// The framed period plus enough either side for the tallest cone to reach
-// into frame from a neighbouring copy.
-const SPAN_Z = PERIOD + 44;
+// The framed period plus enough either side for raised rock and smoke to
+// reach into frame from a neighbouring copy.
+const SPAN_Z = PERIOD + 30;
 const SEG_X = 640;
 const SEG_Z = 2400;
 const SHADOWS = true;
@@ -113,114 +114,125 @@ function veins(x, z, cell, width, seed) {
   return smoothstep(width, 0, cellEdge(wx, wz, cell, seed));
 }
 
-// --- Volcanoes -------------------------------------------------------------------
-// z is a phase (0..1) of the period. Each cone has a crater and a few lava
-// flows leaving its rim at fixed bearings (0 = towards the camera).
-const CONES = [
-  { x: -2.0, z: 0.22, r: 9.0, h: 13.5, crater: 1.1, flows: [0.25, -0.6, 0.95, -1.35, 0.55] },
-  { x: 5.4, z: 0.56, r: 6.0, h: 8.5, crater: 0.75, flows: [-0.3, 0.6, -1.1] },
-  { x: -5.6, z: 0.70, r: 4.8, h: 6.0, crater: 0.6, flows: [0.45, -0.5] },
-  { x: 1.6, z: 0.92, r: 7.0, h: 10.0, crater: 0.9, flows: [-0.4, 0.55, 1.3, -1.15] },
-];
+// --- The flank ----------------------------------------------------------------
+// One volcano's side, seen face-on as you climb it: uphill is up the screen
+// (-z in the world), so lava runs down it towards the bottom of the frame.
+// Everything below is a phase of z (0..1 of the period) or periodic in z.
 
-// Signed z distance to a cone in the nearest period copy.
-function coneDz(z, cone) {
-  let dz = wrap(z) - cone.z * PERIOD;
+// Lava rivers: meandering channels straight down the slope.
+const RIVERS = [
+  { x: -1.0, amp: 1.5, k: 2, ph: 0.3, w: 0.34, seed: 201 },
+  { x: 3.6, amp: 1.0, k: 3, ph: 1.7, w: 0.22, seed: 211 },
+  { x: -5.0, amp: 0.8, k: 1, ph: 4.1, w: 0.18, seed: 221 },
+  { x: -8.3, amp: 0.5, k: 2, ph: 2.6, w: 0.12, seed: 231 },
+];
+function riverX(r, z) {
+  return r.x + r.amp * Math.sin((TAU * r.k * wrap(z)) / PERIOD + r.ph) + 2.2 * (fbm(r.x, z, r.seed, 4) - 0.5);
+}
+
+// Fumaroles: small glowing vents with yellow sulphur crusts and steam.
+const VENTS = [
+  { x: 1.9, z: 0.14, r: 0.55 }, { x: -3.3, z: 0.37, r: 0.4 }, { x: 5.4, z: 0.61, r: 0.45 },
+  { x: -7.2, z: 0.83, r: 0.35 }, { x: 2.8, z: 0.71, r: 0.3 }, { x: -2.2, z: 0.93, r: 0.32 },
+];
+// Signed z distance to a vent in the nearest period copy.
+function ventDz(z, v) {
+  let dz = wrap(z) - v.z * PERIOD;
   if (dz > PERIOD / 2) dz -= PERIOD;
   if (dz < -PERIOD / 2) dz += PERIOD;
   return dz;
 }
 
+// Rock ledges: the slope climbs in steps. BANDS steps per period.
+const BANDS = 6;
+const BAND = PERIOD / BANDS;
+
 // Height plus the masks the colouring needs, for one point.
 function sample(x, z) {
-  // Rolling, eroded ground.
-  // Lava-field ground: broad swells, blocky ridged rubble on top.
-  // Value-noise ridges crease along lattice lines; warping both axes bends
-  // those creases so the rubble does not read as vertical stripes.
   const qx = x + 0.9 * (fbm(x, z, 13, 4) - 0.5), qz = z + 0.9 * (fbm(x, z, 17, 4) - 0.5);
-  let h = 1.8 * fbm(x, z, 11, 4) + 0.7 * ridged(qx, qz, 23, 2, 5) + 0.2 * ridged(qx, qz, 29, 4, 3)
-    + 0.07 * ridged(qx * 2, qz * 2, 31, 4, 3);
-  let lava = 0;
-  let heat = 0;
-  let coneMask = 0;
 
-  for (const c of CONES) {
-    const dx = x - c.x, dz = coneDz(z, c);
-    const d = Math.hypot(dx, dz);
-    if (d > c.r * 1.25) continue;
-    const ang = Math.atan2(dx, dz);
-    // Gullies carve the flanks: ridged noise in polar coordinates, so the
-    // ridges run downhill. (The seam at the back of each cone is hidden.)
-    const gully = 0.45 * ridged(ang * 7 + 0.8 * fbm(x, z, 43, 3), d * 0.6, 41, 2, 4)
-      + 0.25 * ridged(x * 2, z * 2, 53, 3, 4);
-    const t = clamp01(1 - d / c.r);
-    let ch = c.h * Math.pow(t, 1.35) * (1 - gully * t * 0.5);
-    // Crater: a bowl inside the rim, with a molten floor.
-    if (d < c.crater * 1.6) {
-      const rim = c.h * Math.pow(1 - (c.crater * 1.6) / c.r, 1.35);
-      const k = d / (c.crater * 1.6);
-      const bowl = rim + 0.35 - (1 - k * k) * 1.4;
-      ch = Math.min(ch, bowl);
-      if (d < c.crater) {
-        lava = Math.max(lava, smoothstep(c.crater, c.crater * 0.6, d));
-      }
-    }
-    // Lava flows: narrow channels down the flank at each bearing, wandering.
-    for (const b of c.flows) {
-      // Lateral offset in world units: wanders more the further it runs.
-      const seedB = 61 + Math.round(b * 10);
-      const wander = (d / c.r) * (1.1 * Math.sin(d * 0.9 + b * 7) + 2.0 * (fbm(x, z, seedB, 4) - 0.5));
-      let da = ang - b;
-      da = Math.atan2(Math.sin(da), Math.cos(da));
-      const across = Math.abs(da * d - wander);
-      const width = (0.08 + 0.2 * (d / c.r)) * (0.55 + 0.9 * fbm(x * 2, z * 2, seedB + 5, 4));
-      if (d > c.crater * 1.2 && d < c.r * 1.15) {
-        // Cools as it runs: bright at the vent, dull red at the toe.
-        const f = smoothstep(width, width * 0.35, across) * smoothstep(c.r * 1.15, c.r * 0.85, d) * (1 - 0.55 * d / c.r);
-        lava = Math.max(lava, f);
-        ch -= f * 0.12;
-      }
-      heat = Math.max(heat, smoothstep(width * 4, width, across) * smoothstep(c.r * 1.3, c.r * 0.7, d));
-    }
-    // Hairline cracks radiating down the flanks, glowing from inside.
-    if (d > c.crater * 1.3) {
-      const radial = ridged(ang * 14 + 1.5 * fbm(x, z, 47, 4), d * 0.35, 49, 3, 2);
-      const fl = smoothstep(0.93, 0.99, radial) * smoothstep(0.15, 0.6, t) * (0.5 + 0.5 * fbm(x * 2, z * 2, 51, 3));
-      lava = Math.max(lava, fl * 0.75);
-      ch -= fl * 0.05;
-    }
-    heat = Math.max(heat, smoothstep(c.crater * 2.6, c.crater, d));
-    coneMask = Math.max(coneMask, t);
-    h = Math.max(h, h * 0.6 + ch);
+  // The mountain's body: it bulges towards you in the middle and curves away
+  // at the sides, so the frame reads as one peak's flank.
+  let h = -0.05 * x * x + 1.2 * fbm(x, z, 11, 4);
+
+  // Ribs and gullies running downhill: ridged noise stretched along z
+  // (x scaled up, z left alone, so it stays periodic).
+  const ribs = ridged(qx * 3, qz, 23, 1, 5);
+  h += 1.1 * ribs + 0.25 * ridged(qx, qz, 29, 3, 4) + 0.07 * ridged(qx * 2, qz * 2, 31, 4, 3);
+
+  // Ledges: a steep rock step facing you, then a near-level shelf behind it.
+  // The step line wanders and tilts across the slope and fades in and out.
+  const u = -z + 0.22 * x + 3.2 * (fbm(x, z, 301, 4) - 0.5);
+  const p = (((u % BAND) + BAND) % BAND) / BAND;
+  const RISE = 0.3;
+  const step = p < RISE ? smoothstep(0, RISE, p) : 1 - (p - RISE) / (1 - RISE);
+  const ledgeAmp = 0.9 * smoothstep(0.3, 0.62, fbm(x, z, 311, 3));
+  h += ledgeAmp * step;
+  const cliff = (p < RISE ? 1 : 0) * smoothstep(0, 0.5, ledgeAmp);
+  const shelf = ledgeAmp * smoothstep(RISE, RISE + 0.12, p) * smoothstep(0.8, 0.5, p);
+
+  let lava = 0, heat = 0, sulphur = 0, river = 0;
+
+  // The mountain's right-hand skyline: past it the rock falls away out of
+  // sight and there is only smoky sky.
+  const edge = 6.3 + 4.5 * (fbm(6.3, z, 401, 5) - 0.5) + 2.2 * (vnoise(6.3, z, 2.5, 405) - 0.5)
+    - 0.45 * ridged(6.3, z, 403, 4, 3);
+  const sky = smoothstep(edge, edge + 0.12, x);
+  const rim = smoothstep(edge - 0.6, edge, x) * (1 - sky);
+
+  // Lava rivers in carved channels, with low levees either side.
+  for (const r of RIVERS) {
+    const d = Math.abs(x - riverX(r, z));
+    const w = r.w * (0.7 + 0.6 * fbm(x, z, r.seed + 7, 3));
+    if (d > w * 6) continue;
+    const chan = smoothstep(w * 2.2, w * 0.4, d);
+    const levee = smoothstep(w * 4, w * 2.2, d) - chan;
+    h += -0.55 * chan + 0.22 * levee;
+    // Molten core with a crust of plates whose seams glow brightest.
+    const core = smoothstep(w, w * 0.45, d);
+    const plates = veins(x, z, 0.625, 0.05, r.seed + 11);
+    const surf = Math.max(0.18 + 0.35 * fbm(x * 3, z * 3, r.seed + 13, 3), plates);
+    // Hotter where it pours over a ledge.
+    const fall = cliff * smoothstep(w * 1.4, w * 0.3, d);
+    lava = Math.max(lava, core * surf, fall);
+    river = Math.max(river, core);
+    heat = Math.max(heat, smoothstep(w * 5, w, d));
   }
 
-  const open = Math.pow(1 - coneMask, 3);
-
-  // Lava lakes fill the lowest ground: a flat molten surface broken into
-  // dark crust plates, with the seams between plates glowing hottest.
-  const LAKE = 1.42;
-  const lake = smoothstep(LAKE + 0.06, LAKE - 0.12, h) * open;
-  if (lake > 0) {
-    const seams = veins(x, z, 0.8, 0.1, 131);
-    const fine = veins(x, z, 0.3125, 0.035, 137);
-    const plate = 0.28 + 0.2 * fbm(x * 3, z * 3, 139, 3);
-    lava = Math.max(lava, lake * Math.max(plate, seams, fine * 0.8));
-    heat = Math.max(heat, lake);
-    h = h * (1 - lake) + (LAKE - 0.02) * lake;
+  // Lava pooled on shelves beside the rivers spills into glowing ponds.
+  const pond = shelf * smoothstep(0.62, 0.7, fbm(x, z, 321, 4)) * smoothstep(0.55, 1, heat);
+  if (pond > 0) {
+    const crust = veins(x, z, 0.3125, 0.03, 331);
+    lava = Math.max(lava, pond * Math.max(0.35, crust));
+    h -= pond * 0.15;
   }
 
-  // Vein networks over the whole basin: broad cracks, then finer ones in
-  // patches, both fading as the ground rises onto the cones.
-  const shore = smoothstep(LAKE + 0.9, LAKE + 0.05, h);
-  const broad = veins(x, z, 2.5, 0.07, 141) * smoothstep(0.32, 0.55, fbm(x, z, 151, 3));
-  const finer = veins(x, z, 1.25, 0.035, 157) * smoothstep(0.42, 0.62, fbm(x, z, 163, 3));
-  const hair = veins(x, z, 0.625, 0.018, 167) * smoothstep(0.5, 0.68, fbm(x, z, 173, 3));
-  const vein = Math.max(broad, finer * 0.85, hair * 0.6) * open * (0.55 + 0.45 * shore);
+  // Fumaroles.
+  for (const v of VENTS) {
+    const d = Math.hypot(x - v.x, ventDz(z, v));
+    if (d > v.r * 5) continue;
+    const rim = smoothstep(v.r * 1.6, v.r, d) - smoothstep(v.r, v.r * 0.5, d);
+    h += 0.35 * rim - 0.5 * smoothstep(v.r * 0.8, 0, d);
+    lava = Math.max(lava, smoothstep(v.r * 0.7, v.r * 0.2, d));
+    heat = Math.max(heat, smoothstep(v.r * 3, v.r, d));
+    sulphur = Math.max(sulphur, smoothstep(v.r * 4.5, v.r * 1.2, d) * (0.4 + 0.6 * fbm(x * 3, z * 3, 341, 4)));
+  }
+
+  // Glowing cracks through the rock at three scales, densest on the shelves
+  // and fading where the rock bulges out.
+  const away = 1 - river;
+  const broad = veins(x, z, 2.5, 0.06, 141) * smoothstep(0.38, 0.6, fbm(x, z, 151, 3));
+  const finer = veins(x, z, 1.25, 0.03, 157) * smoothstep(0.45, 0.64, fbm(x, z, 163, 3));
+  const hair = veins(x, z, 0.625, 0.016, 167) * smoothstep(0.5, 0.68, fbm(x, z, 173, 3));
+  // Cracks down the ribs: thin glowing seams along the gullies.
+  const seam = smoothstep(0.965, 0.995, ridged(qx * 3, qz, 179, 2, 2)) * smoothstep(0.4, 0.6, fbm(x, z, 181, 3));
+  const vein = Math.max(broad, finer * 0.85, hair * 0.6, seam * 0.7) * away;
   lava = Math.max(lava, vein);
-  heat = Math.max(heat, smoothstep(0, 1, Math.max(broad, finer)) * open * 0.6, shore * open * 0.35);
-  h -= vein * 0.06;
+  heat = Math.max(heat, Math.max(broad, finer) * 0.6);
+  h -= vein * 0.05;
 
-  return { h, lava, heat };
+  lava *= 1 - sky;
+  return { h, lava, heat, sulphur, shelf, cliff, sky, rim, past: x - edge };
 }
 
 export const scene = new THREE.Scene();
@@ -233,27 +245,41 @@ scene.background = new THREE.Color(0x0d0a0b);
   const pos = geo.attributes.position;
   const rockCol = new Float32Array(pos.count * 3);
   const lavaCol = new Float32Array(pos.count * 4);
-  const ash = new THREE.Color(0x8a807a), basalt = new THREE.Color(0x3a3434), scorch = new THREE.Color(0x5a2416);
-  const haze = new THREE.Color(0x3a2626);
-  const hot = new THREE.Color(0xffa83a), mid = new THREE.Color(0xff4a0c), dark = new THREE.Color(0x8a1404);
+  const ash = new THREE.Color(0x8a807a), basalt = new THREE.Color(0x353031), scorch = new THREE.Color(0x5a2416);
+  const sulphurCol = new THREE.Color(0xc9b03a), rust = new THREE.Color(0x6a3a26), shade = new THREE.Color(0x140e0f);
+  const hot = new THREE.Color(0xffb040), mid = new THREE.Color(0xff4a0c), dark = new THREE.Color(0x8a1404);
+  const rimCol = new THREE.Color(0x8a3416), skyLow = new THREE.Color(0x160d10), skyHigh = new THREE.Color(0x33181a);
+  const skyGlow = new THREE.Color(0x7a2c14);
   const c = new THREE.Color(), l = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
     const s = sample(x, z);
     pos.setY(i, s.h);
-    // Rock: dark basalt, ash dusting on high ground, scorched near heat,
-    // warm haze pooling in the low basin.
+    // Rock: dark basalt, ash settled on the shelves, rusty oxidised streaks,
+    // sulphur round the vents, scorched near heat, darker as the flank
+    // curves away at the sides.
     const grain = fbm(x * 3, z * 3, 97, 4);
-    c.copy(basalt).lerp(ash, clamp01(smoothstep(2.5, 8, s.h) * 0.8 + (grain - 0.5) * 0.6));
-    c.lerp(scorch, s.heat * 0.9);
-    c.lerp(haze, smoothstep(1.4, 0.4, s.h) * 0.45);
+    c.copy(basalt).lerp(ash, clamp01(s.shelf * 0.55 + (grain - 0.5) * 0.7 + 0.12));
+    c.lerp(rust, smoothstep(0.55, 0.75, fbm(x * 4, z, 103, 4)) * 0.45);
+    c.lerp(scorch, s.heat * 0.85);
+    c.lerp(sulphurCol, s.sulphur * 0.85);
+    c.lerp(shade, smoothstep(4, 9.5, -x) * 0.8);
     rockCol.set([c.r, c.g, c.b], i * 3);
     // Lava overlay: emissive colour, alpha = how molten this point is.
     const crust = smoothstep(0.62, 0.72, fbm(x * 3, z * 3, 113, 5));
-    const v = clamp01(s.lava * (0.7 + 0.6 * fbm(x * 2, z * 2, 101, 4)) * (1 - crust * 0.75));
+    const v = clamp01(s.lava * (0.7 + 0.6 * fbm(x * 2, z * 2, 101, 4)) * (1 - crust * 0.6));
     if (v > 0.55) l.copy(mid).lerp(hot, (v - 0.55) / 0.45);
     else l.copy(dark).lerp(mid, v / 0.55);
-    lavaCol.set([l.r, l.g, l.b, smoothstep(0.1, 0.6, s.lava) * (1 - crust * 0.5)], i * 4);
+    let a = smoothstep(0.1, 0.6, s.lava) * (1 - crust * 0.4);
+    // Sky past the skyline, and the crater's glow catching the rock's edge.
+    if (s.rim > 0 && a < s.rim * 0.55) { l.copy(rimCol); a = s.rim * 0.55; }
+    if (s.sky > 0) {
+      // Dark sky, smoke drifting across it, lit from below near the slope.
+      l.copy(skyLow).lerp(skyHigh, smoothstep(0.35, 0.75, fbm(x, z * 2, 409, 5)));
+      l.lerp(skyGlow, Math.exp(-s.past / 0.8) * 0.45);
+      a = Math.max(a * (1 - s.sky), s.sky);
+    }
+    lavaCol.set([l.r, l.g, l.b, a], i * 4);
   }
   geo.computeVertexNormals();
   geo.setAttribute('color', new THREE.BufferAttribute(rockCol, 3));
@@ -283,8 +309,9 @@ export const camera = new THREE.OrthographicCamera(-viewW / 2, viewW / 2, viewH 
 }
 
 // --- Smoke -------------------------------------------------------------------
-// Soft discs facing the camera, stacked into a drifting column per crater.
-// Each plume is placed in every period copy so the tile stays seamless.
+// Soft discs facing the camera: a steam column per vent, and low ash drifting
+// across the face. Each puff is placed in every period copy so the tile stays
+// seamless.
 {
   const puffGeo = new THREE.CircleGeometry(1, 40, 0, TAU);
   {
@@ -297,38 +324,43 @@ export const camera = new THREE.OrthographicCamera(-viewW / 2, viewW / 2, viewH 
     puffGeo.setAttribute('color', new THREE.BufferAttribute(col, 4));
   }
   const rand = mulberry32(1337);
-  const plumes = CONES.map((c) => {
-    const puffs = [];
-    const n = 22 + Math.round(c.h);
+  const puffs = [];
+  for (const v of VENTS) {
+    const base = sample(v.x, v.z * PERIOD).h;
+    const n = 18;
     for (let k = 0; k < n; k++) {
       const t = k / n;
       puffs.push({
-        up: c.h * 0.86 + t * 9,
-        drift: t * t * 4 + (rand() - 0.5) * 0.4 * t,
-        side: (rand() - 0.5) * 0.6 * (0.3 + t),
-        size: 0.45 + t * 2.4 + rand() * 0.4,
-        alpha: 0.2 * (1 - t) + 0.05,
-        warm: Math.max(0, 1 - t * 3),
+        x: v.x + t * t * 2.5 + (rand() - 0.5) * 0.5 * t,
+        y: base + 0.2 + t * 6,
+        z: v.z * PERIOD - t * 1.5,
+        size: 0.3 + t * 1.8 + rand() * 0.3,
+        alpha: 0.16 * (1 - t) + 0.04,
+        warm: Math.max(0, 1 - t * 4),
+        steam: true,
       });
     }
-    return { c, puffs };
-  });
-  const smokeGrey = new THREE.Color(0x5e5452), smokeLit = new THREE.Color(0xd8622a);
+  }
+  // Ash haze hanging over the rivers.
+  for (let k = 0; k < 40; k++) {
+    const r = RIVERS[k % RIVERS.length];
+    const z = rand() * PERIOD;
+    const x = riverX(r, z) + (rand() - 0.5) * 2;
+    puffs.push({ x, y: sample(x, z).h + 1 + rand() * 2, z, size: 1.2 + rand() * 1.8, alpha: 0.06, warm: 0.6, steam: false });
+  }
+  const steamCol = new THREE.Color(0x9a9294), ashCol = new THREE.Color(0x4e4442), lit = new THREE.Color(0xe0682a);
   for (let copy = -2; copy <= 2; copy++) {
-    for (const { c, puffs } of plumes) {
-      const z0 = c.z * PERIOD + copy * PERIOD;
-      for (const p of puffs) {
-        const mat = new THREE.MeshBasicMaterial({
-          color: smokeGrey.clone().lerp(smokeLit, p.warm * 0.8),
-          vertexColors: true, transparent: true, opacity: p.alpha, depthWrite: false,
-        });
-        const m = new THREE.Mesh(puffGeo, mat);
-        m.position.set(c.x + p.drift + p.side, p.up, z0 - p.drift * 0.4);
-        m.scale.setScalar(p.size);
-        m.quaternion.copy(camera.quaternion);
-        m.renderOrder = 2;
-        scene.add(m);
-      }
+    for (const p of puffs) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: (p.steam ? steamCol : ashCol).clone().lerp(lit, p.warm * 0.8),
+        vertexColors: true, transparent: true, opacity: p.alpha, depthWrite: false,
+      });
+      const m = new THREE.Mesh(puffGeo, mat);
+      m.position.set(p.x, p.y, p.z + copy * PERIOD);
+      m.scale.setScalar(p.size);
+      m.quaternion.copy(camera.quaternion);
+      m.renderOrder = 2;
+      scene.add(m);
     }
   }
 }
@@ -378,11 +410,11 @@ export const camera = new THREE.OrthographicCamera(-viewW / 2, viewW / 2, viewH 
 }
 
 // --- Lights --------------------------------------------------------------------
-scene.add(new THREE.HemisphereLight(0x8a8a9c, 0x5a2210, 0.75));
+scene.add(new THREE.HemisphereLight(0x8a8a9c, 0x5a2210, 0.7));
 {
-  // Cool, low key light from upper left: long shadows off every cone.
-  const sun = new THREE.DirectionalLight(0xcfc8d8, 1.6);
-  sun.position.set(-18, 22, -8);
+  // Cool, low key light from the left: the rock steps and ribs cast shadows.
+  const sun = new THREE.DirectionalLight(0xcfc8d8, 1.5);
+  sun.position.set(-20, 16, -4);
   sun.target.position.set(0, 0, 0);
   sun.castShadow = true;
   // The shadow box spans every period copy in frame, so shadows repeat too.
@@ -392,6 +424,12 @@ scene.add(new THREE.HemisphereLight(0x8a8a9c, 0x5a2210, 0.75));
   sun.shadow.bias = -0.0008;
   sun.shadow.normalBias = 0.08;
   scene.add(sun, sun.target);
+  // Warm glow from uphill: the summit crater, somewhere above the frame,
+  // lights every face that looks up the slope.
+  const crater = new THREE.DirectionalLight(0xff6a24, 0.8);
+  crater.position.set(2, 6, -30);
+  crater.target.position.set(0, 0, 0);
+  scene.add(crater, crater.target);
 }
 
 // Shadows need to be on in the renderer the harness builds.
