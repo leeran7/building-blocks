@@ -57,7 +57,7 @@ const TOOLS = [
         code: { type: "string", description: "Scene module source" },
         codePath: {
           type: "string",
-          description: "Path to a scene module file (alternative to code)",
+          description: "Scene module file, relative to RENDER_3D_OUT_BASE (alternative to code)",
         },
         width: { type: "integer" },
         height: { type: "integer" },
@@ -86,7 +86,7 @@ async function callTool(name, args = {}) {
     return textResult(JSON.stringify(summary, null, 2));
   }
   if (name === "preview-scene") {
-    const code = args.code ?? (args.codePath ? await readFile(resolve(args.codePath), "utf8") : null);
+    const code = args.code ?? (args.codePath ? await readFile(resolveConfined(OUT_BASE, args.codePath), "utf8") : null);
     if (!code) throw new Error("preview-scene needs code or codePath");
     const contract = validateContract(code);
     if (!contract.ok) throw new Error(`contract failed: ${contract.errors.join("; ")}`);

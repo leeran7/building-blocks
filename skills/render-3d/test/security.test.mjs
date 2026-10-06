@@ -3,7 +3,7 @@
 // Run: node --test "test/security.test.mjs"
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readdir } from "node:fs/promises";
+import { mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -122,6 +122,56 @@ test("MCP server ignores notification-form tools/call (no side effects)", async 
       if (Date.now() - start > 10000) throw new Error("no pong");
       await new Promise((r) => setTimeout(r, 100));
     }
+  } finally {
+    child.kill("SIGKILL");
+  }
+}, { timeout: 30000 });
+
+test("MCP preview-scene confines codePath to RENDER_3D_OUT_BASE", async () => {
+  const serverPath = join(ROOT, "mcp-server/server.mjs");
+  const outBase = await mkdtemp(join(tmpdir(), "r3d-codepath-"));
+  // A real file outside the base: before the fix it was read (and failed the
+  // scene contract), so the error said "contract failed", not "escapes".
+  const outside = join(await mkdtemp(join(tmpdir(), "r3d-outside-")), "secret.txt");
+  await writeFile(outside, "not a scene");
+  const child = spawn(process.execPath, [serverPath], {
+    env: { ...process.env, RENDER_3D_BACKEND: "stub", RENDER_3D_OUT_BASE: outBase },
+    stdio: ["pipe", "pipe", "inherit"],
+  });
+  const responses = [];
+  let buf = "";
+  child.stdout.on("data", (d) => {
+    buf += d.toString();
+    let nl;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      try { responses.push(JSON.parse(line)); } catch { /* ignore */ }
+    }
+  });
+  const call = async (id, codePath) => {
+    child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call",
+      params: { name: "preview-scene", arguments: { codePath } } }) + "\n");
+    const start = Date.now();
+    while (!responses.some((m) => m.id === id)) {
+      if (Date.now() - start > 10000) throw new Error(`no reply to ${id}`);
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const res = responses.find((m) => m.id === id).result;
+    return { isError: res.isError, text: res.content[0].text };
+  };
+  try {
+    for (const [id, p] of [[1, outside], [2, "../" + "x".repeat(3)], [3, "/etc/passwd"]]) {
+      const r = await call(id, p);
+      assert.equal(r.isError, true, `codePath ${p} was accepted`);
+      assert.match(r.text, /escapes/, `codePath ${p} was read: ${r.text}`);
+    }
+    // Positive fixture: a file inside the base is still read (and then fails
+    // the contract, which proves it got past confinement).
+    await writeFile(join(outBase, "inside.js"), "not a scene");
+    const ok = await call(4, "inside.js");
+    assert.match(ok.text, /contract failed/);
   } finally {
     child.kill("SIGKILL");
   }

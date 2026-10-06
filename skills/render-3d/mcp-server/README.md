@@ -35,7 +35,8 @@ Or drop it in `.mcp.json`:
 - `render-scene` — prompt → Three.js module + verified preview screenshot.
   Inputs: `prompt` (required), `placement`, `style`, `budget`, `outDir`,
   `width`, `height`.
-- `preview-scene` — render existing scene code (`code` or `codePath`) and
+- `preview-scene` — render existing scene code (`code`, or `codePath` under
+  `RENDER_3D_OUT_BASE`) and
   get a screenshot path. Errors if the code throws or breaks the contract.
 
 ## Env

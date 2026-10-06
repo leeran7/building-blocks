@@ -18,7 +18,7 @@ export function resolveConfined(base, p) {
   const baseDir = resolve(base);
   const target = resolve(baseDir, p);
   if (target !== baseDir && !target.startsWith(baseDir + sep)) {
-    throw new Error(`output path escapes the allowed base directory: ${p}`);
+    throw new Error(`path escapes the allowed base directory: ${p}`);
   }
   return target;
 }

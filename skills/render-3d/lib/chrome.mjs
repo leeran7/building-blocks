@@ -100,9 +100,11 @@ export function buildHarness(code, { threeDataUrl, addonsUrl, width, height }) {
   // possible), and even top-level throws surface with their message instead
   // of killing the module before the harness can report.
   const codeB64 = Buffer.from(code, "utf8").toString("base64");
-  // Generated code is untrusted: block all network exfiltration. three.js
-  // itself is inlined (data:), so rendering needs no network.
-  const csp = "script-src 'unsafe-inline' data: blob: https://cdn.jsdelivr.net; " +
+  // Generated code is untrusted: block fetches, frames and every other
+  // subresource it could use to reach the network. three.js itself is inlined
+  // (data:), so rendering needs no network. CSP cannot stop a top-level
+  // navigation; the page holds no secrets and lives for one render.
+  const csp = "default-src 'none'; frame-src 'none'; script-src 'unsafe-inline' data: blob: https://cdn.jsdelivr.net; " +
     "connect-src 'none'; img-src data: blob:; media-src data: blob:; " +
     "style-src 'unsafe-inline'; font-src data:; object-src 'none'; " +
     "base-uri 'none'; form-action 'none'; worker-src 'none';";
