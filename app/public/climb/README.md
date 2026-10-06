@@ -156,15 +156,20 @@ generated art directly, ask for:
 
 A 682×1024 JPEG that `climbBackground.ts` repeats vertically behind the climb.
 It is a 3D render of `scripts/backdrop/volcano-tile.scene.js`, a procedural
-Three.js scene built to repeat without a seam (everything in it is periodic
-along the view axis, seen through an orthographic camera). To change it, edit
+Three.js scene of a volcanic range (cones with glowing craters, lava flows down
+their flanks, a cracked basin, smoke) built to repeat without a seam:
+everything in it is periodic along the view axis, seen through an orthographic
+camera. To change it, edit
 the scene and re-render at 2× with the render-3d skill, then downscale:
 
 ```bash
-RENDER_3D_CHROME_BIN=<chrome> node skills/render-3d/bin/preview-scene.mjs \
+RENDER_3D_CHROME_BIN=<chrome> RENDER_3D_SETTLE_MS=600000 \
+node skills/render-3d/bin/preview-scene.mjs \
   --code app/scripts/backdrop/volcano-tile.scene.js \
   --out /tmp/tile.png --width 1364 --height 2048
 # then resize /tmp/tile.png to 682×1024 and save as JPEG (quality ~86)
 ```
 
-Keep the 2:3 aspect: the game scales the tile to the canvas width.
+The scene is heavy (about a million terrain vertices), so a 2× render takes
+several minutes in software WebGL. Keep the 2:3 aspect: the game scales the
+tile to the canvas width.

@@ -119,6 +119,42 @@ throw new Error('deliberate boom');`;
   assert.match(result.error, /deliberate boom/);
 }, { timeout: 60000 });
 
+// A scene that takes a few seconds to build (big procedural terrain) must
+// still pass: the gate waits for the harness to report, up to
+// RENDER_3D_SETTLE_MS, instead of a fixed settle time.
+const SLOW_SCENE = `import * as THREE from 'three';
+const until = Date.now() + 3000;
+while (Date.now() < until) {} // stand-in for a slow scene build
+export const scene = new THREE.Scene();
+scene.add(new THREE.AmbientLight(0xffffff, 1));
+export const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);`;
+
+it("preview gate waits for a slow scene to report", async () => {
+  const chrome = await import(join(ROOT, "lib/chrome.mjs"));
+  const result = await chrome.preview(SLOW_SCENE, { width: 320, height: 200 });
+  assert.ok(result.ok, `slow scene failed the gate: ${result.error}`);
+}, { timeout: 90000 });
+
+it("preview gate gives up on a scene that never reports", async () => {
+  const chrome = await import(join(ROOT, "lib/chrome.mjs"));
+  const hung = `import * as THREE from 'three';
+await new Promise(() => {}); // never finishes building
+export const scene = new THREE.Scene();
+export const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);`;
+  const saved = process.env.RENDER_3D_SETTLE_MS;
+  process.env.RENDER_3D_SETTLE_MS = "1500";
+  try {
+    const started = Date.now();
+    const result = await chrome.preview(hung, { width: 320, height: 200 });
+    assert.ok(!result.ok, "a scene that never reports should fail");
+    assert.match(result.error, /no status reported within 1500 ms/);
+    assert.ok(Date.now() - started < 30000, "gate did not honour RENDER_3D_SETTLE_MS");
+  } finally {
+    if (saved === undefined) delete process.env.RENDER_3D_SETTLE_MS;
+    else process.env.RENDER_3D_SETTLE_MS = saved;
+  }
+}, { timeout: 90000 });
+
 it("MCP server: initialize, tools/list, render-scene call", async () => {
   const serverPath = join(ROOT, "mcp-server/server.mjs");
   const child = spawn(process.execPath, [serverPath], {

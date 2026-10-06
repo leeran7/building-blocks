@@ -88,7 +88,9 @@ Code generation calls a model backend. No key is ever written to the repo.
 4. The model backend is behind `lib/backend.mjs`. Model tiering /
    routing across providers is one-body issue #8's job (leeran7/one-body#8) — do not hard-code provider
    logic into the skill.
-5. Chrome is resolved via `RENDER_3D_CHROME_BIN`, then well-known paths.
+5. The gate waits for the scene to report, up to `RENDER_3D_SETTLE_MS`
+   (default 30000). Raise it for heavy procedural scenes.
+6. Chrome is resolved via `RENDER_3D_CHROME_BIN`, then well-known paths.
    If no Chrome is found, `preview-scene` fails loudly — never fake a
    preview.
 

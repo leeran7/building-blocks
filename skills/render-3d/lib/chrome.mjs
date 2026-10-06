@@ -159,6 +159,12 @@ export function buildHarness(code, { threeDataUrl, addonsUrl, width, height }) {
 </body></html>`;
 }
 
+/** How long a scene may take to build and report, ms (RENDER_3D_SETTLE_MS). */
+export function settleTimeoutMs() {
+  const v = Number.parseInt(process.env.RENDER_3D_SETTLE_MS ?? "", 10);
+  return Number.isFinite(v) && v >= 1000 && v <= 600000 ? v : 30000;
+}
+
 export function resolveChromeBin() {
   if (process.env.RENDER_3D_CHROME_BIN) {
     const p = process.env.RENDER_3D_CHROME_BIN;
@@ -444,14 +450,23 @@ export async function preview(code, { width = 1280, height = 800, outPath } = {}
         loaded,
         new Promise((r) => setTimeout(r, 10000)),
       ]);
-      // Give the module + one animation frame time to settle.
-      await new Promise((r) => setTimeout(r, 1200));
-
-      const evaled = await send("Runtime.evaluate", {
-        expression: "window.__render3d || { ok: false, error: 'no status reported' }",
-        returnByValue: true,
-      });
-      const status = evaled.result?.value || { ok: false, error: "no result" };
+      // Wait for the harness to report. Heavy procedural scenes can take
+      // seconds to build, so poll instead of assuming a fixed settle time.
+      const deadline = Date.now() + settleTimeoutMs();
+      let status = null;
+      while (!status) {
+        await new Promise((r) => setTimeout(r, 200));
+        // The page's main thread may be busy building the scene; this call
+        // queues behind it, so give it the same budget as the whole wait.
+        const evaled = await send("Runtime.evaluate", {
+          expression: "window.__render3d || null",
+          returnByValue: true,
+        }, settleTimeoutMs());
+        status = evaled.result?.value || null;
+        if (!status && Date.now() > deadline) {
+          status = { ok: false, error: `no status reported within ${settleTimeoutMs()} ms` };
+        }
+      }
       if (process.env.RENDER_3D_DEBUG === "1") {
         const loc = await send("Runtime.evaluate", { expression: "location.href", returnByValue: true }).catch(() => null);
         const rs = await send("Runtime.evaluate", { expression: "document.readyState + ' len=' + document.documentElement.outerHTML.length", returnByValue: true }).catch(() => null);

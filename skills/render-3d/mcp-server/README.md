@@ -48,6 +48,7 @@ Or drop it in `.mcp.json`:
 | `OPENAI_API_KEY` | model backend key (never committed) |
 | `RENDER_3D_MODEL` / `RENDER_3D_BASE_URL` | model / endpoint overrides |
 | `RENDER_3D_CHROME_BIN` | Chrome binary for the preview gate |
+| `RENDER_3D_SETTLE_MS` | how long a scene may take to build and report (default 30000) |
 | `RENDER_3D_CACHE_DIR` | where the pinned three.js build is cached |
 | `RENDER_3D_OUT_BASE` | base dir all tool output paths are confined under (default `./render-3d-out`) |
 | `RENDER_3D_NO_SANDBOX` | set `1` to add Chrome `--no-sandbox` (containers only) |
