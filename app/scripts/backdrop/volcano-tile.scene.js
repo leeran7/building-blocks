@@ -21,8 +21,10 @@ const TAU = Math.PI * 2;
 const viewH = PERIOD * Math.sin(TILT);
 const viewW = viewH * ASPECT;
 const SPAN_X = viewW * 1.25;
-const SPAN_Z = PERIOD * 3;              // the framed period plus one each side
-const SEG_X = 460;
+// The framed period plus enough either side for the tallest cone to reach
+// into frame from a neighbouring copy.
+const SPAN_Z = PERIOD + 44;
+const SEG_X = 640;
 const SEG_Z = 2400;
 const SHADOWS = true;
 
@@ -34,10 +36,19 @@ const smoothstep = (a, b, v) => smooth(clamp01((v - a) / (b - a)));
 // --- Periodic value noise ----------------------------------------------------
 // Lattice cells divide PERIOD exactly and z lattice indices wrap, so every
 // octave repeats along z with the tile.
+// Callers may scale coordinates only by whole numbers: noise(x * 2, z * 2)
+// still repeats every PERIOD, noise(x * 1.5, z * 1.5) does not.
+// Full avalanche (murmur3 finaliser per input): a weaker one-round mix left
+// values correlated down each lattice column, which showed as vertical streaks.
+function fmix(h) {
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35);
+  return h ^ (h >>> 16);
+}
 function latticeHash(ix, iz, seed) {
-  let h = Math.imul(ix, 374761393) ^ Math.imul(iz, 668265263) ^ Math.imul(seed, 2147483647);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  let h = fmix(Math.imul(seed, 0x9e3779b1) ^ Math.imul(ix, 0x85ebca77));
+  h = fmix(h ^ Math.imul(iz, 0xc2b2ae3d));
+  return (h >>> 0) / 4294967296;
 }
 function vnoise(x, z, cell, seed) {
   const nz = Math.round(PERIOD / cell);
@@ -62,21 +73,54 @@ function fbm(x, z, seed, octaves = CELLS.length) {
 function ridged(x, z, seed, from, octaves) {
   let sum = 0, amp = 0.5, norm = 0;
   for (let o = from; o < from + octaves; o++) {
-    sum += amp * (1 - Math.abs(2 * vnoise(x, z, CELLS[o], seed + o * 17) - 1));
+    // Value-noise creases follow the lattice; a warp at the octave's own
+    // scale bends each crease so none runs straight down a lattice column.
+    const c = CELLS[o];
+    const wx = x + 0.9 * c * (vnoise(x, z, c, seed + o * 17 + 5) - 0.5);
+    const wz = z + 0.9 * c * (vnoise(x, z, c, seed + o * 17 + 9) - 0.5);
+    sum += amp * (1 - Math.abs(2 * vnoise(wx, wz, c, seed + o * 17) - 1));
     norm += amp;
     amp *= 0.55;
   }
   return sum / norm;
 }
 
+// Periodic cellular noise: distance (world units) from the nearest cell edge.
+// Small values trace a network of cracks; used for veins and lava crust.
+function cellEdge(x, z, cell, seed) {
+  // cell must divide PERIOD exactly, as for vnoise.
+  const nz = Math.round(PERIOD / cell);
+  const gx = x / cell, gz = wrap(z) / cell;
+  const ix = Math.floor(gx), iz = Math.floor(gz);
+  let f1 = 9, f2 = 9;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const cx = ix + i, cz = iz + j;
+      const wz = ((cz % nz) + nz) % nz;
+      const px = cx + 0.1 + 0.8 * latticeHash(cx, wz, seed);
+      const pz = cz + 0.1 + 0.8 * latticeHash(cx, wz, seed + 1);
+      const d = Math.hypot(gx - px, gz - pz);
+      if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
+    }
+  }
+  return (f2 - f1) * cell;
+}
+
+// Domain-warped vein network: 1 on a crack, 0 away from it.
+function veins(x, z, cell, width, seed) {
+  const wx = x + cell * 1.3 * (fbm(x, z, seed + 3, 5) - 0.5);
+  const wz = z + cell * 1.3 * (fbm(x, z, seed + 5, 5) - 0.5);
+  return smoothstep(width, 0, cellEdge(wx, wz, cell, seed));
+}
+
 // --- Volcanoes -------------------------------------------------------------------
 // z is a phase (0..1) of the period. Each cone has a crater and a few lava
 // flows leaving its rim at fixed bearings (0 = towards the camera).
 const CONES = [
-  { x: -2.0, z: 0.22, r: 9.0, h: 13.5, crater: 1.1, flows: [0.25, -0.6] },
-  { x: 5.4, z: 0.56, r: 6.0, h: 8.5, crater: 0.75, flows: [-0.3] },
-  { x: -5.6, z: 0.70, r: 4.8, h: 6.0, crater: 0.6, flows: [0.45] },
-  { x: 1.6, z: 0.92, r: 7.0, h: 10.0, crater: 0.9, flows: [-0.4, 0.55] },
+  { x: -2.0, z: 0.22, r: 9.0, h: 13.5, crater: 1.1, flows: [0.25, -0.6, 0.95, -1.35, 0.55] },
+  { x: 5.4, z: 0.56, r: 6.0, h: 8.5, crater: 0.75, flows: [-0.3, 0.6, -1.1] },
+  { x: -5.6, z: 0.70, r: 4.8, h: 6.0, crater: 0.6, flows: [0.45, -0.5] },
+  { x: 1.6, z: 0.92, r: 7.0, h: 10.0, crater: 0.9, flows: [-0.4, 0.55, 1.3, -1.15] },
 ];
 
 // Signed z distance to a cone in the nearest period copy.
@@ -91,7 +135,11 @@ function coneDz(z, cone) {
 function sample(x, z) {
   // Rolling, eroded ground.
   // Lava-field ground: broad swells, blocky ridged rubble on top.
-  let h = 1.8 * fbm(x, z, 11, 4) + 0.7 * ridged(x, z, 23, 2, 5) + 0.25 * ridged(x, z, 29, 4, 3);
+  // Value-noise ridges crease along lattice lines; warping both axes bends
+  // those creases so the rubble does not read as vertical stripes.
+  const qx = x + 0.9 * (fbm(x, z, 13, 4) - 0.5), qz = z + 0.9 * (fbm(x, z, 17, 4) - 0.5);
+  let h = 1.8 * fbm(x, z, 11, 4) + 0.7 * ridged(qx, qz, 23, 2, 5) + 0.2 * ridged(qx, qz, 29, 4, 3)
+    + 0.07 * ridged(qx * 2, qz * 2, 31, 4, 3);
   let lava = 0;
   let heat = 0;
   let coneMask = 0;
@@ -104,7 +152,7 @@ function sample(x, z) {
     // Gullies carve the flanks: ridged noise in polar coordinates, so the
     // ridges run downhill. (The seam at the back of each cone is hidden.)
     const gully = 0.45 * ridged(ang * 7 + 0.8 * fbm(x, z, 43, 3), d * 0.6, 41, 2, 4)
-      + 0.25 * ridged(x * 1.4, z * 1.4, 53, 3, 4);
+      + 0.25 * ridged(x * 2, z * 2, 53, 3, 4);
     const t = clamp01(1 - d / c.r);
     let ch = c.h * Math.pow(t, 1.35) * (1 - gully * t * 0.5);
     // Crater: a bowl inside the rim, with a molten floor.
@@ -125,7 +173,7 @@ function sample(x, z) {
       let da = ang - b;
       da = Math.atan2(Math.sin(da), Math.cos(da));
       const across = Math.abs(da * d - wander);
-      const width = (0.08 + 0.2 * (d / c.r)) * (0.55 + 0.9 * fbm(x * 1.5, z * 1.5, seedB + 5, 4));
+      const width = (0.08 + 0.2 * (d / c.r)) * (0.55 + 0.9 * fbm(x * 2, z * 2, seedB + 5, 4));
       if (d > c.crater * 1.2 && d < c.r * 1.15) {
         // Cools as it runs: bright at the vent, dull red at the toe.
         const f = smoothstep(width, width * 0.35, across) * smoothstep(c.r * 1.15, c.r * 0.85, d) * (1 - 0.55 * d / c.r);
@@ -134,19 +182,43 @@ function sample(x, z) {
       }
       heat = Math.max(heat, smoothstep(width * 4, width, across) * smoothstep(c.r * 1.3, c.r * 0.7, d));
     }
+    // Hairline cracks radiating down the flanks, glowing from inside.
+    if (d > c.crater * 1.3) {
+      const radial = ridged(ang * 14 + 1.5 * fbm(x, z, 47, 4), d * 0.35, 49, 3, 2);
+      const fl = smoothstep(0.93, 0.99, radial) * smoothstep(0.15, 0.6, t) * (0.5 + 0.5 * fbm(x * 2, z * 2, 51, 3));
+      lava = Math.max(lava, fl * 0.75);
+      ch -= fl * 0.05;
+    }
     heat = Math.max(heat, smoothstep(c.crater * 2.6, c.crater, d));
     coneMask = Math.max(coneMask, t);
     h = Math.max(h, h * 0.6 + ch);
   }
 
-  // Cracked, smouldering basin: lava glows through fissures in low ground.
-  const crack = 1 - Math.abs(2 * vnoise(x + 2.2 * (fbm(x, z, 71, 4) - 0.5), z + 2.2 * (fbm(x, z, 73, 4) - 0.5), 2.5, 83) - 1);
-  const crackFine = 1 - Math.abs(2 * vnoise(x + 1.2 * (fbm(x, z, 77, 4) - 0.5), z + 1.2 * (fbm(x, z, 79, 4) - 0.5), 1.25, 89) - 1);
-  const low = smoothstep(2.9, 1.9, h) * (1 - coneMask);
-  const fissure = Math.max(smoothstep(0.965, 0.995, crack), 0.6 * smoothstep(0.975, 0.997, crackFine)) * low * smoothstep(0.45, 0.65, fbm(x, z, 107, 3));
-  lava = Math.max(lava, fissure);
-  heat = Math.max(heat, smoothstep(0.75, 0.98, crack) * low * 0.8);
-  h -= fissure * 0.08;
+  const open = Math.pow(1 - coneMask, 3);
+
+  // Lava lakes fill the lowest ground: a flat molten surface broken into
+  // dark crust plates, with the seams between plates glowing hottest.
+  const LAKE = 1.42;
+  const lake = smoothstep(LAKE + 0.06, LAKE - 0.12, h) * open;
+  if (lake > 0) {
+    const seams = veins(x, z, 0.8, 0.1, 131);
+    const fine = veins(x, z, 0.3125, 0.035, 137);
+    const plate = 0.28 + 0.2 * fbm(x * 3, z * 3, 139, 3);
+    lava = Math.max(lava, lake * Math.max(plate, seams, fine * 0.8));
+    heat = Math.max(heat, lake);
+    h = h * (1 - lake) + (LAKE - 0.02) * lake;
+  }
+
+  // Vein networks over the whole basin: broad cracks, then finer ones in
+  // patches, both fading as the ground rises onto the cones.
+  const shore = smoothstep(LAKE + 0.9, LAKE + 0.05, h);
+  const broad = veins(x, z, 2.5, 0.07, 141) * smoothstep(0.32, 0.55, fbm(x, z, 151, 3));
+  const finer = veins(x, z, 1.25, 0.035, 157) * smoothstep(0.42, 0.62, fbm(x, z, 163, 3));
+  const hair = veins(x, z, 0.625, 0.018, 167) * smoothstep(0.5, 0.68, fbm(x, z, 173, 3));
+  const vein = Math.max(broad, finer * 0.85, hair * 0.6) * open * (0.55 + 0.45 * shore);
+  lava = Math.max(lava, vein);
+  heat = Math.max(heat, smoothstep(0, 1, Math.max(broad, finer)) * open * 0.6, shore * open * 0.35);
+  h -= vein * 0.06;
 
   return { h, lava, heat };
 }
@@ -171,13 +243,13 @@ scene.background = new THREE.Color(0x0d0a0b);
     pos.setY(i, s.h);
     // Rock: dark basalt, ash dusting on high ground, scorched near heat,
     // warm haze pooling in the low basin.
-    const grain = fbm(x * 3.1, z * 3.1, 97, 5);
+    const grain = fbm(x * 3, z * 3, 97, 4);
     c.copy(basalt).lerp(ash, clamp01(smoothstep(2.5, 8, s.h) * 0.8 + (grain - 0.5) * 0.6));
-    c.lerp(scorch, s.heat * 0.85);
+    c.lerp(scorch, s.heat * 0.9);
     c.lerp(haze, smoothstep(1.4, 0.4, s.h) * 0.45);
     rockCol.set([c.r, c.g, c.b], i * 3);
     // Lava overlay: emissive colour, alpha = how molten this point is.
-    const crust = smoothstep(0.62, 0.72, fbm(x * 2.5, z * 2.5, 113, 5));
+    const crust = smoothstep(0.62, 0.72, fbm(x * 3, z * 3, 113, 5));
     const v = clamp01(s.lava * (0.7 + 0.6 * fbm(x * 2, z * 2, 101, 4)) * (1 - crust * 0.75));
     if (v > 0.55) l.copy(mid).lerp(hot, (v - 0.55) / 0.45);
     else l.copy(dark).lerp(mid, v / 0.55);
@@ -261,6 +333,50 @@ export const camera = new THREE.OrthographicCamera(-viewW / 2, viewW / 2, viewH 
   }
 }
 
+// --- Embers --------------------------------------------------------------------
+// Sparks hanging over the hottest ground. Positions are drawn once in phase
+// space (one period) and copied into every period so they repeat with the tile.
+{
+  const rand = mulberry32(4242);
+  const one = [];
+  for (let tries = 0; one.length < 900 && tries < 60000; tries++) {
+    const x = (rand() - 0.5) * SPAN_X;
+    const z = rand() * PERIOD;
+    const s = sample(x, z);
+    if (s.lava < 0.45 && rand() > 0.02) continue;
+    one.push({ x, z, y: s.h + 0.05 + Math.pow(rand(), 2.2) * 3.5, k: rand() });
+  }
+  const pos = [], col = [];
+  const hot = new THREE.Color(0xffb050), warm = new THREE.Color(0xe8400c), c = new THREE.Color();
+  for (let copy = -2; copy <= 1; copy++) {
+    for (const e of one) {
+      pos.push(e.x, e.y, e.z + copy * PERIOD);
+      c.copy(warm).lerp(hot, e.k * e.k);
+      col.push(c.r, c.g, c.b);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  // Soft round sprite (built in memory, no image file).
+  const N = 32, px = new Uint8Array(N * N * 4);
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      const r = Math.hypot(i - N / 2 + 0.5, j - N / 2 + 0.5) / (N / 2);
+      const a = Math.round(255 * Math.pow(clamp01(1 - r), 2));
+      px.set([255, 255, 255, a], (j * N + i) * 4);
+    }
+  }
+  const dot = new THREE.DataTexture(px, N, N);
+  dot.needsUpdate = true;
+  const sparks = new THREE.Points(g, new THREE.PointsMaterial({
+    size: 5.0, sizeAttenuation: false, vertexColors: true, map: dot,
+    transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  sparks.renderOrder = 3;
+  scene.add(sparks);
+}
+
 // --- Lights --------------------------------------------------------------------
 scene.add(new THREE.HemisphereLight(0x8a8a9c, 0x5a2210, 0.75));
 {
@@ -273,8 +389,8 @@ scene.add(new THREE.HemisphereLight(0x8a8a9c, 0x5a2210, 0.75));
   sun.shadow.mapSize.set(8192, 8192);
   const half = PERIOD * 1.5;
   Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 1, far: 140 });
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.03;
+  sun.shadow.bias = -0.0008;
+  sun.shadow.normalBias = 0.08;
   scene.add(sun, sun.target);
 }
 

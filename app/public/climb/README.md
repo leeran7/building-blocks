@@ -154,20 +154,21 @@ generated art directly, ask for:
 
 ## Climb backdrop (`volcano-tile.jpg`)
 
-A 682×1024 JPEG that `climbBackground.ts` repeats vertically behind the climb.
+A 1024×1536 JPEG that `climbBackground.ts` repeats vertically behind the climb.
 It is a 3D render of `scripts/backdrop/volcano-tile.scene.js`, a procedural
 Three.js scene of a volcanic range (cones with glowing craters, lava flows down
-their flanks, a cracked basin, smoke) built to repeat without a seam:
+their flanks, lava lakes under cracked crust, glowing vein networks, smoke,
+embers) built to repeat without a seam:
 everything in it is periodic along the view axis, seen through an orthographic
 camera. To change it, edit
 the scene and re-render at 2× with the render-3d skill, then downscale:
 
 ```bash
-RENDER_3D_CHROME_BIN=<chrome> RENDER_3D_SETTLE_MS=600000 \
+RENDER_3D_CHROME_BIN=<chrome> RENDER_3D_SETTLE_MS=900000 \
 node skills/render-3d/bin/preview-scene.mjs \
   --code app/scripts/backdrop/volcano-tile.scene.js \
-  --out /tmp/tile.png --width 1364 --height 2048
-# then resize /tmp/tile.png to 682×1024 and save as JPEG (quality ~86)
+  --out /tmp/tile.png --width 2048 --height 3072
+# then resize /tmp/tile.png to 1024×1536 and save as JPEG (quality ~88)
 ```
 
 The scene is heavy (about a million terrain vertices), so a 2× render takes
