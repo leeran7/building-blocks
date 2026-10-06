@@ -156,16 +156,13 @@ generated art directly, ask for:
 
 A 1024×1536 JPEG that `climbBackground.ts` repeats vertically behind the climb.
 It is a 3D render of `scripts/backdrop/volcano-tile.scene.js`, a procedural
-Three.js scene of one volcano's flank as you climb it (lava rivers pouring
-down carved channels and over rock ledges, steaming sulphur vents, glowing
-cracks, the mountain's skyline on the right, embers) built to repeat without a
-seam:
+Three.js scene of a lava field on the volcano's slope at night, seen from
+above as you climb (near-black rubble, braided threads of lava, two crusted
+flows, faint glow haze). It is kept dark so platforms and the climber read
+first. It is built to repeat without a seam:
 everything in it is periodic along the view axis, seen through an orthographic
 camera. To change it, edit
 the scene and re-render at 2× with the render-3d skill, then downscale:
-
-`scripts/backdrop/volcano-tile-b.scene.js` is an alternative, darker take
-(a lava field at night seen from above); render it the same way to try it.
 
 ```bash
 RENDER_3D_CHROME_BIN=<chrome> RENDER_3D_SETTLE_MS=900000 \
