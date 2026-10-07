@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { constantTimeEqual } from "../../../../src/api/middleware/requireAdmin";
+import { constantTimeEqual } from "../../../../src/lib/constantTimeEqual";
 import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 import { getPendingPayoutEntries, disbursePrize } from "../../../../src/db/tournaments";
 import { createPrizeTransfer, isPayoutReady } from "../../../../src/api/stripeConnect";

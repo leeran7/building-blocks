@@ -457,14 +457,12 @@ model PushToken {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AI Social Media Management Agent
+// Legacy: AI Social Media Management Agent tables
 //
-// Everything below this line is the additive social-media feature area
-// (loop/architecture.md). It is a SINGLE-TENANT internal admin tool for this
-// business's own TikTok/X/YouTube accounts — operated by a small allowlist of
-// admins (ADMIN_UIDS/ADMIN_EMAILS), NOT a feature exposed to game players.
-// No existing model above this line is modified. See loop/architecture.md for
-// the full design rationale (ADR-1 through ADR-12).
+// The social media admin tool (/admin/social) has been removed and no code
+// reads or writes these models. They stay only so the existing social_* tables
+// and their data are not dropped by a migration; removing them needs a
+// migration that drops those tables.
 // ═══════════════════════════════════════════════════════════════════════════
 
 enum SocialPlatform {

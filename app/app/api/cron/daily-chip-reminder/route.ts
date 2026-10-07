@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { constantTimeEqual } from "../../../../src/api/middleware/requireAdmin";
+import { constantTimeEqual } from "../../../../src/lib/constantTimeEqual";
 import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 import { prisma } from "../../../../src/db/client";
 import { sendPushToUser } from "../../../../src/lib/pushNotify";

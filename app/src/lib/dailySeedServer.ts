@@ -19,7 +19,7 @@
 
 import { createHmac } from "node:crypto";
 
-import { constantTimeEqual } from "../api/middleware/requireAdmin";
+import { constantTimeEqual } from "./constantTimeEqual";
 import {
   DAILY_SEED_PREFIX,
   DAILY_SUBMIT_GRACE_MS,
