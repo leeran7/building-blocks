@@ -14,6 +14,8 @@
  */
 
 import type { ComponentType } from "react";
+import type { GemPack } from "@app/lib/gemPacks";
+import type { PackPurchaseResult } from "../lib/shop";
 
 export type TargetId = "app" | "crazygames" | "youtube" | "itch" | "telegram" | "discord";
 
@@ -84,6 +86,20 @@ export interface AdsAdapter {
   readonly enabled: boolean;
 }
 
+/**
+ * How a target sells gem packs when the host platform has its own payments
+ * (Telegram Stars, Discord SKUs). The server credits gems only after it has
+ * verified the payment with the platform itself; the client never reports a
+ * gem count. Load SDKs lazily inside these methods: config.ts must stay free
+ * of screen imports, and lib/shop.ts imports this config.
+ */
+export interface PaymentsAdapter {
+  /** Buy one pack. Throws ShopError (lib/shop.ts) on failure. */
+  buyGemPack(pack: GemPack): Promise<PackPurchaseResult>;
+  /** The price to show for a pack in this platform's currency ("250 Stars"). */
+  packPrice(pack: GemPack): string;
+}
+
 export interface TargetConfig {
   id: TargetId;
   /** Display name in the host (store listing, portal page). */
@@ -97,6 +113,8 @@ export interface TargetConfig {
   apiBase: string | null;
   platform: PlatformAdapter;
   ads: AdsAdapter;
+  /** Platform payments for gem packs, or null for the app's own (StoreKit / Stripe). */
+  payments: PaymentsAdapter | null;
 }
 
 /** The React tree a target renders inside main.tsx. */

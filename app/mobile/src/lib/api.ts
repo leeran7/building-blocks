@@ -15,8 +15,6 @@ import { getFreshToken } from "./firebaseAuth";
  * The build target picks the base (targets/types.ts apiBase): same-origin for
  * a build served from doomstack.lol, Discord's proxy prefix inside Discord.
  */
-const TARGET_API_BASE = targetConfig.apiBase;
-
 /** The public site: share links, profile pages, deep-link host checks. */
 export const SITE_ORIGIN = "https://www.doomstack.lol";
 
@@ -26,8 +24,11 @@ export const SITE_ORIGIN = "https://www.doomstack.lol";
  * network request into a portal build.
  */
 export function apiBase(): string {
-  if (TARGET_API_BASE === null) throw new Error(`Target "${targetConfig.id}" makes no API calls`);
-  return TARGET_API_BASE;
+  // Read on each call, not at module load: a target's config may import this
+  // module (its payments adapter), so the config can still be evaluating here.
+  const base = targetConfig.apiBase;
+  if (base === null) throw new Error(`Target "${targetConfig.id}" makes no API calls`);
+  return base;
 }
 
 export const isNative = Capacitor.isNativePlatform();

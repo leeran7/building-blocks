@@ -9,4 +9,5 @@ export const targetConfig: TargetConfig = {
   apiBase: "https://www.doomstack.lol",
   platform: noopPlatform,
   ads: noAds,
+  payments: null,
 };

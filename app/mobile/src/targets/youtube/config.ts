@@ -9,4 +9,5 @@ export const targetConfig: TargetConfig = {
   apiBase: null,
   platform: noopPlatform,
   ads: noAds,
+  payments: null,
 };
