@@ -18,8 +18,17 @@
 
 const PATH = "/play/discord";
 
-/** Who may frame the Activity: the Discord clients and Discord's Activity proxy. */
-const FRAME_ANCESTORS = "https://discord.com https://*.discord.com https://*.discordsays.com";
+/**
+ * This app's own Activity proxy origin. `*.discordsays.com` would be every
+ * Discord app's Activity host, so any developer could frame this build; the
+ * client id (read at build time, digits only) narrows it to ours. Without it,
+ * only the Discord clients may frame the page.
+ */
+const CLIENT_ID = /^[1-9][0-9]{5,24}$/.test(process.env.DISCORD_CLIENT_ID ?? "") ? process.env.DISCORD_CLIENT_ID : null;
+const ACTIVITY_ORIGIN = CLIENT_ID ? `${CLIENT_ID}.discordsays.com` : null;
+
+/** Who may frame the Activity: the Discord clients and this app's Activity proxy. */
+const FRAME_ANCESTORS = ["https://discord.com", "https://*.discord.com", ...(ACTIVITY_ORIGIN ? [`https://${ACTIVITY_ORIGIN}`] : [])].join(" ");
 
 /**
  * Tighter than the site-wide CSP (next.config.js): the bundle is self-contained
@@ -38,7 +47,7 @@ const CSP = [
   "media-src 'self' data: blob:",
   // 'self' is the discordsays.com origin when framed; wss is listed because
   // older WebKit does not match ws(s) against 'self'.
-  "connect-src 'self' wss://*.discordsays.com",
+  `connect-src 'self'${ACTIVITY_ORIGIN ? ` wss://${ACTIVITY_ORIGIN}` : ""}`,
   "worker-src 'self' blob:",
   "frame-src 'none'",
   "object-src 'none'",
@@ -63,11 +72,9 @@ module.exports = {
     {
       source: `${PATH}/:path*`,
       headers: [
+        // frame-ancestors governs framing: browsers ignore the site-wide
+        // X-Frame-Options (SAMEORIGIN) when it is present.
         { key: "Content-Security-Policy", value: CSP },
-        // frame-ancestors governs framing; X-Frame-Options cannot name Discord,
-        // and browsers ignore it when frame-ancestors is present. Overridden
-        // here so the site-wide SAMEORIGIN never reaches the Activity.
-        { key: "X-Frame-Options", value: "ALLOWALL" },
         { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
       ],
     },

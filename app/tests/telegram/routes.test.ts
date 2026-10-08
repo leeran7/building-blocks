@@ -23,7 +23,12 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/lib/firebaseAdmin", () => ({
-  adminAuth: { createCustomToken: vi.fn(async (uid: string) => `custom-token-for-${uid}`) },
+  adminAuth: {
+    createCustomToken: vi.fn(async (uid: string) => `custom-token-for-${uid}`),
+    getUser: vi.fn(async () => Promise.reject({ code: "auth/user-not-found" })),
+    createUser: vi.fn(async () => ({})),
+    updateUser: vi.fn(async () => ({})),
+  },
   verifyIdToken: vi.fn(async () => ({ uid: h.callerUid })),
 }));
 vi.mock("../../src/db/user", () => ({ ensurePlatformUser: vi.fn(async () => {}) }));
@@ -131,7 +136,7 @@ describe("POST /api/auth/telegram", () => {
     const res = await signIn(signInitData(validFields()));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ customToken: `custom-token-for-${UID}` });
-    expect(ensurePlatformUser).toHaveBeenCalledWith(UID);
+    expect(ensurePlatformUser).toHaveBeenCalledWith(UID, expect.stringMatching(/@platform\.invalid$/));
     expect(adminAuth.createCustomToken).toHaveBeenCalledWith(UID, { platform: "telegram" });
   });
 

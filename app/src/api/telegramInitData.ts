@@ -16,7 +16,7 @@ import { constantTimeEqual } from "./middleware/requireAdmin";
 import { platformUid } from "../lib/platformAuth";
 
 /** How long a Mini App launch stays good for sign-in. Telegram re-signs initData on every launch. */
-export const INIT_DATA_MAX_AGE_SECONDS = 24 * 60 * 60;
+export const INIT_DATA_MAX_AGE_SECONDS = 60 * 60;
 
 /** Clock skew tolerated for an `auth_date` slightly in the future. */
 export const INIT_DATA_FUTURE_SKEW_SECONDS = 60;

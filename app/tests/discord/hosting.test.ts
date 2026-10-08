@@ -83,15 +83,39 @@ describe("Discord hosting in next.config.js", () => {
     async (path) => {
       const h = await effectiveHeaders(path);
       const csp = directives(h.get("content-security-policy") ?? "");
-      expect(csp.get("frame-ancestors")).toBe("https://discord.com https://*.discord.com https://*.discordsays.com");
-      // The site-wide SAMEORIGIN would block the Activity frame on browsers that still read it.
-      expect(h.get("x-frame-options")).not.toBe("SAMEORIGIN");
+      // No DISCORD_CLIENT_ID in tests: only the Discord clients, never every app's discordsays.com host.
+      expect(csp.get("frame-ancestors")).toBe("https://discord.com https://*.discord.com");
       // Tighter than the site: no eval, no third-party scripts or frames.
       expect(csp.get("script-src")).toBe("'self'");
       expect(csp.get("frame-src")).toBe("'none'");
       expect(csp.get("object-src")).toBe("'none'");
     }
   );
+
+  it("lets only this app's Activity proxy frame it when the client id is set", () => {
+    const file = require.resolve("../../mobile/src/targets/discord/hosting.cjs");
+    const saved = process.env.DISCORD_CLIENT_ID;
+    const load = (id: string | undefined) => {
+      if (id === undefined) delete process.env.DISCORD_CLIENT_ID;
+      else process.env.DISCORD_CLIENT_ID = id;
+      delete require.cache[file];
+      const fresh = require(file) as typeof hosting;
+      const csp = fresh.headers[0].headers.find((x) => x.key === "Content-Security-Policy")!.value;
+      return directives(csp);
+    };
+    try {
+      const ok = load("1234567890123");
+      expect(ok.get("frame-ancestors")).toBe(
+        "https://discord.com https://*.discord.com https://1234567890123.discordsays.com"
+      );
+      expect(ok.get("connect-src")).toBe("'self' wss://1234567890123.discordsays.com");
+      // A malformed id is ignored rather than written into the policy.
+      const bad = load("* https://evil.example");
+      expect(bad.get("frame-ancestors")).toBe("https://discord.com https://*.discord.com");
+    } finally {
+      load(saved);
+    }
+  });
 
   it("keeps the site-wide headers everywhere else", async () => {
     const h = await effectiveHeaders("/");

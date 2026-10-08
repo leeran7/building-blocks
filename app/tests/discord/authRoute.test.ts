@@ -9,7 +9,12 @@ import { NextRequest } from "next/server";
 
 vi.mock("../../src/lib/firebaseAdmin", () => ({
   verifyIdToken: vi.fn(),
-  adminAuth: { createCustomToken: vi.fn(async (uid: string) => `custom-token-for-${uid}`) },
+  adminAuth: {
+    createCustomToken: vi.fn(async (uid: string) => `custom-token-for-${uid}`),
+    getUser: vi.fn(async () => Promise.reject({ code: "auth/user-not-found" })),
+    createUser: vi.fn(async () => ({})),
+    updateUser: vi.fn(async () => ({})),
+  },
 }));
 vi.mock("../../src/db/user", () => ({ ensurePlatformUser: vi.fn(async () => undefined) }));
 vi.mock("../../src/lib/rateLimit", () => ({
@@ -83,7 +88,7 @@ describe("POST /api/auth/discord", () => {
       code: CODE,
     });
     expect(new Headers(calls[1].init?.headers).get("authorization")).toBe("Bearer discord-at");
-    expect(ensurePlatformUser).toHaveBeenCalledWith(`discord:${DISCORD_ID}`);
+    expect(ensurePlatformUser).toHaveBeenCalledWith(`discord:${DISCORD_ID}`, expect.stringMatching(/@platform\.invalid$/));
     expect(adminAuth.createCustomToken).toHaveBeenCalledWith(`discord:${DISCORD_ID}`, { platform: "discord" });
   });
 
