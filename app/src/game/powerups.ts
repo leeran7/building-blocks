@@ -349,7 +349,7 @@ export function canActivate(
 // ── Level power-up rules ───────────────────────────────────────────────────
 
 function isPowerUpType(t: unknown): t is PowerUpType {
-  return typeof t === "string" && Object.hasOwn(POWER_UP_SPECS, t);
+  return typeof t === "string" && Object.prototype.hasOwnProperty.call(POWER_UP_SPECS, t);
 }
 
 /**

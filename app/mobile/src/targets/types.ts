@@ -3,9 +3,11 @@
  *
  * `pnpm mobile:build --mode <target>` aliases `@target` to `targets/<target>/`
  * (vite.config.mts), so a bundle holds exactly one target's config, root and
- * adapters. A feature a target turns off is never imported by its root, so it
- * never ships in that bundle: portals must make no network calls but their
- * SDK's, and a runtime flag would still carry the code.
+ * adapters. The portal roots (crazygames, youtube, itch) never import the
+ * app's screens, so online features never ship there: portals must make no
+ * network calls but their SDK's. The Telegram and Discord roots reuse the app
+ * shell, so a feature turned off there (duels) is hidden by `features` at
+ * runtime: its routes and entry points are gated, but its code is in the bundle.
  *
  * Each target folder has two entry files:
  *  - `config.ts`: plain data and adapters (TargetConfig). Shared libs such as
@@ -98,6 +100,8 @@ export interface PaymentsAdapter {
   buyGemPack(pack: GemPack): Promise<PackPurchaseResult>;
   /** The price to show for a pack in this platform's currency ("250 Stars"). */
   packPrice(pack: GemPack): string;
+  /** One line under the buy button saying where the payment happens. */
+  checkoutNote: string;
 }
 
 export interface TargetConfig {

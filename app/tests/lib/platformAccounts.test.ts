@@ -81,13 +81,13 @@ describe("signInPlatformUser", () => {
     h.getUser.mockRejectedValue({ code: "auth/user-not-found" });
     const a = await signInPlatformUser("discord", "123456789");
     expect(a).toEqual({ uid: "discord:123456789", customToken: "token-for-discord:123456789" });
-    const created = h.createUser.mock.calls[0][0] as { uid: string; email: string };
+    const created = (h.createUser.mock.calls[0] as unknown[])[0] as { uid: string; email: string };
     expect(created.uid).toBe("discord:123456789");
     expect(created.email).toMatch(PLATFORM_EMAIL);
     expect(h.upsert.mock.calls[0][0].create.email).toBe(created.email);
 
     await signInPlatformUser("discord", "123456789");
-    const second = h.createUser.mock.calls[1][0] as { email: string };
+    const second = (h.createUser.mock.calls[1] as unknown[])[0] as { email: string };
     expect(second.email).not.toBe(created.email);
   });
 

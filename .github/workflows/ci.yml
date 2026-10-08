@@ -73,8 +73,17 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Typecheck mobile and build targets
+      - name: Typecheck mobile
         run: pnpm mobile:typecheck
+
+      - name: Build hosted targets (Telegram, Discord)
+        run: pnpm mobile:build:hosted
+
+      - name: Build portal targets
+        run: |
+          for t in crazygames youtube itch; do
+            pnpm exec vite build --config mobile/vite.config.mts --mode "$t"
+          done
 
       - name: Lint
         run: pnpm lint

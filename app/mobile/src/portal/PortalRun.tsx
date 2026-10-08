@@ -124,10 +124,14 @@ export function PortalRun({ platform, ads, best, onBest, audioAllowed, hostPause
 
   const runActiveRef = useRef(runActive);
   runActiveRef.current = runActive;
+  const hostPausedRef = useRef(hostPaused);
+  hostPausedRef.current = hostPaused;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "p" && e.key !== "P") return;
       if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || !runActiveRef.current) return;
+      // While the host has paused us (an ad, a hidden tab), P must not queue a resume.
+      if (hostPausedRef.current) return;
       e.preventDefault();
       unlockRef.current();
       setUserPaused((p) => !p);

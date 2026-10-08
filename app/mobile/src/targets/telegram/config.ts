@@ -23,5 +23,6 @@ export const targetConfig: TargetConfig = {
       const stars = starsPrice(pack);
       return stars === null ? formatUsd(pack.usdCents) : formatStars(stars);
     },
+    checkoutNote: "Paid with Telegram Stars",
   },
 };

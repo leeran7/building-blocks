@@ -219,10 +219,7 @@ describe("gameplay signals", () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", cancelable: true }));
     });
     expect(climb.pausedArgs.at(-1)).toBe(true);
-    // P toggled the player's own pause off; set it back so Resume is the path tested next.
-    await act(async () => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "p", cancelable: true }));
-    });
+    // P during the host's pause is ignored, so it cannot queue a resume for when the host lets go.
     await act(async () => pause(false));
     expect(climb.pausedArgs.at(-1)).toBe(true);
     expect(platform.gameplayStart).toHaveBeenCalledTimes(1);

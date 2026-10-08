@@ -80,6 +80,7 @@ export function createDiscordPayments(deps: DiscordPaymentsDeps): DiscordPayment
   }
 
   return {
+    checkoutNote: "Paid through Discord",
     packPrice(pack: GemPack): string {
       const sku = skuForPack(deps.skus, pack.id);
       return (sku !== null ? prices.get(sku) : undefined) ?? formatUsd(pack.usdCents);
@@ -91,7 +92,7 @@ export function createDiscordPayments(deps: DiscordPaymentsDeps): DiscordPayment
         if (!sdk) return;
         const { skus } = await sdk.commands.getSkus();
         for (const sku of skus) {
-          if (Object.hasOwn(deps.skus, sku.id)) prices.set(sku.id, sdk.formatPrice(sku.price));
+          if (Object.prototype.hasOwnProperty.call(deps.skus, sku.id)) prices.set(sku.id, sdk.formatPrice(sku.price));
         }
       } catch {
         // Keep the web prices.

@@ -43,7 +43,7 @@ export function parseGemSkuTable(raw: string | undefined | null): GemSkuTable {
 
 /** The pack sold as Discord SKU `skuId`, or null for anything not in the table. */
 export function packForSku(table: GemSkuTable, skuId: unknown): GemPack | null {
-  if (typeof skuId !== "string" || !Object.hasOwn(table, skuId)) return null;
+  if (typeof skuId !== "string" || !Object.prototype.hasOwnProperty.call(table, skuId)) return null;
   return table[skuId] ?? null;
 }
 

@@ -90,7 +90,7 @@ export function parseStartPowerUp(v: unknown): StartPowerUp | null | undefined {
   if (!isObject(v)) return undefined;
   const type = parseBoosterType(v.type);
   const source = v.source;
-  if (type === null || typeof source !== "string" || !Object.hasOwn(START_SOURCES, source)) return undefined;
+  if (type === null || typeof source !== "string" || !Object.prototype.hasOwnProperty.call(START_SOURCES, source)) return undefined;
   return { type, source: source as StartPowerUpSource };
 }
 
