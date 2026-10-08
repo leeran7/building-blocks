@@ -1,4 +1,7 @@
-// Placeholder: the itch workstream replaces this root (see plans/multi-platform-build.md).
+import { PortalApp } from "../../portal/PortalApp";
+import { targetConfig } from "./config";
+
+/** The Free-Climb-only portal shell. itch.io has no SDK: saves stay on the device. */
 export function TargetRoot() {
-  return null;
+  return <PortalApp config={targetConfig} />;
 }

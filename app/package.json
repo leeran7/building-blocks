@@ -28,6 +28,7 @@
     "mobile:dev": "vite --config mobile/vite.config.mts",
     "mobile:build": "vite build --config mobile/vite.config.mts",
     "mobile:build:hosted": "vite build --config mobile/vite.config.mts --mode telegram && vite build --config mobile/vite.config.mts --mode discord",
+    "portal:package": "tsx scripts/packagePortal.ts",
     "cap:sync": "pnpm mobile:build && cap sync",
     "cap:ios": "pnpm cap:sync && open -a /Applications/Xcode.app ios/App/App.xcodeproj",
     "cap:ios:run": "pnpm cap:sync && cap run ios",

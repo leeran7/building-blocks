@@ -1,6 +1,7 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const dir = import.meta.dirname;
@@ -28,6 +29,19 @@ function targetFor(mode: string): string {
 }
 
 /**
+ * A target's optional `src/targets/<target>/head.html`, prepended to <head> so
+ * a host SDK (YouTube Playables) loads before any game code.
+ */
+function targetHead(target: string): Plugin {
+  const file = path.resolve(dir, "src/targets", target, "head.html");
+  return {
+    name: "target-head",
+    transformIndexHtml: (html) =>
+      existsSync(file) ? html.replace("<head>", `<head>\n${readFileSync(file, "utf8")}`) : html,
+  };
+}
+
+/**
  * Vite config for the bundled native SPA (Capacitor webDir).
  *
  * - `root` is this folder; `base: "./"` so the built asset URLs are relative,
@@ -46,7 +60,7 @@ export default defineConfig(({ mode }) => {
   return {
     root: dir,
     base: hosting?.base ?? "./",
-    plugins: [react()],
+    plugins: [react(), targetHead(target)],
     resolve: {
       alias: {
         "@app": path.resolve(dir, "../src"),

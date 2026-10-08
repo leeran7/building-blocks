@@ -1,7 +1,7 @@
 import { noAds, noopPlatform } from "../noop";
 import type { TargetConfig } from "../types";
 
-// Placeholder: the itch workstream replaces the adapters (see plans/multi-platform-build.md).
+/** itch.io: endless Free Climb only. No host SDK and no ads; saves in localStorage. */
 export const targetConfig: TargetConfig = {
   id: "itch",
   name: "Doomstack",

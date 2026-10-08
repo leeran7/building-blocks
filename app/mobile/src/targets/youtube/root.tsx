@@ -1,4 +1,7 @@
-// Placeholder: the youtube workstream replaces this root (see plans/multi-platform-build.md).
+import { PortalApp } from "../../portal/PortalApp";
+import { targetConfig } from "./config";
+
+/** The Free-Climb-only portal shell, wired to the YouTube Playables SDK. */
 export function TargetRoot() {
-  return null;
+  return <PortalApp config={targetConfig} />;
 }
