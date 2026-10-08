@@ -73,6 +73,26 @@ export async function ensureGuestUser(guestId: string): Promise<void> {
 }
 
 /**
+ * Row for an account signed in through a host platform (Telegram, Discord),
+ * whose uid ("telegram:<id>", "discord:<id>") the server derived from a
+ * verified platform login (src/lib/platformAuth.ts). These platforms give no
+ * email, so the row gets a non-deliverable `.invalid` address for the NOT
+ * NULL/unique column. No chip grant: paid duels never ship on these targets.
+ */
+export async function ensurePlatformUser(uid: string): Promise<void> {
+  await prisma.user.upsert({
+    where: { id: uid },
+    create: {
+      id: uid,
+      email: `${uid.replace(":", "-")}@platform.invalid`,
+      emailVerified: false,
+      play_credits_cents: 0,
+    },
+    update: {},
+  });
+}
+
+/**
  * Record the user's 18+ attestation the first time they take a paid-duel action.
  * Idempotent: only stamps when currently null, so the earliest confirmation is
  * preserved as an audit record.

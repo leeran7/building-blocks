@@ -73,6 +73,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Typecheck mobile and build targets
+        run: pnpm mobile:typecheck
+
       - name: Lint
         run: pnpm lint
 

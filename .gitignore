@@ -15,6 +15,9 @@ loop/*
 # Dependencies & build
 node_modules/
 dist/
+dist-*/
+# Hosted game builds (pnpm mobile:build:hosted)
+app/public/play/
 *.log
 
 # Environment

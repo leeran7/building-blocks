@@ -28,6 +28,9 @@ const config = [
       // Native game shell: the Vite SPA build output and the generated native
       // Capacitor projects are not part of the Next lint surface.
       "mobile/dist/**",
+      "mobile/dist-*/**",
+      // Hosted game builds (pnpm mobile:build:hosted).
+      "public/play/**",
       "android/**",
       "ios/**",
     ],

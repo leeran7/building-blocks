@@ -24,7 +24,7 @@ import { levelStarsEarned, ownedCharacterIds, seasonCleared, tutorialCleared } f
 type Tx = Prisma.TransactionClient;
 
 /** Which payment path settled a pack. */
-export type GemProvider = "stripe" | "apple";
+export type GemProvider = "stripe" | "apple" | "telegram" | "discord";
 
 export type GemErrorCode = PurchaseRefusal | "INSUFFICIENT_GEMS" | "UNKNOWN_ITEM" | "NO_USER";
 

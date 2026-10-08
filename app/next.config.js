@@ -15,6 +15,13 @@ function resolveFirebaseAuthBrowserEsm() {
   return path.join(authRoot, "dist/esm/index.js");
 }
 
+// Builds of the game hosted on this site for other platforms (Telegram Mini
+// App, Discord Activity). Each target owns its file: mobile/src/targets/*/hosting.cjs.
+const hostedTargets = [
+  require("./mobile/src/targets/telegram/hosting.cjs"),
+  require("./mobile/src/targets/discord/hosting.cjs"),
+];
+
 const securityHeaders = [
   // SAMEORIGIN (not DENY): Firebase's auth handler, proxied onto our own domain
   // via the /__/auth rewrites below, frames /__/auth/iframe same-origin.
@@ -103,6 +110,8 @@ const nextConfig = {
         source: "/api/admin/:path*",
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
       },
+      // Last, so a hosted target's own headers override the site-wide ones.
+      ...hostedTargets.flatMap((t) => t.headers),
     ];
   },
   // Serve Firebase Auth's handler on our own domain so authDomain can be
@@ -114,6 +123,7 @@ const nextConfig = {
     return [
       { source: "/__/auth/:path*", destination: `${fbHost}/__/auth/:path*` },
       { source: "/__/firebase/:path*", destination: `${fbHost}/__/firebase/:path*` },
+      ...hostedTargets.flatMap((t) => t.rewrites),
     ];
   },
   // Canonical host is www.doomstack.lol (PUBLIC_CONFIG.siteUrl). Redirect the

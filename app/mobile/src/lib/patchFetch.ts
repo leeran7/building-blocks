@@ -1,4 +1,4 @@
-import { API_BASE } from "./api";
+import { apiUrl } from "./api";
 import { getFreshToken } from "./firebaseAuth";
 
 const _origFetch = globalThis.fetch;
@@ -26,7 +26,7 @@ globalThis.fetch = async function patchedFetch(
       const token = await getFreshToken();
       if (token) headers.set("Authorization", `Bearer ${token}`);
     }
-    return _origFetch.call(globalThis, `${API_BASE}${input}`, { ...init, headers });
+    return _origFetch.call(globalThis, apiUrl(input), { ...init, headers });
   }
   return _origFetch.call(globalThis, input, init);
 };

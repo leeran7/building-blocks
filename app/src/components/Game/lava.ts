@@ -442,7 +442,7 @@ export function crestOffset(
 function drawCrackNetwork(
   ctx: CanvasRenderingContext2D,
   width: number,
-  top: number,
+  _top: number,
   height: number,
   ui: number,
   tick: number,
@@ -583,7 +583,7 @@ function drawSteamWisps(
 function drawRockChunks(
   ctx: CanvasRenderingContext2D,
   width: number,
-  top: number,
+  _top: number,
   ui: number,
   tick: number,
   crestY: number[],
@@ -647,7 +647,7 @@ function drawRockChunks(
 function drawRockGrain(
   ctx: CanvasRenderingContext2D,
   width: number,
-  top: number,
+  _top: number,
   height: number,
   ui: number,
   crestY: number[],
@@ -694,7 +694,7 @@ function drawMeltSurge(
   width: number,
   top: number,
   ui: number,
-  tick: number,
+  _tick: number,
   hardenProgress: number,
 ): void {
   // Near the end (0.85–1.0), a bright surge wave sweeps across as lava
