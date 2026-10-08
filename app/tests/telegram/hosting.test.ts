@@ -110,11 +110,18 @@ describe("next.config.js merges the telegram hosting", () => {
 
   it("leaves every other page on the site-wide CSP, which Telegram cannot frame", async () => {
     const headers = await nextConfig.headers();
-    for (const p of ["/", "/play", "/play/telegramx", "/play/discord", "/api/auth/telegram"]) {
+    for (const p of ["/", "/play", "/play/telegramx", "/api/auth/telegram"]) {
       const csp = effectiveHeader(headers, p, "Content-Security-Policy");
       expect(csp, p).toBeDefined();
       expect(directives(csp!).has("frame-ancestors"), p).toBe(false);
       expect(effectiveHeader(headers, p, "X-Frame-Options"), p).toBe("SAMEORIGIN");
     }
+  });
+
+  it("does not let Telegram frame the Discord build", async () => {
+    const headers = await nextConfig.headers();
+    const csp = effectiveHeader(headers, "/play/discord", "Content-Security-Policy");
+    const ancestors = directives(csp!).get("frame-ancestors") ?? [];
+    expect(ancestors.some((a) => a.includes("telegram"))).toBe(false);
   });
 });
