@@ -5,9 +5,8 @@
  * + Google OAuth + anonymous guest sessions), Stripe Checkout for chip purchases
  * and tournament entry fees, Stripe Connect for tournament prize payouts,
  * Postgres/Prisma for storage, Upstash Redis for caching/rate-limiting,
- * Vercel hosting, Ably (realtime messaging for live duels), and an
- * OpenAI-backed social media agent (internal/business use, not applied to
- * end-user personal data). It also covers the public creator
+ * Vercel hosting, and Ably (realtime messaging for live duels). It also
+ * covers the public creator
  * surface: user-chosen public usernames (/c/[username]) and the social platform
  * handles a creator can save (typed by the user, no OAuth into their social
  * account). Public-leaderboard listing is opt-in (leaderboard_consent_at) and
@@ -54,7 +53,7 @@ import {
 } from "../../src/components/Legal/LegalArticle";
 import { buildMetadata } from "../../src/lib/seo";
 
-const UPDATED = "October 4, 2026";
+const UPDATED = "October 7, 2026";
 const CONTACT_EMAIL = "hello@doomstack.lol";
 
 export const metadata = buildMetadata({
@@ -434,13 +433,6 @@ export default function PrivacyPage() {
               matched players for the duration of a match.
             </li>
             <li>
-              <strong>OpenAI</strong> — powers an internal AI agent we use to
-              help draft and manage our own social media presence. This
-              processes content about the product and publicly available
-              information; it is not used to profile or make decisions about
-              individual users.
-            </li>
-            <li>
               <strong>Apple</strong> — for our native iOS app: Sign in with
               Apple, App Store in-app purchases (Apple processes the payment and
               sends us a signed transaction record), and iOS push notifications
@@ -519,7 +511,7 @@ export default function PrivacyPage() {
           <p>
             We’re based in the United States, and our service providers
             (Vercel, Firebase/Google Cloud, Stripe, Neon, Upstash, Ably,
-            OpenAI, Apple) process data in the US and, in some cases, other countries where
+            Apple) process data in the US and, in some cases, other countries where
             they operate infrastructure. If you’re located in the European
             Economic Area, the UK, or Switzerland, your information will be
             transferred outside of those regions. Where required, we rely on

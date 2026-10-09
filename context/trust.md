@@ -12,13 +12,13 @@ irreversible or money-adjacent writes — not generic OWASP.
    A 4xx on an unresolvable reference permanently drops a captured payment
    on providers that do not retry 4xx — dead-letter and ack 2xx when the
    event cannot be applied.
-3. **`INTERNAL_TOKEN` and admin bearer.** Use the repo’s constant-time
-   compare helper. New token-authenticated routes get the same rate limiter
+3. **`INTERNAL_TOKEN` and cron bearer.** Use the repo’s constant-time
+   compare helper (`app/src/lib/constantTimeEqual.ts`). New token-authenticated routes get the same rate limiter
    as the existing privileged routes.
 4. **Do not forward secrets to URLs derived from the request** (host
    header, origin, redirects).
 5. **Middleware is presence-only.** Authorization lives in route handlers
-   (`requireAuth` / `requireAdmin`). Do not treat middleware as an access
+   (`requireAuth`). Do not treat middleware as an access
    control layer.
 6. **Allow-list parsers, reject never default.** User-keyed lookups use
    `Object.hasOwn` (or equivalent). Write-on-read `getOrCreate` on public
