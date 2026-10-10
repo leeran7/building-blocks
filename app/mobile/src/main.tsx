@@ -1,13 +1,8 @@
-import "./lib/patchFetch";
-
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
-import { App } from "./App";
-import { AuthProvider } from "./contexts/AuthContext";
-import { AppDataProvider } from "./contexts/AppDataContext";
-import { LevelsProvider } from "./contexts/LevelsContext";
-import { ShopProvider } from "./contexts/ShopContext";
+import { TargetRoot } from "@target/root";
+import { targetConfig } from "@target/config";
 import { setVolcanoTileSrc } from "@app/components/Game/climbBackground";
 import volcanoTile from "@app/../public/climb/volcano-tile.jpg";
 import { applyBundledClimberSheets } from "./lib/climberSheets";
@@ -30,7 +25,14 @@ setVolcanoTileSrc(volcanoTile);
 // web): each <id>-poses-192.png / <id>-climb-192.png is bundled and registered.
 applyBundledClimberSheets();
 
+// The host SDK loads before the first render; init() resolves even when the
+// SDK is blocked, so the game always starts.
+void targetConfig.platform.init();
+
 /*
+  The build target (vite.config.mts --mode) decides what renders: the full app,
+  a Free-Climb-only portal shell, or a Telegram / Discord shell.
+
   HashRouter (not BrowserRouter): the app is served from a file/capacitor
   scheme in the WebView where history-API path routing has no server to fall
   back on. Hash routing works offline from the bundle with zero config.
@@ -38,15 +40,7 @@ applyBundledClimberSheets();
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <HashRouter>
-      <AuthProvider>
-        <AppDataProvider>
-          <LevelsProvider>
-            <ShopProvider>
-              <App />
-            </ShopProvider>
-          </LevelsProvider>
-        </AppDataProvider>
-      </AuthProvider>
+      <TargetRoot />
     </HashRouter>
   </React.StrictMode>,
 );

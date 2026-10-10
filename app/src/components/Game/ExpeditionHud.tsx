@@ -68,12 +68,14 @@ type UtilitiesProps = {
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   backControl?: ReactNode;
+  /** Passed to the settings cog: false leaves Escape unbound (web portals). */
+  settingsEscapeCloses?: boolean;
 };
 
-export function UtilityControls({ muted, onToggleMute, vibration, fullscreenSupported, isFullscreen = false, onToggleFullscreen, backControl }: UtilitiesProps) {
+export function UtilityControls({ muted, onToggleMute, vibration, fullscreenSupported, isFullscreen = false, onToggleFullscreen, backControl, settingsEscapeCloses }: UtilitiesProps) {
   return <div className="exp-utilities">
     {backControl}
-    <GameSettingsButton muted={muted} onToggleMute={onToggleMute} vibration={vibration} />
+    <GameSettingsButton muted={muted} onToggleMute={onToggleMute} vibration={vibration} escapeCloses={settingsEscapeCloses} />
     {fullscreenSupported && onToggleFullscreen && <FullscreenButton isFullscreen={isFullscreen} onToggle={onToggleFullscreen} className="exp-utility" />}
   </div>;
 }

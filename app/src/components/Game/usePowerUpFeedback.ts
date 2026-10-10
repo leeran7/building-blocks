@@ -28,7 +28,8 @@ export function usePowerUpFeedback(
   tick: number,
   runId: number,
   music?: MusicControl,
-  world?: WorldAudio
+  world?: WorldAudio,
+  options?: FeedbackOptions
 ): PowerUpFeedback {
   const audioRef = useRef<PowerUpAudio | null>(null);
   if (audioRef.current === null) audioRef.current = new PowerUpAudio();
@@ -41,6 +42,11 @@ export function usePowerUpFeedback(
   const [muted, setMutedState] = useState(false);
   const [announcement, setAnnouncementText] = useState("");
   const memoRef = useRef<CueMemo>(initialCueMemo(runId));
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
+  const silenced = options?.silenced ?? false;
+  const silencedRef = useRef(silenced);
+  silencedRef.current = silenced;
 
   // Restore the saved preference before the first cue can play.
   useEffect(() => {
@@ -50,6 +56,18 @@ export function usePowerUpFeedback(
       musicEngine.setMuted(true);
     }
   }, [audio, musicEngine]);
+
+  // Host-imposed silence rides the engines' mute without touching the saved
+  // preference. Skipped until it is first set, so callers that never pass it
+  // keep the exact behaviour above.
+  const everSilenced = useRef(false);
+  useEffect(() => {
+    if (!silenced && !everSilenced.current) return;
+    everSilenced.current = true;
+    const off = silenced || mutedRef.current;
+    audio.setMuted(off);
+    musicEngine.setMuted(off);
+  }, [silenced, audio, musicEngine]);
 
   useEffect(
     () => () => {
@@ -146,8 +164,8 @@ export function usePowerUpFeedback(
     muted,
     setMuted: (next: boolean) => {
       setMutedState(next);
-      audio.setMuted(next);
-      musicEngine.setMuted(next);
+      audio.setMuted(next || silencedRef.current);
+      musicEngine.setMuted(next || silencedRef.current);
       if (!next) {
         audio.unlock();
         musicEngine.unlock();
@@ -167,6 +185,15 @@ export function usePowerUpFeedback(
 export interface MusicControl {
   active: boolean;
   intensity: number;
+}
+
+export interface FeedbackOptions {
+  /**
+   * The host says audio must be off for now (a portal SDK's audio flag, an ad
+   * playing). Silences cues and music; `muted` and the saved preference keep
+   * the player's own choice.
+   */
+  silenced?: boolean;
 }
 
 /** World SFX driven off camera-space lava fill and player flags. */

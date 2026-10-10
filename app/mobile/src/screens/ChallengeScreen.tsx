@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { shareInvite } from "@app/lib/shareInvite";
-import { apiFetch, API_BASE } from "../lib/api";
+import { apiFetch, SITE_ORIGIN } from "../lib/api";
 import { parentRoute, useBackOr } from "../lib/navigation";
 import { ScreenHeader, ScreenBody, Card, Button } from "../components/ui";
 import { PendingChallengesSection } from "../components/challenge/PendingChallengesSection";
@@ -51,7 +51,7 @@ export function ChallengeScreen() {
       // orphaning a second row.
       if (res.status === 409) {
         const body = (await res.json()) as { existingId: string };
-        await shareInvite(`${API_BASE}/duel/${body.existingId}`).catch(() => {});
+        await shareInvite(`${SITE_ORIGIN}/duel/${body.existingId}`).catch(() => {});
         navigate(`/duel/${body.existingId}`);
         return;
       }
@@ -64,7 +64,7 @@ export function ChallengeScreen() {
         return;
       }
       const body = (await res.json()) as { id: string };
-      await shareInvite(`${API_BASE}/duel/${body.id}`).catch(() => {});
+      await shareInvite(`${SITE_ORIGIN}/duel/${body.id}`).catch(() => {});
       navigate(`/duel/${body.id}`);
     } catch {
       setShareState({ status: "error", message: "Couldn't create link — tap to retry" });

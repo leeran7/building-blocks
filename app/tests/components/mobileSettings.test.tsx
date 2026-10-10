@@ -25,7 +25,7 @@ const { apiFetch, setSettings, invalidate, signOut, clearAll, clearDailyStore, s
   state: { settings: null as SettingsData | null, error: false },
 }));
 
-vi.mock("../../mobile/src/lib/api", () => ({ apiFetch, API_BASE: "https://example.test" }));
+vi.mock("../../mobile/src/lib/api", () => ({ apiFetch, SITE_ORIGIN: "https://example.test" }));
 vi.mock("@app/lib/daily", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@app/lib/daily")>()),
   clearDailyStore,

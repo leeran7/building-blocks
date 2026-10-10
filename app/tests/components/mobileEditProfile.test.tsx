@@ -24,7 +24,7 @@ const { apiFetch, setSettings, invalidate, state } = vi.hoisted(() => ({
   state: { settings: null as SettingsData | null, uid: "u1" },
 }));
 
-vi.mock("../../mobile/src/lib/api", () => ({ apiFetch, API_BASE: "https://example.test" }));
+vi.mock("../../mobile/src/lib/api", () => ({ apiFetch, SITE_ORIGIN: "https://example.test" }));
 vi.mock("../../mobile/src/lib/external", () => ({ openExternal: vi.fn(async () => {}) }));
 vi.mock("../../mobile/src/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { uid: state.uid }, loading: false, signOut: vi.fn(async () => {}) }),

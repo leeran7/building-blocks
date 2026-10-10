@@ -6,6 +6,7 @@ and live in the pack; **this repo's facts are in `context/`**.
 | | Path |
 |--|------|
 | This product's facts | [`context/README.md`](context/README.md) |
+| Every platform we ship on | [`context/platforms.md`](context/platforms.md) |
 | File tree + how to vendor the pack | [`pack/SETUP.md`](pack/SETUP.md) |
 | Template repo | [leeran7/closed-loop-agents](https://github.com/leeran7/closed-loop-agents) |
 | Kernel protocol / gates | `skills/closed-loop/protocol.md`, `gates.md` |
@@ -17,6 +18,14 @@ Edit `agents/` or `skills/`, then `yarn sync`. To refresh the template repo:
 New skills: follow the `create-skill` skill (`skills/create-skill/SKILL.md`).
 Shared files between skills **must** be symlinks, never copies — single source
 of truth.
+
+## Platforms
+
+Doomstack ships on iOS, Android, web, CrazyGames, YouTube Playables, itch.io,
+Telegram and Discord. Before any game change, check
+[`context/platforms.md`](context/platforms.md): it lists each platform's
+features, sign-in, payments, ads and constraints, and ends with a checklist.
+A new build target gets its row there in the same change.
 
 ## When to use the orchestrator
 

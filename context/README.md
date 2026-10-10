@@ -25,6 +25,7 @@ with (tokens, hex values, config). Live values stay in the codebase files that
 
 | File | Relevant to | What it covers |
 |------|-------------|----------------|
+| `context/platforms.md` | everyone, before any game change | Every platform we ship on: features, sign-in, payments, ads, constraints, change checklist |
 | `context/ux.md` | software-engineer, reviewer, qa-acceptance | Principles, component states, visual design bar |
 | `context/ux-process.md` | software-engineer (new screens) | Design process, screen states, critique checklist |
 | `context/ux-patterns.md` | software-engineer (interactions) | Motion, microinteractions, UX writing, flow patterns |
