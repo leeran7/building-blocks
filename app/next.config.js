@@ -98,18 +98,6 @@ const nextConfig = {
         source: "/(.*)",
         headers: securityHeaders,
       },
-      {
-        // Belt-and-suspenders on top of robots.txt's disallow: an HTTP-level
-        // noindex means compliant crawlers that already indexed an admin URL
-        // (or ignore robots.txt) still won't list it, since this applies
-        // regardless of the client-side auth gate in admin/social/layout.tsx.
-        source: "/admin/:path*",
-        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
-      },
-      {
-        source: "/api/admin/:path*",
-        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
-      },
       // Last, so a hosted target's own headers override the site-wide ones.
       ...hostedTargets.flatMap((t) => t.headers),
     ];

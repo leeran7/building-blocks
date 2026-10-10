@@ -11,7 +11,7 @@
  */
 
 import { createHmac } from "node:crypto";
-import { constantTimeEqual } from "./middleware/requireAdmin";
+import { constantTimeEqual } from "../lib/constantTimeEqual";
 import { platformUid } from "../lib/platformAuth";
 import { gemPackById, type GemPack } from "../lib/gemPacks";
 

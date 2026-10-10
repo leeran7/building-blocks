@@ -21,12 +21,3 @@ export function safeInternalPath(
   return raw;
 }
 
-/** Same-origin relative path under /admin/social only — blocks open redirects after OAuth. */
-export function safeSocialAdminPath(
-  raw: string | null | undefined,
-  fallback = "/admin/social/settings"
-): string {
-  const path = safeInternalPath(raw, fallback);
-  if (!path.startsWith("/admin/social")) return fallback;
-  return path;
-}

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { constantTimeEqual } from "../../../../src/api/middleware/requireAdmin";
+import { constantTimeEqual } from "../../../../src/lib/constantTimeEqual";
 import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
 import { reapExpiredChallenges } from "../../../../src/db/challenge";
 import { createNotification } from "../../../../src/db/notification";

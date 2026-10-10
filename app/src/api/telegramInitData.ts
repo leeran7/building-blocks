@@ -12,7 +12,7 @@
  */
 
 import { createHmac } from "node:crypto";
-import { constantTimeEqual } from "./middleware/requireAdmin";
+import { constantTimeEqual } from "../lib/constantTimeEqual";
 import { platformUid } from "../lib/platformAuth";
 
 /** How long a Mini App launch stays good for sign-in. Telegram re-signs initData on every launch. */

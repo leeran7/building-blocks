@@ -18,7 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, clientIp } from "../../../../src/lib/rateLimit";
-import { constantTimeEqual } from "../../../../src/api/middleware/requireAdmin";
+import { constantTimeEqual } from "../../../../src/lib/constantTimeEqual";
 import { answerPreCheckoutQuery, telegramBotToken, telegramWebhookSecret } from "../../../../src/api/telegramBot";
 import {
   checkStarsPayment,
