@@ -27,3 +27,6 @@ dist/
 scratch
 .next
 __pycache__/
+
+# render-3d MCP server default output (RENDER_3D_OUT_BASE)
+render-3d-out/

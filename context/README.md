@@ -31,6 +31,7 @@ with (tokens, hex values, config). Live values stay in the codebase files that
 | `context/ux-accessibility.md` | software-engineer, reviewer | WCAG 2.1 AA, responsive breakpoints, mobile UX |
 | `skills/sim-change/SKILL.md` | software-engineer, verifier, reviewer | Read before changing anything under `app/src/game/`: which engine version to bump, season gate |
 | `skills/mobile-release/SKILL.md` | software-engineer, qa-acceptance, integrator | Read before a native app version bump or store submission |
+| `skills/render-3d/SKILL.md` | software-engineer | Read before adding a Three.js/WebGL visual: generate scene code from a prompt and pass the headless preview gate |
 
 Add a `context/<domain>.md` when a deleted specialist’s knowledge needs to
 survive for the software-engineer or reviewers. Don’t add domain files for knowledge
