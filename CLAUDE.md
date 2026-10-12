@@ -21,7 +21,8 @@ of truth.
 
 ## Platforms
 
-Doomstack ships on iOS, Android, web and CrazyGames. Before any game change, check
+Doomstack ships on iOS, Android, web, CrazyGames, YouTube Playables, itch.io,
+Telegram and Discord. Before any game change, check
 [`context/platforms.md`](context/platforms.md): it lists each platform's
 features, sign-in, payments, ads and constraints, and ends with a checklist.
 A new build target gets its row there in the same change.

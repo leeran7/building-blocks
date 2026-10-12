@@ -21,7 +21,7 @@ import {
 const CLEAN_HTML = `<!doctype html><html><head>
 <script type="module" crossorigin src="./assets/index-abc.js"></script>
 <link rel="stylesheet" href="./assets/index-abc.css">
-<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+<script src="https://www.youtube.com/game_api/v1"></script>
 </head><body><div id="root"></div></body></html>`;
 const CLEAN_CSS = `@font-face{src:url(./font.woff2)}body{background:url(data:image/png;base64,AAAA)}`;
 const CLEAN_JS = `const a=new URL("./tile.jpg",import.meta.url).href;const b="https://sdk.crazygames.com/crazygames-sdk-v3.js";`;
@@ -63,25 +63,25 @@ describe("checkPortalDist", () => {
   it("fails a root-absolute script or stylesheet in index.html", () => {
     const report = checkPortalDist(
       clean({ "index.html": CLEAN_HTML.replace('src="./assets/index-abc.js"', 'src="/assets/index-abc.js"') }),
-      "crazygames",
+      "itch",
     );
     expect(report.errors).toEqual(["index.html has a root-absolute asset URL /assets/index-abc.js (must be relative)"]);
   });
 
   it("fails a root-absolute url() in CSS", () => {
-    const report = checkPortalDist(clean({ "assets/index-abc.css": "a{background:url('/assets/x.png')}" }), "crazygames");
+    const report = checkPortalDist(clean({ "assets/index-abc.css": "a{background:url('/assets/x.png')}" }), "itch");
     expect(report.errors).toEqual(["assets/index-abc.css has a root-absolute asset URL /assets/x.png (must be relative)"]);
   });
 
   it("fails a root-absolute /assets/ path in JS", () => {
-    const report = checkPortalDist(clean({ "assets/index-abc.js": 'const t="/assets/tile-1.jpg";' }), "crazygames");
+    const report = checkPortalDist(clean({ "assets/index-abc.js": 'const t="/assets/tile-1.jpg";' }), "itch");
     expect(report.errors).toEqual(["assets/index-abc.js has a root-absolute asset URL /assets/tile-1.jpg (must be relative)"]);
   });
 
   it("fails a reference to the Doomstack API origin", () => {
     const report = checkPortalDist(
       clean({ "assets/index-abc.js": 'fetch("https://www.doomstack.lol/api/climb/result")' }),
-      "crazygames",
+      "youtube",
     );
     expect(report.errors).toEqual(["assets/index-abc.js references doomstack.lol"]);
   });
@@ -99,26 +99,27 @@ describe("checkPortalDist", () => {
 
   it("fails when index.html is not at the root", () => {
     const dir = fixture({ "game/index.html": CLEAN_HTML, "game/assets/index-abc.js": CLEAN_JS });
-    expect(checkPortalDist(dir, "crazygames").errors).toEqual(["index.html is not at the root of the build"]);
+    expect(checkPortalDist(dir, "itch").errors).toEqual(["index.html is not at the root of the build"]);
   });
 
   it("fails a missing build folder", () => {
-    expect(checkPortalDist(path.join(tmpdir(), "no-such-portal-dist"), "crazygames").errors).toHaveLength(1);
+    expect(checkPortalDist(path.join(tmpdir(), "no-such-portal-dist"), "itch").errors).toHaveLength(1);
   });
 
   it(`fails more than ${MAX_FILES} files`, () => {
     const many: Record<string, string> = {};
     for (let i = 0; i < MAX_FILES; i++) many[`assets/f${i}.bin`] = "x";
-    const report = checkPortalDist(clean(many), "crazygames");
+    const report = checkPortalDist(clean(many), "itch");
     expect(report.files).toBe(MAX_FILES + 3);
     expect(report.errors).toEqual([`${MAX_FILES + 3} files is over the ${MAX_FILES}-file limit`]);
   });
 
   it("fails a build over the target's size limit", () => {
-    const report = checkPortalDist(clean({ "assets/big.bin": Buffer.alloc(50 * MB) }), "crazygames");
+    const big = Buffer.alloc(30 * MB);
+    const report = checkPortalDist(clean({ "assets/big.bin": big }), "youtube");
     expect(report.errors).toHaveLength(1);
-    expect(report.errors[0]).toMatch(/over the crazygames limit of 50\.00 MB/);
-    expect(checkPortalDist(clean({ "assets/big.bin": Buffer.alloc(49 * MB) }), "crazygames").errors).toEqual([]);
+    expect(report.errors[0]).toMatch(/at or over the youtube limit of 30\.00 MB/);
+    expect(checkPortalDist(clean({ "assets/big.bin": big }), "itch").errors).toEqual([]);
   });
 });
 
@@ -130,12 +131,22 @@ describe("sizeVerdict", () => {
     expect(sizeVerdict("crazygames", 50 * MB + 1).error).toMatch(/over the crazygames limit/);
   });
 
+  it("YouTube: fails at 30 MB or more", () => {
+    expect(sizeVerdict("youtube", 30 * MB - 1).error).toBeNull();
+    expect(sizeVerdict("youtube", 30 * MB).error).toMatch(/at or over/);
+  });
+
+  it("itch: no limit", () => {
+    expect(sizeVerdict("itch", 10_000 * MB)).toEqual({ error: null, warning: null });
+  });
 });
 
 describe("parsePortalTarget", () => {
-  it("allows only the CrazyGames portal", () => {
+  it("allows only the three portals", () => {
     expect(parsePortalTarget("crazygames")).toBe("crazygames");
-    for (const bad of ["app", "youtube", "itch", "", undefined, "constructor"]) expect(parsePortalTarget(bad)).toBeNull();
+    expect(parsePortalTarget("youtube")).toBe("youtube");
+    expect(parsePortalTarget("itch")).toBe("itch");
+    for (const bad of ["app", "telegram", "", undefined, "constructor"]) expect(parsePortalTarget(bad)).toBeNull();
   });
 });
 

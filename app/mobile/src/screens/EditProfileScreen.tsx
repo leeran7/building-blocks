@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { riseIn, sharedId, spring } from "../lib/motionTokens";
-import { apiFetch, API_BASE } from "../lib/api";
+import { apiFetch, SITE_ORIGIN } from "../lib/api";
 import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -359,7 +359,7 @@ function UsernameHint({
         onClick={() => {
           if (!isSaved) return;
           void tapLight();
-          void openExternal(`${API_BASE}/c/${check.username}`);
+          void openExternal(`${SITE_ORIGIN}/c/${check.username}`);
         }}
         className={`font-mono ${isSaved ? "text-signal underline underline-offset-2" : "text-text-primary"}`}
       >

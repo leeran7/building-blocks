@@ -60,7 +60,7 @@ const apiFetch = vi.fn(async (path: string): Promise<Response> => {
 });
 vi.mock("../../mobile/src/lib/api", () => ({
   apiFetch: (path: string) => apiFetch(path),
-  API_BASE: "https://example.test",
+  SITE_ORIGIN: "https://example.test",
 }));
 
 import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";

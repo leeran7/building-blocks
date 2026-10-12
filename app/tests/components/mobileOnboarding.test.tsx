@@ -39,7 +39,7 @@ vi.mock("../../mobile/src/lib/shop", async (importOriginal) => ({
 // The map's mode rail reads the shared app data: no server behind it.
 vi.mock("../../mobile/src/lib/api", () => ({
   apiFetch: async () => ({ ok: false, status: 404, json: async () => ({}) }) as Response,
-  API_BASE: "https://example.test",
+  SITE_ORIGIN: "https://example.test",
 }));
 // The canvas painter needs a real 2D context; the training's engine still runs.
 vi.mock("@app/components/Game/ClimbCanvas", () => ({ ClimbCanvas: () => null }));

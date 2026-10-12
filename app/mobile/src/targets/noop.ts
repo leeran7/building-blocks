@@ -1,5 +1,5 @@
 /**
- * Adapters for targets with no host SDK (the native app, local dev).
+ * Adapters for targets with no host SDK (the native app, itch.io, local dev).
  * Saves go to localStorage; there are no ads; audio is always allowed and the
  * page's own visibility drives pause.
  */

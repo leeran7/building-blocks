@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { NativePurchases, PURCHASE_TYPE } from "@capgo/native-purchases";
 import { GEM_PACKS, formatUsd, type GemPack } from "@app/lib/gemPacks";
+import { targetConfig } from "@target/config";
 import { apiFetch, isNative } from "./api";
 import { openExternal } from "./external";
 
@@ -110,6 +111,7 @@ export async function appStorePrices(): Promise<Record<string, string>> {
 
 /** A pack's price to show: the App Store's on iOS (its local price when known), else the web USD price. */
 export function packPrice(pack: GemPack, storePrices: Record<string, string>): string {
+  if (targetConfig.payments) return targetConfig.payments.packPrice(pack);
   if (!usesAppStore()) return formatUsd(pack.usdCents);
   return storePrices[pack.id] ?? formatUsd(pack.appleUsdCents);
 }
@@ -172,6 +174,8 @@ export async function buyGemPackOnWeb(pack: GemPack): Promise<PackPurchaseResult
 
 /** Buy one gem pack on this platform. Throws ShopError on failure. */
 export async function buyGemPack(pack: GemPack, shop: ShopState): Promise<PackPurchaseResult> {
+  // A host platform with its own payments (Telegram, Discord) sells the pack.
+  if (targetConfig.payments) return targetConfig.payments.buyGemPack(pack);
   if (!usesAppStore()) return buyGemPackOnWeb(pack);
   if (!shop.appleAccountToken) throw new ShopError("Couldn't reach the App Store. Try again.", null);
   let transaction;

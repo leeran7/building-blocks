@@ -28,7 +28,7 @@ const { state } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../../mobile/src/lib/api", () => ({ apiFetch: vi.fn(), API_BASE: "https://example.test" }));
+vi.mock("../../mobile/src/lib/api", () => ({ apiFetch: vi.fn(), SITE_ORIGIN: "https://example.test" }));
 vi.mock("../../mobile/src/lib/external", () => ({ openExternal: vi.fn(async () => {}) }));
 vi.mock("../../mobile/src/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { uid: UID }, loading: false, signOut: vi.fn(async () => {}) }),

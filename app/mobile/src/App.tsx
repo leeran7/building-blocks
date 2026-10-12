@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ReactElement, type ReactNode } from "react";
 import { AnimatePresence, MotionConfig, motion, useIsPresent } from "motion/react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ClimbScreen } from "./screens/ClimbScreen";
@@ -27,6 +27,8 @@ import { LogoMark } from "./components/LogoMark";
 import { useGuestMode } from "./lib/guestMode";
 import { isGameRoute } from "./lib/navigation";
 import { fade } from "./lib/motionTokens";
+import { targetConfig } from "@target/config";
+import type { TargetFeatures } from "./targets/types";
 
 /** How the backdrop and the app's top-level states (splash, Sign In, guest, the app) come and go. */
 const SHELL_FADE = { className: "absolute inset-0", ...fade } as const;
@@ -93,25 +95,9 @@ export function App() {
               <RouteTransition tabSwipe>
                 {(routeLocation) => (
                   <Routes location={routeLocation}>
-                    {/* Levels are the main game: the map is home (design doc §2).
-                        Endless sits on its Play bar; Daily, Versus and Ranks on its mode rail. */}
-                    <Route path="/" element={<LevelMapScreen />} />
-                    {/* The full-screen runs: they zoom in and out (RouteTransition's launch / land). */}
-                    <Route path="/climb" element={<ClimbScreen />} />
-                    {/* Keyed by entry so "Practice this level" from a result starts fresh. */}
-                    <Route path="/levels/:level/play" element={<LevelPlayScreen key={routeLocation.key} />} />
-                    <Route path="/duel/:id" element={<DuelRoomScreen />} />
-                    {/* First-run tutorial: opened by the map on a first launch, and from Profile. */}
-                    <Route path="/tutorial" element={<TrainingScreen />} />
-                    <Route path="/leaderboard" element={<LeaderboardScreen />} />
-                    <Route path="/profile" element={<ProfileScreen />} />
-                    <Route path="/profile/edit" element={<EditProfileScreen />} />
-                    <Route path="/profile/avatar" element={<AvatarPickerScreen />} />
-                    <Route path="/challenge" element={<ChallengeScreen />} />
-                    <Route path="/shop" element={<ShopScreen />} />
-                    <Route path="/shop/:characterId" element={<SkinDetailsScreen />} />
-                    <Route path="/settings" element={<SettingsScreen />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
+                    {appRoutes(targetConfig.features, routeLocation.key).map(({ path, element }) => (
+                      <Route key={path} path={path} element={element} />
+                    ))}
                   </Routes>
                 )}
               </RouteTransition>
@@ -129,6 +115,42 @@ export function App() {
     </div>
     </MotionConfig>
   );
+}
+
+/** One route of the signed-in app. */
+export interface AppRoute {
+  path: string;
+  element: ReactElement;
+}
+
+/**
+ * The signed-in app's routes, in match order. A build target without duels
+ * (targetConfig.features) has no duel room or Challenge screen, so a link to
+ * one falls through to the catch-all and lands on the map. `routeKey` is the
+ * location's key: a level run is keyed by it so "Practice this level" from a
+ * result starts fresh.
+ */
+export function appRoutes(features: TargetFeatures, routeKey: string): AppRoute[] {
+  return [
+    // Levels are the main game: the map is home (design doc §2).
+    // Endless sits on its Play bar; Daily, Versus and Ranks on its mode rail.
+    { path: "/", element: <LevelMapScreen /> },
+    // The full-screen runs: they zoom in and out (RouteTransition's launch / land).
+    { path: "/climb", element: <ClimbScreen /> },
+    { path: "/levels/:level/play", element: <LevelPlayScreen key={routeKey} /> },
+    ...(features.duels ? [{ path: "/duel/:id", element: <DuelRoomScreen /> }] : []),
+    // First-run tutorial: opened by the map on a first launch, and from Profile.
+    { path: "/tutorial", element: <TrainingScreen /> },
+    { path: "/leaderboard", element: <LeaderboardScreen /> },
+    { path: "/profile", element: <ProfileScreen /> },
+    { path: "/profile/edit", element: <EditProfileScreen /> },
+    { path: "/profile/avatar", element: <AvatarPickerScreen /> },
+    ...(features.duels ? [{ path: "/challenge", element: <ChallengeScreen /> }] : []),
+    { path: "/shop", element: <ShopScreen /> },
+    { path: "/shop/:characterId", element: <SkinDetailsScreen /> },
+    { path: "/settings", element: <SettingsScreen /> },
+    { path: "*", element: <Navigate to="/" replace /> },
+  ];
 }
 
 /** One of the app's top-level states, inert once it starts fading out. */

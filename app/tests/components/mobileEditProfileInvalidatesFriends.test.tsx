@@ -58,7 +58,7 @@ const apiFetch = vi.fn(async (path: string, init?: RequestInit): Promise<Respons
 });
 
 vi.mock("../../mobile/src/lib/api", () => ({
-  API_BASE: "https://example.test",
+  SITE_ORIGIN: "https://example.test",
   isNative: false,
   apiFetch: (path: string, init?: RequestInit) => apiFetch(path, init),
 }));

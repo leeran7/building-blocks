@@ -40,6 +40,7 @@ import { useUtcDay } from "../hooks/useUtcDay";
 import { useSlideSwap } from "../hooks/useSlideSwap";
 import { prefersReducedMotion } from "../lib/motion";
 import { parentRoute, useBackOr } from "../lib/navigation";
+import { targetConfig } from "@target/config";
 
 type Medal = 1 | 2 | 3;
 
@@ -372,9 +373,11 @@ function RaceFriendsCard({ today }: { today: boolean }) {
           ? "Add friends to race them on the same tower every day."
           : "Add friends to see how your best climb stacks up against theirs."}
       </p>
-      <Button fullWidth={false} onPress={() => navigate("/challenge")}>
-        Find friends
-      </Button>
+      {targetConfig.features.duels && (
+        <Button fullWidth={false} onPress={() => navigate("/challenge")}>
+          Find friends
+        </Button>
+      )}
     </section>
   );
 }

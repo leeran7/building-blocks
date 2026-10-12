@@ -76,8 +76,14 @@ jobs:
       - name: Typecheck mobile
         run: pnpm mobile:typecheck
 
-      - name: Build and check the CrazyGames ZIP
-        run: pnpm portal:package crazygames
+      - name: Build hosted targets (Telegram, Discord)
+        run: pnpm mobile:build:hosted
+
+      - name: Build and check the portal ZIPs
+        run: |
+          for t in crazygames youtube itch; do
+            pnpm portal:package "$t"
+          done
 
       - name: Upload the CrazyGames ZIP
         uses: actions/upload-artifact@v4

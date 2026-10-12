@@ -17,7 +17,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
-import { ensureUser, grantWebLeaderboardConsent } from "../../../../src/db/user";
+import { ensureUser, grantWebLeaderboardConsent, ReservedEmailError } from "../../../../src/db/user";
 import { isWebClient } from "../../../../src/lib/webClient";
 import { getRedis } from "../../../../src/lib/redis";
 
@@ -115,6 +115,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ user });
   } catch (error) {
+    if (error instanceof ReservedEmailError) {
+      return NextResponse.json(
+        { error: "That email address can't be used. Sign up with another one.", code: "RESERVED_EMAIL" },
+        { status: 400 }
+      );
+    }
     console.error("[POST /api/auth/sync] DB upsert failed:", error);
     return NextResponse.json(
       { error: "Could not sync your account. Please try again.", code: "INTERNAL_ERROR" },

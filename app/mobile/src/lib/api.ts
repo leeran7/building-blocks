@@ -1,4 +1,5 @@
 import { Capacitor } from "@capacitor/core";
+import { targetConfig } from "@target/config";
 import { getFreshToken } from "./firebaseAuth";
 
 /**
@@ -10,14 +11,31 @@ import { getFreshToken } from "./firebaseAuth";
  * In the browser dev server this base still points at prod; cross-origin calls
  * there are expected to be blocked by CORS until a dev proxy is added — device
  * builds are the real target.
+ *
+ * The build target picks the base (targets/types.ts apiBase): same-origin for
+ * a build served from doomstack.lol, Discord's proxy prefix inside Discord.
  */
-export const API_BASE = "https://www.doomstack.lol";
+/** The public site: share links, profile pages, deep-link host checks. */
+export const SITE_ORIGIN = "https://www.doomstack.lol";
+
+/**
+ * Where `/api/...` calls go. Throws for a target that declares no API (the
+ * portals), so a stray call fails loudly in development instead of leaking a
+ * network request into a portal build.
+ */
+export function apiBase(): string {
+  // Read on each call, not at module load: a target's config may import this
+  // module (its payments adapter), so the config can still be evaluating here.
+  const base = targetConfig.apiBase;
+  if (base === null) throw new Error(`Target "${targetConfig.id}" makes no API calls`);
+  return base;
+}
 
 export const isNative = Capacitor.isNativePlatform();
 
 /** Absolute API URL for a `/api/...`-style path. */
 export function apiUrl(path: string): string {
-  return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+  return `${apiBase()}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
 /** fetch against the Doomstack API, attaching a fresh Bearer token. */

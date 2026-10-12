@@ -1,5 +1,5 @@
 /**
- * The web-portal shell (CrazyGames): straight onto
+ * The web-portal shell (CrazyGames, YouTube Playables, itch.io): straight onto
  * a menu with one Start button, endless Free Climb only, best height on the
  * device. No account, API, shop, duels, replays or links out.
  *

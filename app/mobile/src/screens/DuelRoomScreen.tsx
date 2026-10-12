@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { apiFetch, API_BASE } from "../lib/api";
+import { apiFetch, SITE_ORIGIN } from "../lib/api";
 import { tapLight, tapMedium, notifySuccess } from "../lib/haptics";
 import { useHapticsSetting } from "../lib/hapticsSetting";
 import { useGameHaptics } from "../lib/useGameHaptics";
@@ -343,7 +343,7 @@ function WaitingLobby({
 
   const shareInviteLink = useCallback(async () => {
     void tapLight();
-    const url = `${API_BASE}/duel/${duelId}`;
+    const url = `${SITE_ORIGIN}/duel/${duelId}`;
     const outcome = await shareInvite(url);
     if (outcome === "copied") {
       setLinkCopied(true);
@@ -1078,7 +1078,7 @@ function MobileResult({
 
   const handleShare = useCallback(async () => {
     void tapLight();
-    const url = `${API_BASE}/duel/${duelId}`;
+    const url = `${SITE_ORIGIN}/duel/${duelId}`;
     await shareInvite(url, {
       title: "Doomstack — 1v1 duel",
       text: "Race me to the top.",

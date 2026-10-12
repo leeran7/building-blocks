@@ -59,7 +59,7 @@ function emptyBody(path: string): unknown {
   return {};
 }
 vi.mock("../../mobile/src/lib/api", () => ({
-  API_BASE: "https://example.test",
+  SITE_ORIGIN: "https://example.test",
   apiFetch: vi.fn(async (path: string) => ({ ok: true, status: 200, json: () => Promise.resolve(emptyBody(path)) }) as Response),
 }));
 

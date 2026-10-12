@@ -1,11 +1,21 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 
 const dir = import.meta.dirname;
 
 /** Build targets (mobile/src/targets/types.ts TARGET_IDS). */
-const TARGETS = ["app", "crazygames"];
+const TARGETS = ["app", "crazygames", "youtube", "itch", "telegram", "discord"];
+
+/** Targets served from doomstack.lol: built into public/<path> (targets/<t>/hosting.cjs). */
+const HOSTED = ["telegram", "discord"];
+
+interface Hosting {
+  path: string;
+  base: string;
+}
 
 /**
  * `--mode <target>` picks the build target; Vite's own default modes
@@ -16,6 +26,19 @@ function targetFor(mode: string): string {
   if (mode === "development" || mode === "production") return "app";
   if (TARGETS.includes(mode)) return mode;
   throw new Error(`Unknown build target "${mode}". Expected one of: ${TARGETS.join(", ")}`);
+}
+
+/**
+ * A target's optional `src/targets/<target>/head.html`, prepended to <head> so
+ * a host SDK (YouTube Playables) loads before any game code.
+ */
+function targetHead(target: string): Plugin {
+  const file = path.resolve(dir, "src/targets", target, "head.html");
+  return {
+    name: "target-head",
+    transformIndexHtml: (html) =>
+      existsSync(file) ? html.replace("<head>", `<head>\n${readFileSync(file, "utf8")}`) : html,
+  };
 }
 
 /**
@@ -31,10 +54,13 @@ function targetFor(mode: string): string {
  */
 export default defineConfig(({ mode }) => {
   const target = targetFor(mode);
+  const hosting: Hosting | null = HOSTED.includes(target)
+    ? createRequire(import.meta.url)(`./src/targets/${target}/hosting.cjs`)
+    : null;
   return {
     root: dir,
-    base: "./",
-    plugins: [react()],
+    base: hosting?.base ?? "./",
+    plugins: [react(), targetHead(target)],
     resolve: {
       alias: {
         "@app": path.resolve(dir, "../src"),
@@ -43,9 +69,11 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      // The native app keeps mobile/dist (capacitor.config.ts webDir); portals
-      // get a folder to zip.
-      outDir: path.resolve(dir, target === "app" ? "dist" : `dist-${target}`),
+      // The native app keeps mobile/dist (capacitor.config.ts webDir); hosted
+      // targets go where Next serves them; portals get a folder to zip.
+      outDir: hosting
+        ? path.resolve(dir, "../public", `.${hosting.path}`)
+        : path.resolve(dir, target === "app" ? "dist" : `dist-${target}`),
       emptyOutDir: true,
       target: "es2020",
     },
