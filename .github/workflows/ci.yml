@@ -73,6 +73,19 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Typecheck mobile
+        run: pnpm mobile:typecheck
+
+      - name: Build and check the CrazyGames ZIP
+        run: pnpm portal:package crazygames
+
+      - name: Upload the CrazyGames ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: doomstack-crazygames
+          path: app/mobile/dist-zips/crazygames.zip
+          if-no-files-found: error
+
       - name: Lint
         run: pnpm lint
 

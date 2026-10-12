@@ -39,7 +39,7 @@ export const BOOSTER_TYPES: readonly BoosterType[] = [
 
 /** A booster type, or null for anything else (allow-list, never a default). */
 export function parseBoosterType(raw: unknown): BoosterType | null {
-  return typeof raw === "string" && Object.hasOwn(BOOSTER_TYPE_SET, raw) ? (raw as BoosterType) : null;
+  return typeof raw === "string" && Object.prototype.hasOwnProperty.call(BOOSTER_TYPE_SET, raw) ? (raw as BoosterType) : null;
 }
 
 /** The booster types in a level's allowed power-up set ("random" dropped). */

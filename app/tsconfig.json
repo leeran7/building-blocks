@@ -28,6 +28,9 @@
       ],
       "@app/*": [
         "./src/*"
+      ],
+      "@target/*": [
+        "./mobile/src/targets/app/*"
       ]
     }
   },

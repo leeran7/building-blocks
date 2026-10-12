@@ -23,6 +23,8 @@ export default defineConfig({
       // this, any test of a mobile/src module that imports a shared lib
       // (e.g. challenge components -> @app/lib/handle) fails to resolve.
       "@app": resolve(rootDir, "src"),
+      // Tests run against the native app target (mobile/vite.config.mts).
+      "@target": resolve(rootDir, "mobile/src/targets/app"),
     },
   },
   resolve: {

@@ -24,10 +24,17 @@ export function GameSettingsButton({
   muted,
   onToggleMute,
   vibration,
+  escapeCloses = true,
 }: {
   muted: boolean;
   onToggleMute: () => void;
   vibration?: GameToggle;
+  /**
+   * Close the open panel on Escape. Web portals that forbid binding Escape
+   * (it leaves fullscreen there) pass false; the cog and an outside tap
+   * still close it.
+   */
+  escapeCloses?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // Which edge the panel hangs from: the cog sits top-left in some HUD layouts
@@ -50,12 +57,12 @@ export function GameSettingsButton({
       cogRef.current?.focus();
     };
     document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
+    if (escapeCloses) document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("pointerdown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, escapeCloses]);
 
   return (
     <div ref={wrapRef} className="exp-settings">

@@ -114,21 +114,21 @@ export function createBestFailStore(opts: BestFailStoreOptions = {}): BestFailSt
     get(season, level) {
       const all = read();
       const k = entryKey(season, level);
-      return Object.hasOwn(all, k) ? (all[k] ?? null) : null;
+      return Object.prototype.hasOwnProperty.call(all, k) ? (all[k] ?? null) : null;
     },
     record(season, level, peakFt) {
       if (!Number.isInteger(season) || season < 1 || !Number.isInteger(level) || level < 1) return;
       if (!Number.isFinite(peakFt) || peakFt <= 0) return;
       const all = read();
       const k = entryKey(season, level);
-      const prev = Object.hasOwn(all, k) ? all[k] : undefined;
+      const prev = Object.prototype.hasOwnProperty.call(all, k) ? all[k] : undefined;
       if (prev !== undefined && prev >= peakFt) return;
       write({ ...all, [k]: peakFt });
     },
     clear(season, level) {
       const all = read();
       const k = entryKey(season, level);
-      if (!Object.hasOwn(all, k)) return;
+      if (!Object.prototype.hasOwnProperty.call(all, k)) return;
       const next = { ...all };
       delete next[k];
       write(next);

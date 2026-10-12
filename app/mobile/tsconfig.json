@@ -17,7 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@app/*": ["../src/*"]
+      "@app/*": ["../src/*"],
+      "@target/*": ["./src/targets/app/*"]
     }
   },
   "include": ["src", "vite.config.mts"]
