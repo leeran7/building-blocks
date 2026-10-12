@@ -73,6 +73,12 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Typecheck mobile
+        run: pnpm mobile:typecheck
+
+      - name: Build and check the CrazyGames ZIP
+        run: pnpm portal:package crazygames
+
       - name: Lint
         run: pnpm lint
 

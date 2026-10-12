@@ -15,6 +15,7 @@ loop/*
 # Dependencies & build
 node_modules/
 dist/
+dist-*/
 *.log
 
 # Environment

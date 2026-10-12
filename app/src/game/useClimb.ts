@@ -156,6 +156,13 @@ export interface UseClimbOptions {
    * streak, stuck help or a booster). Must be allowed on `tower`.
    */
   startPowerUp?: Exclude<PowerUpType, "random">;
+  /**
+   * Live play only: hold the run where it is (a host overlay, a hidden tab, a
+   * pause button). The loop stops advancing ticks, keeps no wall-clock debt,
+   * and drops held keys so nothing is stuck down on resume. Changes nothing
+   * the simulation computes, only when it is stepped.
+   */
+  paused?: boolean;
 }
 
 /**
@@ -176,6 +183,7 @@ export function useClimb({
   replayInputs,
   autoStart = false,
   startPowerUp,
+  paused: livePaused = false,
 }: UseClimbOptions): UseClimbResult {
   const cfg: SimConfig = { ...DEFAULT_SIM_CONFIG, hazard };
 
@@ -225,6 +233,8 @@ export function useClimb({
   const consumedLobbySeed = useRef(false);
   const replayInputsRef = useRef(replayInputs);
   replayInputsRef.current = replayInputs;
+  const livePausedRef = useRef(livePaused);
+  livePausedRef.current = livePaused;
   const inputLogRef = useRef<PlayerInput[]>([]);
   const [inputLog, setInputLog] = useState<PlayerInput[]>([]);
   // Mutable input object reused every tick to avoid per-frame allocations.
@@ -281,6 +291,10 @@ export function useClimb({
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (replayInputsRef.current?.length) return;
+      // Browser and OS shortcuts (Ctrl+W, Cmd+A, Alt+arrows) are never game
+      // input: recording them would hold a direction the keyup may never clear.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (livePausedRef.current) return;
       if (
         !shouldCaptureGameKey(
           e.key,
@@ -305,6 +319,10 @@ export function useClimb({
   useEffect(() => {
     if (!PHASES_CONSUMING_INPUT.has(state.phase)) keysRef.current.clear();
   }, [state.phase]);
+
+  useEffect(() => {
+    if (livePaused) keysRef.current.clear();
+  }, [livePaused]);
 
   // Reuse a single mutable object instead of allocating a new one every tick.
   const sampleInput = useCallback(
@@ -364,6 +382,12 @@ export function useClimb({
       }
 
       if (!runningRef.current) return;
+
+      // Live pause: hold the clock so resuming does not replay the gap.
+      if (livePausedRef.current) {
+        lastTsRef.current = 0;
+        return;
+      }
 
       // Pause gate — only while replaying (NFR-8: live never reads this).
       if (replayInputsRef.current?.length && pausedRef.current) {
