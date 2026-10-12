@@ -79,11 +79,18 @@ jobs:
       - name: Build hosted targets (Telegram, Discord)
         run: pnpm mobile:build:hosted
 
-      - name: Build portal targets
+      - name: Build and check the portal ZIPs
         run: |
           for t in crazygames youtube itch; do
-            pnpm exec vite build --config mobile/vite.config.mts --mode "$t"
+            pnpm portal:package "$t"
           done
+
+      - name: Upload the CrazyGames ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: doomstack-crazygames
+          path: app/mobile/dist-zips/crazygames.zip
+          if-no-files-found: error
 
       - name: Lint
         run: pnpm lint
