@@ -37,6 +37,7 @@ import { useSettings } from "../../contexts/AppDataContext";
 import type { StartPowerUp } from "@app/levels/engagement";
 import { StarRow } from "./LevelBits";
 import { PowerUpName } from "./LevelStartExtras";
+import { BackButton } from "../ui";
 
 /**
  * The climb itself, on the level's tower and lava from the season manifest
@@ -234,22 +235,9 @@ export function LevelRun({
       />
 
 
-      {phase === "countdown" && (
+      {(phase === "lobby" || phase === "countdown") && (
         <Overlay>
-          <p className="font-mono text-label uppercase tracking-eyebrow text-signal">Level {level}</p>
-          <p key={countdownValue} className="lp-pop mt-3 font-display text-7xl font-black tabular-nums text-text-primary">
-            {countdownValue}
-          </p>
-          {startPowerUp && (
-            <p className="mt-4 text-meta text-text-primary">
-              Starts with <PowerUpName type={startPowerUp.type} />
-            </p>
-          )}
-        </Overlay>
-      )}
-
-      {phase === "lobby" && !autoStart && (
-        <Overlay>
+          <BackButton onBack={onQuit} className="absolute left-4" style={{ top: safeArea.top + 12 }} />
           <span className={`font-mono text-label uppercase tracking-eyebrow ${isHardLevel(level) ? "text-ember" : "text-signal"}`}>
             {practice ? "Practice" : isHardLevel(level) ? "Hard level" : "Level"}
           </span>
@@ -265,18 +253,35 @@ export function LevelRun({
               You start with <PowerUpName type={startPowerUp.type} /> at GO.
             </p>
           )}
-          <button
-            type="button"
-            onClick={handleStart}
-            className="mt-8 rounded-full border-2 border-signal/70 bg-signal/10 px-12 py-4 font-display text-lg font-black uppercase tracking-[0.15em] text-signal shadow-signal transition-transform duration-150 active:scale-[0.96]"
-          >
-            Start
-          </button>
+          {/* Start and the countdown share one slot, so pressing Start
+              counts down in place without the page jumping. */}
+          <div className="mt-6 flex h-24 items-center justify-center">
+            {phase === "countdown" ? (
+              <p
+                key={countdownValue}
+                role="timer"
+                aria-live="assertive"
+                className="lp-pop font-display text-7xl font-black leading-none tabular-nums text-signal"
+              >
+                {countdownValue}
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStart}
+                className="rounded-full border-2 border-signal/70 bg-signal/10 px-12 py-4 font-display text-lg font-black uppercase tracking-[0.15em] text-signal shadow-signal transition-transform duration-150 active:scale-[0.96]"
+              >
+                Start
+              </button>
+            )}
+          </div>
           {onHowToPlay && (
             <button
               type="button"
               onClick={onHowToPlay}
-              className="mt-4 min-h-[44px] px-4 font-mono text-label uppercase tracking-label text-text-secondary underline-offset-4 active:scale-95"
+              disabled={phase !== "lobby"}
+              aria-hidden={phase !== "lobby"}
+              className={`min-h-[44px] px-4 font-mono text-label uppercase tracking-label text-text-secondary underline-offset-4 active:scale-95 ${phase === "lobby" ? "" : "invisible"}`}
             >
               How to play
             </button>

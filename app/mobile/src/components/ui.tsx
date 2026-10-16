@@ -1,4 +1,4 @@
-import { useId, type ButtonHTMLAttributes, type ReactNode, type Ref } from "react";
+import { useId, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type Ref } from "react";
 import { tapLight } from "../lib/haptics";
 
 /**
@@ -192,11 +192,20 @@ export function PushHeader({ title, onBack, headingRef }: PushHeaderProps) {
 }
 
 /** The 48px glass back button of PushHeader, also used by HubHeader on a pushed hub (Leaderboard). */
-export function BackButton({ onBack, className = "" }: { onBack: () => void; className?: string }) {
+export function BackButton({
+  onBack,
+  className = "",
+  style,
+}: {
+  onBack: () => void;
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
     <button
       type="button"
       aria-label="Back"
+      style={style}
       onClick={() => {
         void tapLight();
         onBack();
