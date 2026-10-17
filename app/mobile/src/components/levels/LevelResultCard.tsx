@@ -16,6 +16,8 @@ import { OutOfLives, type RefillOffer } from "./LevelStartSheet";
 import { ChestCollected, ChestReveal } from "./ChestOpening";
 import { ArrowRight } from "./LevelIcons";
 import { RewardReveal } from "../RewardReveal";
+import type { EquipResult } from "../../contexts/AppDataContext";
+import { notifyError, notifySuccess } from "../../lib/haptics";
 import { CharacterPreview, previewSize } from "../CharacterPreview";
 import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
 
@@ -39,6 +41,8 @@ export function LevelResultCard({
   onPracticeLevel,
   nearMiss = null,
   refill = null,
+  equipAvatar = null,
+  switchWarning = null,
 }: {
   result: LevelResult;
   /** Whether a retry of this level spends a life (tutorial levels don't). */
@@ -56,6 +60,10 @@ export function LevelResultCard({
   onPracticeLevel: () => void;
   /** The paid lives refill, offered when a loss leaves no lives. */
   refill?: RefillOffer | null;
+  /** Equips a character this run unlocked, straight from its reveal. */
+  equipAvatar?: ((avatarId: string) => Promise<EquipResult>) | null;
+  /** Shown on that reveal when equipping would lock the saved character. */
+  switchWarning?: string | null;
 }) {
   // A clear that opened chests leads with Collect Rewards; Next level waits
   // below it as a link until the rewards are collected.
@@ -68,7 +76,7 @@ export function LevelResultCard({
   return (
     <Sheet label={label}>
       {result.cleared ? (
-        <Cleared result={result} />
+        <Cleared result={result} equipAvatar={equipAvatar} switchWarning={switchWarning} />
       ) : (
         <Lost
           goalFt={result.goalFt}
@@ -176,7 +184,15 @@ export function StuckLine({ result }: { result: Pick<LevelResult, "cleared" | "f
   );
 }
 
-function Cleared({ result }: { result: LevelResult }) {
+function Cleared({
+  result,
+  equipAvatar,
+  switchWarning,
+}: {
+  result: LevelResult;
+  equipAvatar: ((avatarId: string) => Promise<EquipResult>) | null;
+  switchWarning: string | null;
+}) {
   return (
     <>
       <p className="text-center font-mono text-label font-bold uppercase tracking-eyebrow text-signal">
@@ -211,7 +227,7 @@ function Cleared({ result }: { result: LevelResult }) {
             Player level {result.newPlayerLevel}!
           </p>
         )}
-        <UnlockedAvatars ids={result.unlockedAvatars ?? []} />
+        <UnlockedAvatars ids={result.unlockedAvatars ?? []} equip={equipAvatar} switchWarning={switchWarning} />
         <XpBar player={result.player} />
       </div>
       <style>{`
@@ -260,11 +276,23 @@ export const UNLOCK_REVEAL_DELAY_MS = 1100;
 /**
  * A new character gets its own moment: the full-screen reward reveal (the
  * one a purchase gets), one character after another, over the result card.
- * The card keeps a line naming them once the reveals are dismissed.
+ * Its button equips the character there and then (the stick figures: the one
+ * shown), the way Choose Character does; Later keeps the current one. The
+ * card keeps a line naming them once the reveals are dismissed.
  */
-function UnlockedAvatars({ ids }: { ids: string[] }) {
+function UnlockedAvatars({
+  ids,
+  equip,
+  switchWarning,
+}: {
+  ids: string[];
+  equip: ((avatarId: string) => Promise<EquipResult>) | null;
+  switchWarning: string | null;
+}) {
   const unlocked = unlockedAvatars(ids);
   const [shown, setShown] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // Let the stars land before the reveal takes the screen.
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -273,6 +301,26 @@ function UnlockedAvatars({ ids }: { ids: string[] }) {
   }, []);
   if (unlocked.length === 0) return null;
   const next = ready ? unlocked[shown] : undefined;
+  const more = shown + 1 < unlocked.length;
+  const advance = () => {
+    setError(null);
+    setShown((n) => n + 1);
+  };
+  const equipNow = async (id: string) => {
+    if (!equip || busy) return;
+    setBusy(true);
+    setError(null);
+    const res = await equip(id);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      void notifyError();
+      return;
+    }
+    void notifySuccess();
+    setShown((n) => n + 1);
+  };
+  const sticks = next?.name === "Stick figures";
   return (
     <>
       <p
@@ -289,11 +337,24 @@ function UnlockedAvatars({ ids }: { ids: string[] }) {
         <RewardReveal
           key={next.id}
           subject={<CharacterPreview avatarId={next.id} pose="idle" locked={false} figurePx={190} sizePx={previewSize(190)} />}
-          eyebrow={next.name === "Stick figures" ? "New characters unlocked" : "New character unlocked"}
+          eyebrow={sticks ? "New characters unlocked" : "New character unlocked"}
           title={next.name}
-          detail="Pick it in Choose Character."
-          doneLabel={shown + 1 < unlocked.length ? "Next" : "Continue"}
-          onDone={() => setShown((n) => n + 1)}
+          {...(equip
+            ? {
+                detail:
+                  switchWarning ??
+                  (sticks ? "Wear this one on your next climb, or pick another color in Choose Character." : "Wear it on your next climb, or pick it later in Choose Character."),
+                doneLabel: busy ? "Equipping…" : sticks ? "Use this one" : `Use ${next.name}`,
+                onDone: () => void equipNow(next.id),
+                secondary: { label: more ? "Next" : "Later", onClick: advance },
+                busy,
+                error,
+              }
+            : {
+                detail: "Pick it in Choose Character.",
+                doneLabel: more ? "Next" : "Continue",
+                onDone: advance,
+              })}
         />
       )}
     </>

@@ -10,10 +10,9 @@ import {
   skinsOf,
   type AvatarEntry,
 } from "@app/lib/avatars";
-import { apiFetch } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useShop } from "../contexts/ShopContext";
-import { echoedSetting, useInvalidateAppData, useSettings } from "../contexts/AppDataContext";
+import { useEquipAvatar, useSettings } from "../contexts/AppDataContext";
 import { CharacterPreview, previewSize, type PreviewPose } from "../components/CharacterPreview";
 import { RewardReveal } from "../components/RewardReveal";
 import { HexAvatar } from "../components/HexAvatar";
@@ -89,8 +88,7 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
   const goBack = useBackOr("/shop");
   const { user } = useAuth();
   const { shop, apply } = useShop();
-  const { data: settings, setSettings, refreshSettings } = useSettings();
-  const invalidate = useInvalidateAppData();
+  const { data: settings, refreshSettings } = useSettings();
 
   const looks: AvatarEntry[] = [character, ...skinsOf(character.id)];
   // The look the Shop card showed (the Wraith's card is the character itself), else the first skin.
@@ -114,25 +112,11 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
     gems: shop?.gems ?? null,
   });
 
+  const equipAvatar = useEquipAvatar();
   const equip = async (id: string): Promise<boolean> => {
-    const res = await apiFetch("/api/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ avatarId: id }),
-    });
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(d.error ?? "Couldn't equip it. Try again.");
-      return false;
-    }
-    const next = echoedSetting(await res.json().catch(() => null), "avatarId", id);
-    if (!next) {
-      setError("Couldn't equip it. Please update the app or try again later.");
-      return false;
-    }
-    setSettings(next);
-    invalidate(["leaderboard", "friendsLeaderboard", "dashboard"]);
-    return true;
+    const res = (await equipAvatar?.(id)) ?? { ok: false as const, error: "Couldn't equip it. Try again." };
+    if (!res.ok) setError(res.error);
+    return res.ok;
   };
 
   const act = async () => {
@@ -160,7 +144,7 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
       else void notifyError();
     } catch (err) {
       // Already owned (another device bought it): equip instead of failing.
-      if (err instanceof ShopError && err.code === "OWNED" && (await equip(selected.id).catch(() => false))) {
+      if (err instanceof ShopError && err.code === "OWNED" && (await equip(selected.id))) {
         void notifySuccess();
       } else {
         setError(err instanceof ShopError ? err.message : "Couldn't complete the purchase. Check your connection.");

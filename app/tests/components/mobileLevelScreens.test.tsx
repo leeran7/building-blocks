@@ -79,6 +79,8 @@ import type { BuyLivesResult, LevelResult, LevelRunReport, LevelsClient } from "
 import { LevelMapScreen, MAP_FADE, interruptedFromState, pinBottom } from "../../mobile/src/screens/LevelMapScreen";
 import { LevelPlayScreen, ticketFromState } from "../../mobile/src/screens/LevelPlayScreen";
 import { LevelResultCard, UNLOCK_REVEAL_DELAY_MS } from "../../mobile/src/components/levels/LevelResultCard";
+import type { EquipResult } from "../../mobile/src/contexts/AppDataContext";
+import { AVATARS, stickColorOf } from "@app/lib/avatars";
 import { REVEAL_BURST_MS, REVEAL_CHARGE_MS } from "../../mobile/src/components/RewardReveal";
 import type { RefillOffer } from "../../mobile/src/components/levels/LevelStartSheet";
 import { TICK_HZ } from "../../src/game/types";
@@ -1038,11 +1040,17 @@ describe("level result card", () => {
   };
   const noop = () => {};
 
-  async function renderCard(result: LevelResult, costsLife = true, refill: RefillOffer | null = null) {
+  async function renderCard(
+    result: LevelResult,
+    costsLife = true,
+    refill: RefillOffer | null = null,
+    equip: { equipAvatar?: (id: string) => Promise<EquipResult>; switchWarning?: string | null } = {},
+  ) {
     const el: ReactElement = createElement(LevelResultCard, {
       result,
       costsLife,
       refill,
+      ...equip,
       hasNextLevel: true,
       retryBusy: false,
       onNext: noop,
@@ -1169,6 +1177,102 @@ describe("level result card", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe("using a new character straight from its reveal", () => {
+    const reveal = () => document.querySelector("[data-reward-phase]");
+    const buttons = () => [...document.querySelectorAll<HTMLButtonElement>("[data-reward-phase] button")];
+    const press = async (label: string) => {
+      const b = buttons().find((x) => x.textContent === label);
+      expect(b, label).toBeTruthy();
+      await act(async () => {
+        b!.click();
+      });
+    };
+    // The wait before the reveal, then its build-up and burst.
+    const openReveal = async () => {
+      await act(async () => {
+        vi.advanceTimersByTime(UNLOCK_REVEAL_DELAY_MS);
+      });
+      await playReveal();
+    };
+    const playReveal = async () => {
+      for (const ms of [REVEAL_CHARGE_MS, REVEAL_BURST_MS]) {
+        await act(async () => {
+          vi.advanceTimersByTime(ms);
+        });
+      }
+    };
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it("equips the character from its button, and Later keeps the current one", async () => {
+      const equipAvatar = vi.fn(async (): Promise<EquipResult> => ({ ok: true }));
+      await renderCard({ ...base, unlockedAvatars: ["ibex", "falcon"] }, true, null, { equipAvatar });
+      await openReveal();
+      expect(buttons().map((b) => b.textContent)).toEqual(["Use Ibex", "Next"]);
+      expect(reveal()?.textContent).toContain("Wear it on your next climb, or pick it later in Choose Character.");
+      await press("Use Ibex");
+      expect(equipAvatar.mock.calls).toEqual([["ibex"]]);
+      // On to the next reveal.
+      expect(reveal()?.getAttribute("aria-label")).toBe("New character unlocked: Falcon");
+      await playReveal();
+      expect(buttons().map((b) => b.textContent)).toEqual(["Use Falcon", "Later"]);
+      await press("Later");
+      expect(reveal()).toBeNull();
+      expect(equipAvatar).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the reveal up with the reason when equipping fails, so it can be tried again", async () => {
+      let fail = true;
+      const equipAvatar = vi.fn(async (): Promise<EquipResult> => (fail ? { ok: false, error: "That character is locked." } : { ok: true }));
+      await renderCard({ ...base, unlockedAvatars: ["otter"] }, true, null, { equipAvatar });
+      await openReveal();
+      await press("Use Otter");
+      expect(reveal()).not.toBeNull();
+      expect(document.querySelector("[data-reward-phase] [role=alert]")?.textContent).toBe("That character is locked.");
+      fail = false;
+      await press("Use Otter");
+      expect(reveal()).toBeNull();
+      expect(equipAvatar).toHaveBeenCalledTimes(2);
+    });
+
+    it("waits on a slow save: both buttons disabled until it answers", async () => {
+      let answer: (r: EquipResult) => void = () => {};
+      const equipAvatar = vi.fn(() => new Promise<EquipResult>((r) => (answer = r)));
+      await renderCard({ ...base, unlockedAvatars: ["otter"] }, true, null, { equipAvatar });
+      await openReveal();
+      await press("Use Otter");
+      expect(buttons().map((b) => [b.textContent, b.disabled])).toEqual([
+        ["Equipping…", true],
+        ["Later", true],
+      ]);
+      await act(async () => {
+        answer({ ok: true });
+      });
+      expect(reveal()).toBeNull();
+    });
+
+    it("warns when equipping would lock the saved character", async () => {
+      const warning = "Switching will lock Ibex until you earn 660 stars.";
+      await renderCard({ ...base, unlockedAvatars: ["otter"] }, true, null, {
+        equipAvatar: async () => ({ ok: true }),
+        switchWarning: warning,
+      });
+      await openReveal();
+      expect(reveal()?.textContent).toContain(warning);
+    });
+
+    it("equips the stick figure it shows when the stick figures unlock together", async () => {
+      const equipAvatar = vi.fn(async (): Promise<EquipResult> => ({ ok: true }));
+      const sticks = AVATARS.filter((a) => stickColorOf(a.id) !== null).map((a) => a.id);
+      expect(sticks.length).toBeGreaterThan(1);
+      await renderCard({ ...base, unlockedAvatars: sticks }, true, null, { equipAvatar });
+      await openReveal();
+      expect(buttons().map((b) => b.textContent)).toEqual(["Use this one", "Later"]);
+      await press("Use this one");
+      expect(equipAvatar.mock.calls).toEqual([[sticks[0]]]);
+    });
   });
 
   it("promises free help on the next try from the 3rd fail", async () => {

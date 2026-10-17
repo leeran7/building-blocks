@@ -6,6 +6,7 @@ import { TICK_HZ } from "@app/game/types";
 
 import { useLevels } from "../contexts/LevelsContext";
 import { useGuest } from "../contexts/GuestContext";
+import { useEquipAvatar, useSwitchAwayWarning } from "../contexts/AppDataContext";
 import { isGuestLocked } from "../lib/levels/guestClient";
 import { tapLight, notifySuccess } from "../lib/haptics";
 import {
@@ -75,6 +76,8 @@ export function LevelPlayScreen() {
   const level = Number(params.level);
   const { client, season, setPlayer, refresh, bestFails, runNotes } = useLevels();
   const refill = useLivesRefillOffer();
+  const equipAvatar = useEquipAvatar();
+  const switchWarning = useSwitchAwayWarning();
   const seasonNo = season?.season ?? null;
   const node: LevelNode | null =
     season && Number.isInteger(level) && level >= 1 && level <= season.levels.length
@@ -296,6 +299,8 @@ export function LevelPlayScreen() {
             onPractice={() => navigate("/climb", { replace: true })}
             onPracticeLevel={() => navigate(`/levels/${level}/play?practice=1`, { replace: true })}
             refill={refill.offer}
+            equipAvatar={equipAvatar}
+            switchWarning={switchWarning}
           />
         )}
         {stage.kind === "failed" && (
