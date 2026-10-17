@@ -151,3 +151,27 @@ generated art directly, ask for:
 - the same scale in every frame, feet on one ground line;
 - the named poses in the stated order (idle, run-a, run-b, reach-a, reach-b,
   falling, celebrate, down), plus the 6-frame back-view climb as its own image.
+
+## Climb backdrop (`volcano-tile.jpg`)
+
+A 1024×1536 JPEG that `climbBackground.ts` repeats vertically behind the climb.
+It is a 3D render of `scripts/backdrop/volcano-tile.scene.js`, a procedural
+Three.js scene of a lava field on the volcano's slope at night, seen from
+above as you climb (near-black rubble, braided threads of lava, two crusted
+flows, faint glow haze). It is kept dark so platforms and the climber read
+first. It is built to repeat without a seam:
+everything in it is periodic along the view axis, seen through an orthographic
+camera. To change it, edit
+the scene and re-render at 2× with the render-3d skill, then downscale:
+
+```bash
+RENDER_3D_CHROME_BIN=<chrome> RENDER_3D_SETTLE_MS=900000 \
+node skills/render-3d/bin/preview-scene.mjs \
+  --code app/scripts/backdrop/volcano-tile.scene.js \
+  --out /tmp/tile.png --width 2048 --height 3072
+# then resize /tmp/tile.png to 1024×1536 and save as JPEG (quality ~88)
+```
+
+The scene is heavy (about a million terrain vertices), so a 2× render takes
+several minutes in software WebGL. Keep the 2:3 aspect: the game scales the
+tile to the canvas width.
