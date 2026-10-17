@@ -19,8 +19,7 @@ vi.mock("../../mobile/src/contexts/AuthContext", () => ({
 }));
 vi.mock("../../mobile/src/contexts/AppDataContext", () => ({
   useSettings: () => ({ data: null, setSettings: () => {}, refreshSettings: async () => {} }),
-  useInvalidateAppData: () => () => {},
-  echoedSetting: () => null,
+  useEquipAvatar: () => null,
 }));
 vi.mock("../../mobile/src/lib/haptics", () => ({
   tapLight: vi.fn(async () => {}),

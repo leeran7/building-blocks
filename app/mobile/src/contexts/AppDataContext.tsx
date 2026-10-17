@@ -19,7 +19,7 @@ import {
   type DailyBoard,
   type FriendsDailyBoard,
 } from "../lib/dailyBoard";
-import { parseAvatarId, parseAvatarIdList } from "@app/lib/avatars";
+import { avatarEntry, parseAvatarId, parseAvatarIdList, switchAwayWarning } from "@app/lib/avatars";
 import type { AvatarUnlockState } from "@app/lib/avatarUnlocks";
 
 /**
@@ -634,6 +634,19 @@ export function useEquippedAvatar(): EquippedAvatar {
   return ctx.authed && fetchedAt === null ? AVATAR_LOADING : AVATAR_NONE;
 }
 
+/**
+ * The warning before equipping anything else, when the saved character is
+ * grandfathered (kept only because it is saved; switching locks it again),
+ * else null. Null too without an AppDataProvider.
+ */
+export function useSwitchAwayWarning(): string | null {
+  const data = useContext(Ctx)?.settings.data;
+  const current = data?.avatarId ?? null;
+  if (current === null || data?.avatarUnlocks?.grandfatheredId !== current) return null;
+  const entry = avatarEntry(current);
+  return entry ? switchAwayWarning(entry) : null;
+}
+
 /** Cached leaderboard slice; fetches on mount if cold, revalidates if stale. */
 export function useLeaderboard() {
   const { leaderboard, ensureLeaderboard, refreshLeaderboard } = useAppData();
@@ -699,4 +712,44 @@ export function useInvalidateAppData() {
 /** Writes the settings slice from a server-confirmed body (no fetch on mount). */
 export function useSetSettings() {
   return useAppData().setSettings;
+}
+
+/** The outcome of equipping a character: ok, or the line to show the player. */
+export type EquipResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Equips a character the way Choose Character and the Shop do: PUT it to
+ * /api/settings (the server checks it is unlocked), keep the settings the
+ * server echoes back, and mark every cached copy of the player's look stale
+ * (an avatar can rename a player with no display name). Null with no
+ * AppDataProvider above (a guest's level map), where there is nothing to save.
+ */
+export function useEquipAvatar(): ((avatarId: string) => Promise<EquipResult>) | null {
+  const ctx = useContext(Ctx);
+  const setSettings = ctx?.setSettings;
+  const invalidate = ctx?.invalidate;
+  const equip = useCallback(
+    async (avatarId: string): Promise<EquipResult> => {
+      try {
+        const res = await apiFetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ avatarId }),
+        });
+        if (!res.ok) {
+          const d = (await res.json().catch(() => ({}))) as { error?: unknown };
+          return { ok: false, error: typeof d.error === "string" ? d.error : "Couldn't equip it. Try again." };
+        }
+        const next = echoedSetting(await res.json().catch(() => null), "avatarId", avatarId);
+        if (!next) return { ok: false, error: "Couldn't equip it. Please update the app or try again later." };
+        setSettings?.(next);
+        invalidate?.(["leaderboard", "friendsLeaderboard", "dashboard"]);
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "Couldn't equip it. Check your connection." };
+      }
+    },
+    [setSettings, invalidate],
+  );
+  return ctx ? equip : null;
 }

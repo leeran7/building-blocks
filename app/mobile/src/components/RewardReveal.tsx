@@ -47,6 +47,12 @@ export interface RewardRevealProps {
   /** What the button says ("Continue"). */
   doneLabel?: string;
   onDone: () => void;
+  /** A quieter second choice under the button ("Later"). */
+  secondary?: { label: string; onClick: () => void } | null;
+  /** While the button's action runs: both buttons wait. */
+  busy?: boolean;
+  /** A line over the buttons when the button's action failed. */
+  error?: string | null;
 }
 
 const REVEAL_CSS = `
@@ -115,6 +121,9 @@ export function RewardReveal({
   accent = "#cbf24d",
   doneLabel = "Continue",
   onDone,
+  secondary = null,
+  busy = false,
+  error = null,
 }: RewardRevealProps) {
   const [reduced] = useState(prefersReducedMotion);
   const [phase, setPhase] = useState<RevealPhase>(reduced ? "shown" : "charge");
@@ -228,19 +237,41 @@ export function RewardReveal({
                 {detail}
               </p>
             )}
+            {phase === "shown" && error && (
+              <p role="alert" className="mt-4 text-body text-ember">
+                {error}
+              </p>
+            )}
             {phase === "shown" && (
               <button
                 ref={doneRef}
                 type="button"
+                disabled={busy}
+                aria-busy={busy || undefined}
                 onClick={(e) => {
                   e.stopPropagation();
                   void tapLight();
                   onDone();
                 }}
-                className="rr-rise cta-lime mt-6 flex min-h-[56px] w-full items-center justify-center rounded-2xl font-display text-lead font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98]"
+                className={`rr-rise cta-lime ${error ? "mt-3" : "mt-6"} flex min-h-[56px] w-full items-center justify-center rounded-2xl font-display text-lead font-black uppercase tracking-wide text-void transition-transform active:scale-[0.98] disabled:opacity-60`}
                 style={{ animationDelay: "240ms" }}
               >
                 {doneLabel}
+              </button>
+            )}
+            {phase === "shown" && secondary && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void tapLight();
+                  secondary.onClick();
+                }}
+                className="rr-rise mt-2 flex min-h-[48px] w-full items-center justify-center rounded-2xl font-display text-body font-bold uppercase tracking-wide text-text-secondary transition-transform active:scale-[0.98] disabled:opacity-60"
+                style={{ animationDelay: "300ms" }}
+              >
+                {secondary.label}
               </button>
             )}
           </>
