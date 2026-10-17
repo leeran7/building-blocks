@@ -116,8 +116,12 @@ async function getBoard(query = "", token: string | null = null) {
 beforeEach(() => {
   cache = newIncrementalCache();
   // Fixed day, clock still moving (Next's cache compares real timestamps).
+  // The days sit in 2100, so none can be the real UTC day the consent test
+  // runs on: a 2026 start put the first test on 2026-10-16, and on that real
+  // day the consent test read the first test's cached board. They must stay
+  // in the future: a past clock makes Next read every cache entry as stale.
   testIndex += 1;
-  const start = Date.parse("2026-09-26T12:00:00Z") + testIndex * 20 * 86_400_000;
+  const start = Date.parse("2100-01-01T12:00:00Z") + testIndex * 20 * 86_400_000;
   vi.useFakeTimers({ now: new Date(start), toFake: ["Date"], shouldAdvanceTime: true });
   today = utcDayKey(new Date());
   db.state.boards = {};
