@@ -19,6 +19,7 @@ import { workAsyncStorage, type WorkStore } from "next/dist/server/app-render/wo
 import { executeRevalidates } from "next/dist/server/revalidation-utils";
 
 const CACHE_SECONDS = 60;
+const PREVIEW_PROPS = { previewModeId: "test", previewModeSigningKey: "", previewModeEncryptionKey: "" };
 const MEMORY_CACHE_BYTES = 1_000_000;
 // Next stamps entries and tag expiry in whole ms (Date.now), then compares with
 // performance.timeOrigin + performance.now(). Letting a few ms pass between the
@@ -39,13 +40,14 @@ export function newIncrementalCache(): IncrementalCache {
     maxMemoryCacheSize: MEMORY_CACHE_BYTES,
     fetchCacheKeyPrefix: "",
     CurCacheHandler: FileSystemCache,
-    getPrerenderManifest: () => ({
+    previewProps: PREVIEW_PROPS,
+    prerenderManifest: {
       version: 4,
       routes: {},
       dynamicRoutes: {},
       notFoundRoutes: [],
-      preview: { previewModeId: "test", previewModeSigningKey: "", previewModeEncryptionKey: "" },
-    }),
+      preview: PREVIEW_PROPS,
+    },
   });
 }
 
@@ -62,7 +64,7 @@ export async function inRequest<T>(
     route,
     page: `${route}/route`,
     incrementalCache,
-    isStaticGeneration: false,
+    isBuildTimePrerendering: false,
     isOnDemandRevalidate: false,
     isDraftMode: false,
   };
