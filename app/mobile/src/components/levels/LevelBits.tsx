@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { formatClock, MAX_STARS, type PlayerStats } from "../../lib/levels/model";
+import { tierLabel } from "../../lib/levels/terms";
 
 /**
  * Small pieces shared by the level map, the start card and the result card:
@@ -137,7 +138,7 @@ export function XpProgress({ player, className }: { player: PlayerStats; classNa
   return (
     <span
       role="progressbar"
-      aria-label={`Player level ${player.playerLevel}`}
+      aria-label={tierLabel(player.playerLevel)}
       aria-valuemin={0}
       aria-valuemax={player.xpForNext}
       aria-valuenow={player.xpIntoLevel}

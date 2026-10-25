@@ -37,7 +37,7 @@ export const APP_SURFACES: Surface[] = [
   { id: "signin-email", kind: "app", route: "/", user: "signed-out", open: tapButton(/sign in with email/i), ready: heading(/^sign in$/i) },
   { id: "guest-home", kind: "app", route: "/", user: "guest", ready: heading(/outclimb the lava/i) },
   { id: "map", kind: "app", route: "/", user: "signed-in", ready: button(/^open level 1$/i) },
-  { id: "xp-sheet", kind: "app", route: "/", user: "signed-in", open: tapButton(/^player level/i), ready: dialog(/^earn xp$/i) },
+  { id: "xp-sheet", kind: "app", route: "/", user: "signed-in", open: tapButton(/^tier \d/i), ready: dialog(/^earn xp$/i) },
   { id: "level-sheet", kind: "app", route: "/", user: "signed-in", open: tapButton(/^open level 1$/i), ready: dialog(/^level 1$/i) },
   {
     id: "level-intro",

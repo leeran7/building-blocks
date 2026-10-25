@@ -21,7 +21,7 @@ export const MAP_TOUR: readonly TourStep[] = [
   {
     target: "xp",
     title: "XP",
-    body: "First clears, stars and the Daily Climb earn XP. Fill the bar to raise your player level.",
+    body: "First clears, stars and the Daily Climb earn XP. Fill the bar to reach the next tier.",
   },
   {
     target: "chest",

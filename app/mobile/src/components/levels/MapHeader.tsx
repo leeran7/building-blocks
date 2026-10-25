@@ -4,6 +4,7 @@ import type { ChestProgress, PlayerStats } from "../../lib/levels/model";
 import { GemBalance } from "../store/GemBalance";
 import { LivesPill, ProgressRing } from "./LevelBits";
 import { ChestMeter } from "./LevelChests";
+import { tierLabel } from "../../lib/levels/terms";
 
 /**
  * The level map's header: one glass panel in one row of cells: the player
@@ -76,14 +77,14 @@ function PlayerLevelButton({ player, onPress }: { player: PlayerStats; onPress: 
     <button
       type="button"
       data-xp-pill
-      aria-label={`Player level ${player.playerLevel}, ${player.xpIntoLevel.toLocaleString()} of ${player.xpForNext.toLocaleString()} XP. Show what unlocks next`}
+      aria-label={`${tierLabel(player.playerLevel)}, ${player.xpIntoLevel.toLocaleString()} of ${player.xpForNext.toLocaleString()} XP. Show what unlocks next`}
       aria-haspopup="dialog"
       onClick={onPress}
       className="flex h-14 items-center px-2 transition-colors active:bg-white/5"
     >
       <span
         role="progressbar"
-        aria-label={`Player level ${player.playerLevel}`}
+        aria-label={tierLabel(player.playerLevel)}
         aria-valuemin={0}
         aria-valuemax={player.xpForNext}
         aria-valuenow={player.xpIntoLevel}
