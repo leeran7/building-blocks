@@ -177,6 +177,11 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ux
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ux
+      # The baseline is measured with paid modes on, so the 18+ pages and the
+      # links to them are checked too. The build inlines the public flag, so
+      # it is set for the whole job; playwright.ux.config.ts pins both again.
+      PAID_DUELS_ENABLED: "true"
+      NEXT_PUBLIC_PAID_DUELS_ENABLED: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

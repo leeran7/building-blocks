@@ -36,8 +36,11 @@ Running it:
 - Website: needs a migrated local database in both `DATABASE_URL` and
   `DIRECT_URL` (see `pnpm db:migrate:local`); the config refuses any other
   host, and starts the website with every server key in `.env.example` blanked
-  except the database URLs. Locally it starts `pnpm dev` on 3100; for steadier
-  results run `pnpm build && pnpm start -p 3100` first and it reuses that.
+  except the database URLs, and with paid modes on (the baseline is measured
+  that way). Locally it starts `pnpm dev` on 3100. For steadier results build
+  with the public flag on, `NEXT_PUBLIC_PAID_DUELS_ENABLED=true pnpm build`,
+  then run with `CI=1` (it starts `pnpm start`), or start it yourself and set
+  `UX_REUSE_WEB=1`.
 - Screenshots land in `test-results/ux/screens/<size>/`.
 
 The app runs with a stubbed account and fixture API answers (`lib/app.ts`).

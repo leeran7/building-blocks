@@ -32,6 +32,10 @@ const webKeys = readFileSync(join(__dirname, ".env.example"), "utf8")
 const webEnv: Record<string, string> = {
   ...Object.fromEntries(Object.entries(process.env).filter((e): e is [string, string] => e[1] !== undefined)),
   ...Object.fromEntries(webKeys.map((name) => [name, ""])),
+  // The baseline is measured with paid modes on (the CI job sets the same).
+  // A prebuilt site (CI=1) keeps the public flag it was built with.
+  PAID_DUELS_ENABLED: "true",
+  NEXT_PUBLIC_PAID_DUELS_ENABLED: "true",
 };
 const appServer = {
   command: "pnpm mobile:dev --port 5174 --strictPort",
