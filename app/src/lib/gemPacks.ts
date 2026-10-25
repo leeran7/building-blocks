@@ -76,9 +76,10 @@ export function packBadge(p: GemPack): string | null {
 }
 
 /**
- * What `gems` buys in the Shop, for the Get gems sheet: "1 Void skin",
- * "2 Wraith colours", or null below the cheapest look. Void skins also need
- * their character unlocked, which the Shop marks on each card.
+ * How many of the priciest look `gems` covers, for the Get gems sheet: "1 Void
+ * skin", "2 Wraith colours", or null below the cheapest look. A count of prices
+ * only: Void skins also need their character unlocked, which the Shop marks on
+ * each card.
  */
 export function enoughFor(gems: number): string | null {
   const skins = Math.floor(gems / SKIN_GEMS);

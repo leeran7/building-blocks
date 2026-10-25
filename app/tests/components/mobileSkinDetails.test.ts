@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { avatarEntry } from "@app/lib/avatars";
-import { skinAction } from "../../mobile/src/screens/SkinDetailsScreen";
+import { skinAction, skinActionState } from "../../mobile/src/screens/SkinDetailsScreen";
 
 const LYNX = avatarEntry("lynx")!;
 const LYNX_VOID = avatarEntry("lynx-void")!;
@@ -52,6 +52,28 @@ describe("skinAction", () => {
     expect(skinAction(LYNX, { ...base, gems: 100000 })).toEqual({
       kind: "locked",
       message: "Earn 30 stars to unlock Lynx.",
+    });
+  });
+});
+
+describe("skinActionState", () => {
+  const shop = { ownedIds: [], gems: 5000 };
+
+  it("waits while settings or the Shop are still loading", () => {
+    expect(skinAction(LYNX_VOID, skinActionState(null, shop))).toEqual({ kind: "loading" });
+    expect(skinAction(LYNX_VOID, skinActionState({ avatarUnlocks: { unlockedIds: ["lynx"] } }, null))).toEqual({ kind: "loading" });
+  });
+
+  it("treats settings loaded without avatar unlocks as nothing unlocked", () => {
+    expect(skinAction(LYNX_VOID, skinActionState({ avatarId: null }, shop))).toEqual({ kind: "character-required", character: LYNX });
+  });
+
+  it("passes the saved avatar, unlocks, owned looks and gems through", () => {
+    expect(skinActionState({ avatarId: "lynx", avatarUnlocks: { unlockedIds: ["lynx"] } }, { ownedIds: ["wraith"], gems: 7 })).toEqual({
+      savedAvatarId: "lynx",
+      unlockedIds: ["lynx"],
+      ownedIds: ["wraith"],
+      gems: 7,
     });
   });
 });

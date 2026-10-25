@@ -266,7 +266,11 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** The balance now and after `pack`, and what that buys, so the player can judge the pack. */
+/**
+ * The balance now and after `pack`, and what it adds up to, so the player can
+ * judge the pack. It names a price, not a promise: a Void skin also needs its
+ * character unlocked, so "enough for a Void skin" could be untrue.
+ */
 export function AfterPack({ balance, pack }: { balance: number; pack: GemPack }) {
   const after = balance + pack.gems;
   const buys = enoughFor(after);
@@ -274,7 +278,7 @@ export function AfterPack({ balance, pack }: { balance: number; pack: GemPack })
     <p data-gem-after className="mt-4 text-center text-meta leading-5 text-text-secondary">
       You have <span className="font-bold tabular-nums text-text-primary">{formatGems(balance)}</span> gems. After this pack:{" "}
       <span className="font-bold tabular-nums text-text-primary">{formatGems(after)}</span>
-      {buys ? `, enough for ${buys}.` : "."}
+      {buys ? `, the price of ${buys}.` : "."}
     </p>
   );
 }

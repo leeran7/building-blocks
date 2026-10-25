@@ -4,7 +4,7 @@ import { riseIn, sharedId, spring } from "../lib/motionTokens";
 import { CHARACTER_ENTRIES, formatGems, gemPrice, lockedMessage, skinsOf, type AvatarEntry } from "@app/lib/avatars";
 import { useShop } from "../contexts/ShopContext";
 import { useSettings } from "../contexts/AppDataContext";
-import { skinAction } from "./SkinDetailsScreen";
+import { skinAction, skinActionState } from "./SkinDetailsScreen";
 import { CharacterPreview, previewSize } from "../components/CharacterPreview";
 import { useSceneKind } from "../components/RouteTransition";
 import { RetryPanel, ScreenHeader } from "../components/ui";
@@ -47,12 +47,7 @@ export function ShopScreen() {
   // The character a skin dresses, when the player can't buy the skin until
   // they unlock it (the same rule Skin Details and the server apply).
   const requiredCharacter = (skin: AvatarEntry): AvatarEntry | null => {
-    const action = skinAction(skin, {
-      savedAvatarId: settings?.avatarId ?? null,
-      unlockedIds: settings?.avatarUnlocks?.unlockedIds ?? null,
-      ownedIds: shop?.ownedIds ?? null,
-      gems: shop?.gems ?? null,
-    });
+    const action = skinAction(skin, skinActionState(settings, shop));
     return action.kind === "character-required" ? action.character : null;
   };
   const featured = SHOP_CHARACTERS.find((c) => c.id === FEATURED_CHARACTER_ID);

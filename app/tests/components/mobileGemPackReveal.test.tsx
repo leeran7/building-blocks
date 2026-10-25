@@ -73,11 +73,11 @@ describe("gem pack value", () => {
     await render();
     // 250 now; the sheet opens on the 1,200 pack.
     expect(document.querySelector("[data-gem-after]")?.textContent).toBe(
-      "You have 250 gems. After this pack: 1,450, enough for 1 Void skin.",
+      "You have 250 gems. After this pack: 1,450, the price of 1 Void skin.",
     );
     await press(document.querySelector('[data-gem-pack="gems-500"]'));
     expect(document.querySelector("[data-gem-after]")?.textContent).toBe(
-      "You have 250 gems. After this pack: 750, enough for 1 Wraith colour.",
+      "You have 250 gems. After this pack: 750, the price of 1 Wraith colour.",
     );
   });
 
