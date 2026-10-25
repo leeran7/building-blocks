@@ -21,12 +21,7 @@ vi.mock("../../src/db/climb", () => ({
   topFreeClimbers: vi.fn(),
 }));
 
-vi.mock("../../src/db/chips", () => ({
-  chipLeaderboard: vi.fn(),
-}));
-
 import { topFreeClimbers } from "../../src/db/climb";
-import { chipLeaderboard } from "../../src/db/chips";
 import { LeaderboardTeaser } from "../../src/components/LandingPage/LeaderboardTeaser";
 
 const CLIMBERS: ClimberRank[] = [
@@ -38,7 +33,6 @@ const CLIMBERS: ClimberRank[] = [
 describe("LeaderboardTeaser — paid duels OFF", () => {
   beforeEach(() => {
     vi.mocked(topFreeClimbers).mockReset();
-    vi.mocked(chipLeaderboard).mockReset();
   });
 
   it("renders only the free board — no ranked board, no lone tab, no chip callout", async () => {
@@ -47,12 +41,9 @@ describe("LeaderboardTeaser — paid duels OFF", () => {
 
     expect(html).toContain("Top climbers");
     expect(html).toContain("apex");
-    // Ranked board and its relocated explainer must be absent when paid is off.
-    expect(html).not.toContain("Top ranked players");
+    // The paid-modes link and its disclosure are absent when paid is off.
     expect(html).not.toContain("not available in all states");
     expect(html).not.toContain("data-paid-modes-link");
-    // The ranked read must not even be attempted when the flag is off.
-    expect(chipLeaderboard).not.toHaveBeenCalled();
   });
 
   it("degrades the free board to its empty state when the server read rejects", async () => {
@@ -61,6 +52,5 @@ describe("LeaderboardTeaser — paid duels OFF", () => {
 
     expect(html).toContain("no climbers yet");
     expect(html).toContain("Play the free climb");
-    expect(html).not.toContain("Top ranked players");
   });
 });

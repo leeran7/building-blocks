@@ -2,9 +2,10 @@
  * Hero — landing hero (ASCENT design).
  *
  * The product's core mechanic drives the whole composition: you rise, the ground
- * rises to bury you. Left = the pitch (huge duotone display headline + CTAs +
- * an instrument stat strip). Right = DuelViz: two player bars racing up the same
- * tower with a lava line, replaced ElevationProfile for duel-primary IA.
+ * rises to bury you. Left = the pitch (huge duotone display headline, the free
+ * climb as the main button with duels second, and the free-climb stats once
+ * there are any). Right = DuelViz: two climbers racing up the same tower ahead
+ * of the lava, the duel mode as a picture.
  *
  * Server component. WCAG: primary CTA (/play, the free climb) is void text on
  * signal lime (~15:1); it keeps the global accent focus ring (globals.css).

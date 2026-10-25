@@ -3,7 +3,7 @@
  *
  * Native <details>/<summary> so it works without client JS and stays accessible.
  * Climb-first like the rest of the landing: chip questions are answered on
- * /rules, next to the chip duels they describe.
+ * /rules, which explains chip duels and tournaments.
  */
 
 import { Chevron } from "../Chevron";
