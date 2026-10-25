@@ -186,6 +186,9 @@
   "phone|flow-app-run-start": {
     "flow/taps": 4
   },
+  "phone|flow-web-hero-to-play": {
+    "flow/taps": 1
+  },
   "phone|web-auth-reset-password": {
     "axe/color-contrast": 9,
     "target/under-24px": 1

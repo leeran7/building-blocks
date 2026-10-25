@@ -147,24 +147,30 @@ describe("FreeStackShell climb chrome (AC-3)", () => {
   });
 });
 
-describe("Hero free climb CTA (AC-5, AC-7)", () => {
-  it("names climb, is ≥44×44, and is not the filled signal primary", () => {
+describe("Hero primary CTA is the free climb (plan D2)", () => {
+  it("has exactly one filled signal CTA, to /play, at least 44 px tall", () => {
     const html = renderToStaticMarkup(createElement(Hero, { stats: HERO_STATS }));
-    const freePlay = playAnchors(html).find((tag) =>
-      /aria-label="[^"]*climb/i.test(tag) || /Free climb/i.test(html)
-    );
-    expect(freePlay).toBeDefined();
-    expect(freePlay!).toMatch(/aria-label="Play free climb"/i);
-    expect(freePlay!).toMatch(/min-h-\[44px\]/);
-    expect(freePlay!).toMatch(/min-w-\[44px\]/);
-    expect(freePlay!).not.toMatch(/\bbg-signal\b/);
-    expect(html).toContain("Free climb");
+    const primary = filledSignalPlayCtas(html);
+    expect(primary).toHaveLength(1);
+    expect(primary[0]).toMatch(/min-h-\[52px\]/);
+    expect(html).toContain("Play now, free");
     expect(html).toContain('data-climb-chrome');
   });
 
-  it("keeps zero filled bg-signal /play CTAs on the hero (AC-7 baseline)", () => {
+  it("makes duels the second, unfilled button", () => {
     const html = renderToStaticMarkup(createElement(Hero, { stats: HERO_STATS }));
-    expect(filledSignalPlayCtas(html)).toHaveLength(0);
+    const duel = [...html.matchAll(/<a\b[^>]*>/gi)].map((m) => m[0]).find((tag) => tag.includes('href="/duel"'));
+    expect(duel).toBeDefined();
+    expect(duel!).not.toMatch(/\bbg-signal\b/);
+    expect(duel!).toMatch(/min-h-\[44px\]/);
+    // The "no account" promise sits under the hero buttons, so the filled one must not need an account.
+    expect(html.indexOf('href="/play"')).toBeLessThan(html.indexOf('href="/duel"'));
+    expect(html).toMatch(/No account\. No download\./);
+  });
+
+  it("does not hide the focus ring on the primary CTA", () => {
+    const html = renderToStaticMarkup(createElement(Hero, { stats: HERO_STATS }));
+    expect(filledSignalPlayCtas(html)[0]).not.toMatch(/focus-visible:outline-(hidden|none)/);
   });
 
   it("applies climb-reveal + climbPunch on free band; paid pitch stays on shared reveal (AC-17)", () => {
@@ -179,10 +185,10 @@ describe("Hero free climb CTA (AC-5, AC-7)", () => {
 });
 
 describe("Landing free climb CTA inventory (AC-7)", () => {
-  it("Hero + Footer together still add 0 filled signal /play CTAs", () => {
+  it("Hero + Footer together have one filled signal /play CTA, the hero's", () => {
     const hero = renderToStaticMarkup(createElement(Hero, { stats: HERO_STATS }));
     const footer = renderToStaticMarkup(createElement(Footer));
-    expect(filledSignalPlayCtas(hero + footer)).toHaveLength(0);
+    expect(filledSignalPlayCtas(hero + footer)).toHaveLength(1);
   });
 });
 
