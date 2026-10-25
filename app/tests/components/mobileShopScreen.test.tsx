@@ -17,8 +17,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../mobile/src/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { uid: "me" }, isAnonymous: false, loading: false, signOut: vi.fn(async () => {}) }),
 }));
+/** What the settings API says the player may select; null while it loads. */
+const settings = vi.hoisted(() => ({ current: null as null | { avatarId: string | null; avatarUnlocks: { unlockedIds: string[] } } }));
 vi.mock("../../mobile/src/contexts/AppDataContext", () => ({
-  useSettings: () => ({ data: null, setSettings: () => {}, refreshSettings: async () => {} }),
+  useSettings: () => ({ data: settings.current, setSettings: () => {}, refreshSettings: async () => {} }),
   useEquipAvatar: () => null,
 }));
 vi.mock("../../mobile/src/lib/haptics", () => ({
@@ -47,6 +49,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  settings.current = null;
   localStorage.clear();
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -135,6 +138,21 @@ describe("Shop characters", () => {
     expect(card("lynx")?.getAttribute("aria-label")).toBe("Void Lynx, 1,200 gems");
     const total = SHOP_CHARACTERS.length - 1;
     expect(document.querySelector("[data-shop-owned-count]")?.textContent).toBe(`1 of ${total} owned`);
+  });
+
+  it("marks a skin whose character is still locked, and dims its price", async () => {
+    // Kestrel unlocked (and its skin owned), Lynx not: Void Lynx can't be bought yet.
+    settings.current = { avatarId: null, avatarUnlocks: { unlockedIds: ["kestrel"] } };
+    await renderShop();
+    expect(card("lynx")?.getAttribute("data-skin-locked")).toBe("lynx");
+    expect(card("lynx")?.textContent).toContain("Needs Lynx");
+    expect(card("lynx")?.getAttribute("aria-label")).toBe("Void Lynx, locked, Earn 30 stars to unlock Lynx");
+    expect(card("kestrel")?.getAttribute("data-skin-locked")).toBeNull();
+  });
+
+  it("shows no lock while it doesn't know what the player has unlocked", async () => {
+    await renderShop();
+    expect(document.querySelector("[data-skin-locked]")).toBeNull();
   });
 
   it("opens the Wraith's details on the Wraith itself", async () => {

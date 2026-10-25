@@ -68,6 +68,27 @@ async function press(el: Element | null | undefined) {
 const reveal = () => document.querySelector("[data-reward-phase]");
 const buttonNamed = (text: string) => [...document.body.querySelectorAll("button")].find((b) => b.textContent === text);
 
+describe("gem pack value", () => {
+  it("shows the balance, the balance after the picked pack, and what that buys", async () => {
+    await render();
+    // 250 now; the sheet opens on the 1,200 pack.
+    expect(document.querySelector("[data-gem-after]")?.textContent).toBe(
+      "You have 250 gems. After this pack: 1,450, enough for 1 Void skin.",
+    );
+    await press(document.querySelector('[data-gem-pack="gems-500"]'));
+    expect(document.querySelector("[data-gem-after]")?.textContent).toBe(
+      "You have 250 gems. After this pack: 750, enough for 1 Wraith colour.",
+    );
+  });
+
+  it("badges packs from their prices, with no popularity claim", async () => {
+    await render();
+    const labels = [...document.querySelectorAll("[data-gem-pack]")].map((b) => b.getAttribute("aria-label"));
+    expect(labels.some((l) => /popular|one skin/i.test(l ?? ""))).toBe(false);
+    expect(labels.at(-1)).toMatch(/Best value$/);
+  });
+});
+
 describe("gem pack payoff", () => {
   it("plays when a pack is credited, counting from the old balance to the new, and closes the sheet after", async () => {
     const onClose = await render();
