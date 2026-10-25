@@ -91,7 +91,7 @@ export function XpSheet({ season, guest, onClose }: { season: SeasonView; guest:
           <XpBar player={season.player} />
           <p className="text-body text-text-primary">
             <span className="font-bold tabular-nums">{p.xpToNext.toLocaleString()} XP</span>
-            <span className="text-text-secondary"> to level {season.player.playerLevel + 1}</span>
+            <span className="text-text-secondary"> to {tierLabel(season.player.playerLevel + 1)}</span>
           </p>
         </div>
 
