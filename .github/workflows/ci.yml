@@ -170,7 +170,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -213,6 +213,21 @@ jobs:
 
       - name: Migrate the test database
         run: pnpm db:migrate
+
+      # The build loads firebaseAdmin.ts, which refuses to start without a
+      # service account. A key generated here, for a project that doesn't
+      # exist, lets it build; it can't reach any real Firebase project, and the
+      # UX config blanks it again when the website serves.
+      - name: Throwaway Firebase Admin key for the build
+        shell: bash
+        run: |
+          {
+            echo "FIREBASE_PROJECT_ID=ux-checks"
+            echo "FIREBASE_CLIENT_EMAIL=ux-checks@ux-checks.iam.gserviceaccount.com"
+            echo "FIREBASE_PRIVATE_KEY<<UX_KEY_EOF"
+            openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null
+            echo "UX_KEY_EOF"
+          } >> "$GITHUB_ENV"
 
       - name: Build the website
         run: pnpm build
