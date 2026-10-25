@@ -3,12 +3,12 @@
  *
  * Composition, in DOM order: Navbar → Hero (pitch + CTAs + stat strip) →
  * ChooseYourClimb (three mode cards: Solo /play, 1v1 /duel, Daily /daily) →
- * LeaderboardTeaser (merged top-3 free + top-3 ranked-when-paid) →
+ * LeaderboardTeaser (top-3 free climbers) →
  * AboutDoomstack (crawlable SEO prose) → Faq → Footer.
  *
- * CTA invariant (app/DESIGN.md, "Calls to action"): exactly one filled
- * bg-signal CTA points at /duel (the Hero primary) and zero filled bg-signal
- * CTAs point at /play across the whole landing.
+ * The landing leads with the climb (plan "Doomstack to 8/10", D1/D2): the
+ * Hero's one filled bg-signal CTA points at /play; chip duels and cash
+ * tournaments get one plain link with their disclosure, under the free board.
  *
  * SEO: organization / website / VideoGame / FAQPage JSON-LD are emitted from
  * this server component; the FAQPage node is generated from buildFaqs() so it
@@ -23,7 +23,6 @@ import { Faq, buildFaqs } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
 import { JsonLd } from "../src/components/JsonLd";
 import { getGlobalClimbStats } from "../src/db/climb";
-import { getChipDuelStats } from "../src/db/chips";
 import { AboutDoomstack } from "../src/components/LandingPage/AboutDoomstack";
 import { organizationJsonLd, websiteJsonLd, videoGameJsonLd } from "../src/lib/seo";
 
@@ -32,10 +31,7 @@ import { organizationJsonLd, websiteJsonLd, videoGameJsonLd } from "../src/lib/s
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const [climbStats, chipStats] = await Promise.all([
-    getGlobalClimbStats().catch(() => ({ climberCount: 0, topPeak: null })),
-    getChipDuelStats().catch(() => ({ totalDuels: 0, topEarner: null })),
-  ]);
+  const climbStats = await getGlobalClimbStats().catch(() => ({ climberCount: 0, topPeak: null }));
 
   const faqJsonLd = {
     "@type": "FAQPage",
@@ -52,20 +48,14 @@ export default async function HomePage() {
       <Navbar />
 
       <Hero
-        stats={{
-          climberCount: climbStats.climberCount,
-          topPeak: climbStats.topPeak,
-          rankedDuels: chipStats.totalDuels,
-          topEarner: chipStats.topEarner,
-        }}
+        stats={{ climberCount: climbStats.climberCount, topPeak: climbStats.topPeak }}
       />
 
       {/* Mode index sits immediately under the hero: headline → CTA →
           "choose your climb" is the whole first-screen story. */}
       <ChooseYourClimb />
 
-      {/* Merged leaderboard block: top-3 free (+ top-3 ranked when paid duels
-          are on). Both boards keep their own server reads + empty states. */}
+      {/* Top-3 free climbers, plus the one link to the paid modes when on. */}
       <LeaderboardTeaser />
 
       <AboutDoomstack />

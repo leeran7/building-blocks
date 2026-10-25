@@ -14,7 +14,6 @@
 
 import Link from "next/link";
 import { ALTITUDE_UNIT, formatAltitude } from "../../lib/units";
-import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 
 // DuelViz — decorative 1v1 visualization for the hero right column.
 // aria-hidden; all meaning lives in the left-column pitch text.
@@ -97,13 +96,6 @@ function DuelViz() {
           <div className="flex-1 h-px bg-linear-to-r from-ember/70 to-ember/10" />
         </div>
 
-        {PAID_DUELS_ENABLED_PUBLIC && (
-          <div className="flex justify-center pt-1">
-            <span className="bg-signal/5 border border-signal/30 rounded-lg px-2 py-1 font-mono text-[11px] text-signal uppercase tracking-widest">
-              Ranked chips · winner takes all
-            </span>
-          </div>
-        )}
       </div>
 
       {/* molten ground creeping up from the base */}
@@ -117,25 +109,18 @@ export interface HeroStats {
   climberCount: number;
   /** Highest free-climb peak, or null if nobody has climbed. */
   topPeak: number | null;
-  /** Completed chip duels. */
-  rankedDuels: number;
-  /** Display name of the top chip earner. */
-  topEarner: string | null;
 }
 
 
 export function Hero({ stats }: { stats: HeroStats }) {
-  const rankedStats = [
-    { label: "Duels played", value: stats.rankedDuels.toLocaleString() },
-    { label: "Top earner", value: stats.topEarner ?? "—" },
-  ];
-  const climbStats = [
-    { label: "Climbers", value: stats.climberCount.toLocaleString() },
-    {
-      label: "Top climb",
-      value: stats.topPeak != null ? formatAltitude(Math.round(stats.topPeak), 0) : "—",
-    },
-  ];
+  // Both or neither: one stat beside an empty cell looks broken.
+  const climbStats =
+    stats.climberCount > 0 && stats.topPeak != null
+      ? [
+          { label: "Climbers", value: stats.climberCount.toLocaleString() },
+          { label: "Top climb", value: formatAltitude(Math.round(stats.topPeak), 0) },
+        ]
+      : [];
 
   return (
     <section
@@ -160,9 +145,7 @@ export function Hero({ stats }: { stats: HeroStats }) {
             style={{ animationDelay: "0ms" }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" />
-            {PAID_DUELS_ENABLED_PUBLIC
-              ? "Live duels · free & ranked"
-              : "Live duels · free to play"}
+            Free to play · web and mobile
           </span>
 
           <h1
@@ -187,11 +170,9 @@ export function Hero({ stats }: { stats: HeroStats }) {
             style={{ animationDelay: "140ms" }}
           >
             <strong className="font-semibold text-text-primary">Doomstack</strong>{" "}
-            is a free browser climbing game. Challenge a friend or find a random
-            opponent. Race the same tower — same rising lava — and outlast them.
-            {PAID_DUELS_ENABLED_PUBLIC && (
-              <> Free always. Go ranked by staking chips — winner takes all.</>
-            )}
+            is a free climbing game. Climb an endless tower before the lava
+            catches you, take on today&rsquo;s Daily, or race a friend up the
+            same tower.
           </p>
 
           <div
@@ -225,47 +206,14 @@ export function Hero({ stats }: { stats: HeroStats }) {
             No account. No download.
           </p>
 
-          {/* instrument stat strip — ranked dominant, free secondary */}
-          <div
-            className="reveal mt-8 space-y-2.5 max-w-md mx-auto md:mx-0"
-            style={{ animationDelay: "280ms" }}
-          >
-            {/* RANKED — the prominent tier */}
-            {PAID_DUELS_ENABLED_PUBLIC && (
-              <div>
-                <div className="flex items-center gap-2 mb-1.5 justify-center md:justify-start">
-                  <span className="rounded-full bg-signal text-void px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.12em] shadow-signal">
-                    Ranked
-                  </span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                    chip duels · winner takes all
-                  </span>
-                </div>
-                <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-signal/30 bg-border-subtle">
-                  {rankedStats.map((s) => (
-                    <div key={s.label} className="bg-surface px-3 py-2.5 text-center md:text-left">
-                      <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                        {s.label}
-                      </dt>
-                      <dd className="font-mono text-lg font-bold tabular-nums text-signal mt-0.5">
-                        {s.value}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            )}
-
-            {/* FREE — secondary tier */}
-            <div data-climb-chrome className="climb-reveal space-y-2">
-              <div className="flex items-center gap-2 justify-center md:justify-start">
-                <span className="rounded-full border border-border-strong px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-text-secondary">
-                  Free
-                </span>
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-                  free climb
-                </span>
-              </div>
+          {/* Free climb stats, only once there are some: a row of zeros and
+              dashes reads as an empty game. */}
+          {climbStats.length > 0 && (
+            <div
+              data-climb-chrome
+              className="reveal climb-reveal mt-8 max-w-md mx-auto md:mx-0"
+              style={{ animationDelay: "280ms" }}
+            >
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
                 {climbStats.map((s, i) => (
                   <div
@@ -276,14 +224,14 @@ export function Hero({ stats }: { stats: HeroStats }) {
                     <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
                       {s.label}
                     </dt>
-                    <dd className="font-mono text-base font-bold tabular-nums text-text-secondary mt-0.5">
+                    <dd className="font-mono text-base font-bold tabular-nums text-text-primary mt-0.5">
                       {s.value}
                     </dd>
                   </div>
                 ))}
               </dl>
             </div>
-          </div>
+          )}
 
           {/* The "already climbing? sign in" line lives under the mode cards
               (ChooseYourClimb) — one sign-in ask per screen, at the end of the

@@ -36,14 +36,7 @@ import { Hero } from "../../src/components/LandingPage/Hero";
 import { FreeLeaderboard } from "../../src/components/LandingPage/FreeLeaderboard";
 import { Footer } from "../../src/components/LandingPage/Footer";
 
-const HERO_STATS = {
-  totalBlocks: 12,
-  minEntryUsd: 5,
-  climberCount: 3,
-  topPeak: 420,
-  rankedDuels: 0,
-  topEarner: null,
-};
+const HERO_STATS = { climberCount: 3, topPeak: 420 };
 
 /** Anchors whose href is /play and class list includes filled bg-signal. */
 function filledSignalPlayCtas(html: string): string[] {
@@ -166,6 +159,21 @@ describe("Hero primary CTA is the free climb (plan D2)", () => {
     // The "no account" promise sits under the hero buttons, so the filled one must not need an account.
     expect(html.indexOf('href="/play"')).toBeLessThan(html.indexOf('href="/duel"'));
     expect(html).toMatch(/No account\. No download\./);
+  });
+
+  it("leads with the climb: no chip or ranked pitch in the hero", () => {
+    const html = renderToStaticMarkup(createElement(Hero, { stats: HERO_STATS }));
+    expect(html).not.toMatch(/chips?|ranked|winner takes/i);
+    expect(html).toMatch(/climb/i);
+  });
+
+  it("hides the stat strip until there is something to show", () => {
+    const empty = renderToStaticMarkup(createElement(Hero, { stats: { climberCount: 0, topPeak: null } }));
+    expect(empty).not.toContain("<dl");
+    expect(empty).not.toContain("—");
+    const shown = renderToStaticMarkup(createElement(Hero, { stats: HERO_STATS }));
+    expect(shown).toContain("Climbers");
+    expect(shown).toContain("Top climb");
   });
 
   it("does not hide the focus ring on the primary CTA", () => {

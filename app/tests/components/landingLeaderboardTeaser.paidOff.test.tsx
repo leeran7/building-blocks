@@ -50,6 +50,7 @@ describe("LeaderboardTeaser — paid duels OFF", () => {
     // Ranked board and its relocated explainer must be absent when paid is off.
     expect(html).not.toContain("Top ranked players");
     expect(html).not.toContain("not available in all states");
+    expect(html).not.toContain("data-paid-modes-link");
     // The ranked read must not even be attempted when the flag is off.
     expect(chipLeaderboard).not.toHaveBeenCalled();
   });
