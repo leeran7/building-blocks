@@ -52,7 +52,7 @@ export async function FreeLeaderboard() {
           </div>
           <Link
             href="/climb"
-            className="hidden sm:inline-flex font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary whitespace-nowrap transition"
+            className="hidden sm:inline-flex min-h-6 items-center font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary whitespace-nowrap transition"
           >
             Full leaderboard →
           </Link>

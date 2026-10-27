@@ -44,7 +44,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
           // pushing the wordmark into the auth buttons at 375px. The wordmark
           // stays shrink-0; only this label ellipsizes when space runs out.
           <div className="flex min-w-0 items-center gap-1.5 font-mono text-xs uppercase tracking-[0.12em] text-text-secondary">
-            <span className="text-text-disabled shrink-0" aria-hidden="true">
+            <span className="text-text-muted shrink-0" aria-hidden="true">
               /
             </span>
             {contextDot && (

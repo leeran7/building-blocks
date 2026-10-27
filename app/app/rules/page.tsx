@@ -139,7 +139,7 @@ export default function RulesPage() {
         <div className="border-t border-border-subtle pt-6">
           <Link
             href="/"
-            className="text-text-muted hover:text-text-primary text-sm transition-colors"
+            className="inline-flex min-h-6 items-center text-text-muted hover:text-text-primary text-sm transition-colors"
           >
             ← Back to Doomstack
           </Link>

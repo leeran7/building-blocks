@@ -141,7 +141,7 @@ export default function PrivacyPage() {
               and public climbing record. It’s optional; you can clear it at any
               time, which removes the page. Choose a username you’re comfortable
               being public — see{" "}
-              <a href="#sharing" className="text-signal hover:underline">
+              <a href="#sharing" className="text-signal underline underline-offset-2 hover:decoration-2">
                 Sharing &amp; disclosure
               </a>
               .
@@ -172,7 +172,7 @@ export default function PrivacyPage() {
               type — we do not connect to, log into, or access your social
               account. Saved handles are shown publicly on your creator page —
               see{" "}
-              <a href="#sharing" className="text-signal hover:underline">
+              <a href="#sharing" className="text-signal underline underline-offset-2 hover:decoration-2">
                 Sharing &amp; disclosure
               </a>
               .
@@ -349,7 +349,7 @@ export default function PrivacyPage() {
             </li>
             <li>
               Maintain security, detect and prevent abuse, and enforce our{" "}
-              <a href="/terms" className="text-signal hover:underline">
+              <a href="/terms" className="text-signal underline underline-offset-2 hover:decoration-2">
                 Terms of Service
               </a>
               .

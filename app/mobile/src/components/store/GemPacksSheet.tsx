@@ -240,7 +240,7 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
               if (shop) setRefreshedFrom(shop.gems);
               void refresh();
             }}
-            className="mt-3 w-full py-2 font-mono text-label font-bold tracking-label text-text-secondary underline underline-offset-4"
+            className="mt-3 min-h-[44px] w-full font-mono text-label font-bold tracking-label text-text-secondary underline underline-offset-4"
           >
             Already paid? Refresh balance
           </button>

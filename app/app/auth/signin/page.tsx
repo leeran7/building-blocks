@@ -322,7 +322,7 @@ function SignInForm() {
           <div className="flex justify-end mb-6">
             <Link
               href="/auth/reset-password"
-              className="text-xs text-text-muted underline hover:text-text-primary transition-colors"
+              className="inline-flex min-h-6 items-center text-xs text-text-muted underline hover:text-text-primary transition-colors"
             >
               Forgot password?
             </Link>
@@ -396,7 +396,7 @@ function SignInForm() {
           Don&apos;t have an account?{" "}
           <Link
             href={signupHref}
-            className="text-signal hover:underline"
+            className="text-signal underline underline-offset-2 hover:decoration-2"
           >
             Sign up
           </Link>

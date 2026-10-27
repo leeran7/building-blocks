@@ -100,7 +100,7 @@ export default function TermsPage() {
           sole proprietorship based in Florida, USA, governing your use of
           doomstack.lol and the Doomstack app (the &ldquo;
           <strong>Service</strong>&rdquo;). Please also read our{" "}
-          <a href="/privacy" className="text-signal hover:underline">
+          <a href="/privacy" className="text-signal underline underline-offset-2 hover:decoration-2">
             Privacy Policy
           </a>
           , which explains how we handle your information.

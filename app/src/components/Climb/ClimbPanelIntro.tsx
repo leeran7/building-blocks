@@ -62,9 +62,9 @@ export function ClimbAbout() {
         see their run&rsquo;s height, it just won&rsquo;t be recorded. Runs are shareable as
         replays, so you can send a specific climb to a friend and let them watch exactly how you
         reached your peak. Want more? Try{" "}
-        <Link href="/duel" className="text-signal hover:underline">1v1 duels</Link> — play free,
+        <Link href="/duel" className="text-signal underline underline-offset-2 hover:decoration-2">1v1 duels</Link> — play free,
         stake chips in ranked matches, or enter tournaments for cash prizes. See{" "}
-        <Link href="/rules" className="text-signal hover:underline">the rules</Link> for details.
+        <Link href="/rules" className="text-signal underline underline-offset-2 hover:decoration-2">the rules</Link> for details.
       </p>
     </details>
   );

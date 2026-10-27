@@ -285,3 +285,9 @@ textarea {
 .hex {
   clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%);
 }
+
+/* Sheets take focus on open (SheetPortal) so Tab starts inside them; the
+   panel itself needs no ring, its controls show theirs. */
+[role="dialog"][tabindex="-1"]:focus {
+  outline: none;
+}

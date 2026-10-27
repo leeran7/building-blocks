@@ -44,7 +44,7 @@ export function LegalNav({ items }: { items: readonly { id: string; label: strin
           <li key={item.id}>
             <a
               href={`#${item.id}`}
-              className="text-text-secondary hover:text-signal transition-colors"
+              className="inline-flex min-h-6 items-center text-text-secondary hover:text-signal transition-colors"
             >
               {i + 1}. {item.label}
             </a>
@@ -101,7 +101,7 @@ export function List({
 
 export function MailLink({ address }: { address: string }) {
   return (
-    <a href={`mailto:${address}`} className="text-signal hover:underline">
+    <a href={`mailto:${address}`} className="text-signal underline underline-offset-2 hover:decoration-2">
       {address}
     </a>
   );

@@ -41,7 +41,7 @@
   --color-border-focus: #4a4656;
   --color-text-primary: #f4f2ec;
   --color-text-secondary: #a8a4b2;
-  --color-text-muted: #74707e;
+  --color-text-muted: #8e8a98;
   --color-text-disabled: #4a4656;
 
   --color-accent: rgb(var(--accent-rgb, 203 242 77));
@@ -283,7 +283,7 @@
   --color-border: #24222c;
   --color-border-focus: #4a4656;
   --color-text-primary: #f4f2ec;
-  --color-text-muted: #74707e;
+  --color-text-muted: #8e8a98;
 
   --signal-rgb: 203 242 77; /* acid lime — ascent */
   --ember-rgb: 255 90 44; /* ember — rising ground / burial */
