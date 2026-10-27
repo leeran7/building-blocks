@@ -73,7 +73,7 @@ vi.mock("../../mobile/src/lib/api", () => ({
           : {};
     return { ok: true, status: 200, json: () => Promise.resolve(body) } as Response;
   }),
-  API_BASE: "https://example.test",
+  SITE_ORIGIN: "https://example.test",
 }));
 vi.mock("@app/components/Game/paintClimbFrame", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../src/components/Game/paintClimbFrame")>();

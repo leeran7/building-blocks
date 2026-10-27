@@ -29,7 +29,7 @@ import { useCanvasSize } from "@app/hooks/useCanvasSize";
 import { useSafeAreaInsets } from "@app/hooks/useSafeAreaInsets";
 import { ALTITUDE_UNIT } from "@app/lib/units";
 
-import { API_BASE, postClimbResult, type ClimbSaveResult } from "../lib/api";
+import { SITE_ORIGIN, postClimbResult, type ClimbSaveResult } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useInvalidateAppData, useSettings, type SliceKey } from "../contexts/AppDataContext";
 import { hasLeaderboardConsent } from "../lib/consent";
@@ -328,7 +328,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
         peakY: run.peakY,
         inputs: inputLog,
       });
-      if (replayToken) setShareUrl(buildReplayUrl(replayToken, API_BASE));
+      if (replayToken) setShareUrl(buildReplayUrl(replayToken, SITE_ORIGIN));
       const payload: RunPayload = replayToken ? { ...run, replayToken } : run;
 
       if (isAuthed && !hasLeaderboardConsent()) {

@@ -5,14 +5,20 @@
  */
 
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { TARGET_IDS, type TargetConfig, type TargetFeatures, type TargetId } from "../../mobile/src/targets/types";
+
+vi.mock("@discord/embedded-app-sdk", () => ({ DiscordSDK: class {}, patchUrlMappings: () => undefined }));
 
 const DOC = readFileSync(new URL("../../../context/platforms.md", import.meta.url), "utf8");
 
 const CONFIGS: Record<TargetId, () => Promise<{ targetConfig: TargetConfig }>> = {
   app: () => import("../../mobile/src/targets/app/config"),
   crazygames: () => import("../../mobile/src/targets/crazygames/config"),
+  youtube: () => import("../../mobile/src/targets/youtube/config"),
+  itch: () => import("../../mobile/src/targets/itch/config"),
+  telegram: () => import("../../mobile/src/targets/telegram/config"),
+  discord: () => import("../../mobile/src/targets/discord/config"),
 };
 
 /** Rows of the markdown table under `heading`, keyed by the first cell (backticks stripped). */

@@ -28,7 +28,7 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
 }));
 vi.mock("../../mobile/src/lib/external", () => ({ openExternal: vi.fn(async () => {}) }));
 vi.mock("../../mobile/src/lib/api", () => ({
-  API_BASE: "https://example.test",
+  SITE_ORIGIN: "https://example.test",
   apiFetch: async () => ({ ok: false, status: 503, json: async () => ({}) }) as Response,
   postClimbResult: async () => ({ saved: false }),
 }));

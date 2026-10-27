@@ -36,7 +36,7 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
 vi.mock("@app/components/Game/lava", () => ({ drawLava: vi.fn(), isLavaInProximity: () => false }));
 vi.mock("../../mobile/src/lib/api", () => ({
   apiFetch: vi.fn(async () => ({ ok: true, status: 200, json: () => Promise.resolve({}) }) as Response),
-  API_BASE: "https://example.test",
+  SITE_ORIGIN: "https://example.test",
 }));
 vi.mock("@app/components/Game/paintClimbFrame", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../src/components/Game/paintClimbFrame")>();

@@ -69,7 +69,7 @@ const apiFetch = vi.fn(async (path: string, _init?: RequestInit): Promise<Respon
 const postClimbResult = vi.fn(async (_run: object) => ({ saved: true, improved: false, rank: 9, totalClimbers: 99 }));
 
 vi.mock("../../mobile/src/lib/api", () => ({
-  API_BASE: "https://example.test",
+  SITE_ORIGIN: "https://example.test",
   apiFetch: (path: string, init?: RequestInit) => apiFetch(path, init),
   postClimbResult: (run: object) => postClimbResult(run),
 }));

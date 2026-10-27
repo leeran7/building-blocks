@@ -17,6 +17,7 @@ import { GemPile, RewardReveal } from "../RewardReveal";
 import { GemIcon } from "./GemIcon";
 import { useSwipeToDismiss } from "../../hooks/useSwipeToDismiss";
 import { SheetPortal } from "../SheetPortal";
+import { targetConfig } from "@target/config";
 
 const DEFAULT_PACK_ID = "gems-1200";
 
@@ -189,7 +190,11 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
           {busy === selected.id ? "…" : `Buy ${formatGems(selected.gems)} gems · ${packPrice(selected, prices)}`}
         </button>
         <p className="mt-2 text-center text-meta text-text-secondary">
-          {storeBuy ? "App Store purchase" : "Secure checkout opens in your browser."}
+          {targetConfig.payments
+            ? targetConfig.payments.checkoutNote
+            : storeBuy
+              ? "App Store purchase"
+              : "Secure checkout opens in your browser."}
         </p>
         {message && (
           <p

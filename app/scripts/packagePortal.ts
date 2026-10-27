@@ -1,7 +1,7 @@
 /**
  * Build one web-portal target and zip it for upload.
  *
- *   pnpm portal:package crazygames
+ *   pnpm portal:package <crazygames|youtube|itch>
  *
  * Runs `vite build --mode <target>`, checks `mobile/dist-<target>` against
  * what the portal accepts, and writes `mobile/dist-zips/<target>.zip` with
@@ -21,7 +21,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const PORTAL_TARGETS = ["crazygames"] as const;
+export const PORTAL_TARGETS = ["crazygames", "youtube", "itch"] as const;
 export type PortalTarget = (typeof PORTAL_TARGETS)[number];
 
 /** Decimal megabytes: the stricter reading of each portal's "MB". */
@@ -42,6 +42,9 @@ export interface SizeLimit {
 export const SIZE_LIMITS: Record<PortalTarget, SizeLimit> = {
   // CrazyGames: 50 MB hard limit; 20 MB or less for the mobile homepage.
   crazygames: { failBytes: 50 * MB, failInclusive: false, warnBytes: 20 * MB, warnReason: "CrazyGames mobile homepage needs 20 MB or less" },
+  // YouTube Playables: the bundle must be under 30 MB.
+  youtube: { failBytes: 30 * MB, failInclusive: true, warnBytes: null },
+  itch: { failBytes: null, failInclusive: false, warnBytes: null },
 };
 
 /** Strings that must never appear in a portal bundle (case-insensitive). */

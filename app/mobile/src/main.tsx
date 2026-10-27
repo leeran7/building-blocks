@@ -30,8 +30,8 @@ applyBundledClimberSheets();
 void targetConfig.platform.init();
 
 /*
-  The build target (vite.config.mts --mode) decides what renders: the full app
-  or the Free-Climb-only portal shell.
+  The build target (vite.config.mts --mode) decides what renders: the full app,
+  a Free-Climb-only portal shell, or a Telegram / Discord shell.
 
   HashRouter (not BrowserRouter): the app is served from a file/capacitor
   scheme in the WebView where history-API path routing has no server to fall

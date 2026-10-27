@@ -61,6 +61,14 @@ export async function createAccountWithEmail(email: string, password: string): P
   await FirebaseAuthentication.createUserWithEmailAndPassword({ email, password });
 }
 
+/**
+ * Sign in with a Firebase custom token the server minted after verifying a
+ * host platform's login (Telegram, Discord: src/lib/platformAuth.ts).
+ */
+export async function signInWithCustomToken(token: string): Promise<void> {
+  await FirebaseAuthentication.signInWithCustomToken({ token });
+}
+
 export async function signOut(): Promise<void> {
   await FirebaseAuthentication.signOut();
 }

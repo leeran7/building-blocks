@@ -12,6 +12,27 @@ import { CHIP_TO_CENTS_RATIO } from "../config/chipPackages";
 
 const SIGNUP_CHIP_GRANT_CHIPS = 5;
 
+/** Thrown when a token's email is one only the server may assign. */
+export class ReservedEmailError extends Error {
+  constructor() {
+    super("That email address is reserved");
+    this.name = "ReservedEmailError";
+  }
+}
+
+/** Non-deliverable addresses (RFC 2606 `.invalid`) the server gives its own accounts. */
+export function isReservedEmail(email: string): boolean {
+  return email.trim().toLowerCase().endsWith(".invalid");
+}
+
+/**
+ * Uids only the server mints (Firebase custom tokens after a verified
+ * platform login). Firebase's own uids never contain a colon.
+ */
+export function isPlatformUid(uid: string): boolean {
+  return /^(telegram|discord):[1-9][0-9]{0,19}$/.test(uid);
+}
+
 export interface EnsureUserInput {
   /** Firebase UID — becomes users.id. */
   id: string;
@@ -30,6 +51,11 @@ export interface EnsureUserInput {
  * avatar; accounts given a starter animal before this keep it while saved.
  */
 export async function ensureUser(input: EnsureUserInput) {
+  // `.invalid` addresses belong to server-made accounts (guests, platform
+  // sign-ins). A self-registered Firebase account claiming one could take the
+  // address before its real owner and block their sign-in on users.email's
+  // unique index.
+  if (isReservedEmail(input.email) && !isPlatformUid(input.id)) throw new ReservedEmailError();
   return prisma.user.upsert({
     where: { id: input.id },
     create: {
@@ -68,6 +94,23 @@ export async function ensureGuestUser(guestId: string): Promise<void> {
       emailVerified: false,
       play_credits_cents: 0,
     },
+    update: {},
+  });
+}
+
+/**
+ * Row for an account signed in through a host platform (Telegram, Discord),
+ * whose uid ("telegram:<id>", "discord:<id>") the server derived from a
+ * verified platform login (src/lib/platformAuth.ts). These platforms give no
+ * email, so the account carries the non-deliverable `.invalid` address its
+ * Firebase user was created with. No chip grant: paid duels never ship on
+ * these targets.
+ */
+export async function ensurePlatformUser(uid: string, email: string): Promise<void> {
+  if (!isPlatformUid(uid)) throw new Error(`ensurePlatformUser: not a platform uid`);
+  await prisma.user.upsert({
+    where: { id: uid },
+    create: { id: uid, email, emailVerified: false, play_credits_cents: 0 },
     update: {},
   });
 }

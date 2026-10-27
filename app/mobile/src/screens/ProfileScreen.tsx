@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../lib/api";
+import { SITE_ORIGIN } from "../lib/api";
 import { sharedId, spring } from "../lib/motionTokens";
 import { openExternal } from "../lib/external";
 import { useAuth } from "../contexts/AuthContext";
@@ -252,7 +252,7 @@ export function ProfileScreen() {
               <button
                 onClick={() => {
                   void tapLight();
-                  void openExternal(`${API_BASE}/c/${identityUsername}`);
+                  void openExternal(`${SITE_ORIGIN}/c/${identityUsername}`);
                 }}
                 className="glass flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl border border-white/10 font-display text-meta font-bold uppercase tracking-label text-text-primary transition-transform active:scale-[0.98]"
               >

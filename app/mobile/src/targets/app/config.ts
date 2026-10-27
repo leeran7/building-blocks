@@ -6,6 +6,8 @@ export const targetConfig: TargetConfig = {
   id: "app",
   name: "Doomstack",
   features: { signIn: true, shop: true, duels: true, leaderboard: true, daily: true, levels: true },
+  apiBase: "https://www.doomstack.lol",
   platform: noopPlatform,
   ads: noAds,
+  payments: null,
 };

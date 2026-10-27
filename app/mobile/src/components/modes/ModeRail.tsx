@@ -7,6 +7,7 @@ import { useDailyLeaderboard, useHubPrefetch } from "../../contexts/AppDataConte
 import { dailySummary, formatReset, type DailySummary } from "@app/lib/daily";
 import { useUtcDay } from "../../hooks/useUtcDay";
 import { useMatchmakingQueue } from "../../hooks/useMatchmakingQueue";
+import { targetConfig } from "@target/config";
 import { CrownIcon, FlameIcon, SwordsIcon } from "./icons";
 import { SearchingOverlay } from "./SearchingOverlay";
 import { VersusSheet } from "./VersusSheet";
@@ -66,7 +67,8 @@ export function ranksRailCopy(
  * The map's mode rail: the game's other ways to play, as event buttons on the
  * right edge of the level map (Candy Crush style). Daily starts today's tower
  * in one tap, Versus opens Quick Play and Challenge, Ranks opens the
- * Leaderboard. Endless stays on the map's Play bar.
+ * Leaderboard. Endless stays on the map's Play bar. A build target without
+ * duels (targetConfig.features) has no Versus button.
  */
 export function ModeRail() {
   const navigate = useNavigate();
@@ -92,6 +94,46 @@ export function ModeRail() {
   const dailyCopy = dailyRailCopy(daily, todayMe, clock.msUntilReset);
   const ranksCopy = ranksRailCopy(standing, standingLoading, standingFailed);
 
+  return (
+    <div data-tour="modes" className="pointer-events-auto flex flex-col items-center gap-3 [@media(max-height:640px)]:gap-2">
+      <RailButton
+        label="Daily"
+        ariaLabel="Daily Climb"
+        detail={dailyCopy.detail}
+        badge={dailyCopy.badge}
+        tone="ember"
+        onPress={() => {
+          void tapHeavy();
+          navigate("/climb?daily=1");
+        }}
+      >
+        <FlameIcon />
+      </RailButton>
+      {targetConfig.features.duels && <VersusMode />}
+      <RailButton
+        label="Ranks"
+        ariaLabel="Ranks"
+        detail={ranksCopy.detail}
+        badge={ranksCopy.badge}
+        tone="signal"
+        onPress={() => {
+          void tapLight();
+          navigate("/leaderboard");
+        }}
+      >
+        <CrownIcon size={22} />
+      </RailButton>
+    </div>
+  );
+}
+
+/**
+ * The rail's Versus button with what it opens: the Quick Play / Challenge
+ * sheet and the matchmaking search. The sheet and the search overlay are
+ * portalled, so they leave the rail's layout alone.
+ */
+function VersusMode() {
+  const navigate = useNavigate();
   const [versusOpen, setVersusOpen] = useState(false);
   const closeVersus = useCallback(() => setVersusOpen(false), []);
 
@@ -106,46 +148,18 @@ export function ModeRail() {
 
   return (
     <>
-      <div data-tour="modes" className="pointer-events-auto flex flex-col items-center gap-3 [@media(max-height:640px)]:gap-2">
-        <RailButton
-          label="Daily"
-          ariaLabel="Daily Climb"
-          detail={dailyCopy.detail}
-          badge={dailyCopy.badge}
-          tone="ember"
-          onPress={() => {
-            void tapHeavy();
-            navigate("/climb?daily=1");
-          }}
-        >
-          <FlameIcon />
-        </RailButton>
-        <RailButton
-          label="Versus"
-          ariaLabel="Versus"
-          detail="Quick Play or challenge a friend"
-          tone="signal"
-          onPress={() => {
-            void tapLight();
-            setVersusOpen(true);
-          }}
-        >
-          <SwordsIcon size={22} />
-        </RailButton>
-        <RailButton
-          label="Ranks"
-          ariaLabel="Ranks"
-          detail={ranksCopy.detail}
-          badge={ranksCopy.badge}
-          tone="signal"
-          onPress={() => {
-            void tapLight();
-            navigate("/leaderboard");
-          }}
-        >
-          <CrownIcon size={22} />
-        </RailButton>
-      </div>
+      <RailButton
+        label="Versus"
+        ariaLabel="Versus"
+        detail="Quick Play or challenge a friend"
+        tone="signal"
+        onPress={() => {
+          void tapLight();
+          setVersusOpen(true);
+        }}
+      >
+        <SwordsIcon size={22} />
+      </RailButton>
 
       <AnimatePresence>
         {versusOpen && (
