@@ -8,14 +8,8 @@
   "desktop|app-level-sheet": {
     "stretch/wider-than-720px": 1
   },
-  "desktop|app-profile-edit": {
-    "target/under-44px": 1
-  },
   "desktop|app-xp-sheet": {
     "stretch/wider-than-720px": 1
-  },
-  "phone|app-profile-edit": {
-    "target/under-44px": 1
   },
   "phone|flow-app-buy-gems": {
     "flow/taps": 2
@@ -37,11 +31,5 @@
   },
   "phone|flow-web-hero-to-play": {
     "flow/taps": 1
-  },
-  "small|app-avatar-picker": {
-    "target/under-44px": 2
-  },
-  "small|app-profile-edit": {
-    "target/under-44px": 1
   }
 }

@@ -361,7 +361,7 @@ function UsernameHint({
           void tapLight();
           void openExternal(`${API_BASE}/c/${check.username}`);
         }}
-        className={`-my-3 inline-block py-3 font-mono ${isSaved ? "text-signal underline underline-offset-2" : "text-text-primary"}`}
+        className={`-my-3 inline-flex min-h-[44px] items-center font-mono ${isSaved ? "text-signal underline underline-offset-2" : "text-text-primary"}`}
       >
         /c/{check.username}
         {isSaved ? " ↗" : ""}

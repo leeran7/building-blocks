@@ -511,7 +511,7 @@ export function AvatarPickerScreen() {
                     type="button"
                     aria-pressed={pose === p.id}
                     onClick={() => setPose(p.id)}
-                    className={`min-h-[44px] flex-1 rounded-full font-mono text-label font-bold uppercase tracking-label ${
+                    className={`min-h-[44px] min-w-[44px] flex-1 rounded-full font-mono text-label font-bold uppercase tracking-label ${
                       pose === p.id ? "bg-signal text-void" : "text-text-secondary"
                     }`}
                   >
