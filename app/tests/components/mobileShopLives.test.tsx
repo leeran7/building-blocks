@@ -16,6 +16,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../mobile/src/contexts/AuthContext", () => ({
   useAuth: () => ({ user: { uid: "me" }, isAnonymous: false, loading: false, signOut: vi.fn(async () => {}) }),
 }));
+// The Shop reads the player's unlocks to mark locked skins; not under test here.
+vi.mock("../../mobile/src/contexts/AppDataContext", () => ({
+  useSettings: () => ({ data: null, setSettings: () => {}, refreshSettings: async () => {} }),
+}));
 vi.mock("../../mobile/src/lib/haptics", () => ({
   tapLight: vi.fn(async () => {}),
   tapMedium: vi.fn(async () => {}),

@@ -71,6 +71,23 @@ export function skinAction(
 }
 
 /**
+ * skinAction's state from loaded settings and Shop data, shared by Skin
+ * Details and the Shop grid so both apply one rule. Settings that loaded
+ * without avatar unlocks mean nothing is unlocked, not still loading.
+ */
+export function skinActionState(
+  settings: { avatarId?: string | null; avatarUnlocks?: { unlockedIds?: readonly string[] } | null } | null | undefined,
+  shop: { ownedIds: readonly string[]; gems: number } | null | undefined,
+): Parameters<typeof skinAction>[1] {
+  return {
+    savedAvatarId: settings?.avatarId ?? null,
+    unlockedIds: settings?.avatarUnlocks?.unlockedIds ?? (settings ? [] : null),
+    ownedIds: shop?.ownedIds ?? null,
+    gems: shop?.gems ?? null,
+  };
+}
+
+/**
  * Skin Details (the store design): one character's looks, Classic and its
  * paid skins, with a live preview, the price and balance after purchase,
  * and Purchase / Equip. Buying equips it straight away.
@@ -105,12 +122,7 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
   // The payoff after a purchase goes through: what was bought and for how much.
   const [bought, setBought] = useState<{ entry: AvatarEntry; spent: number; equipped: boolean } | null>(null);
 
-  const action = skinAction(selected, {
-    savedAvatarId: settings?.avatarId ?? null,
-    unlockedIds: settings?.avatarUnlocks?.unlockedIds ?? (settings ? [] : null),
-    ownedIds: shop?.ownedIds ?? null,
-    gems: shop?.gems ?? null,
-  });
+  const action = skinAction(selected, skinActionState(settings, shop));
 
   const equipAvatar = useEquipAvatar();
   const equip = async (id: string): Promise<boolean> => {

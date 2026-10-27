@@ -1,8 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { riseIn, sharedId, spring } from "../lib/motionTokens";
-import { CHARACTER_ENTRIES, formatGems, gemPrice, skinsOf, type AvatarEntry } from "@app/lib/avatars";
+import { CHARACTER_ENTRIES, formatGems, gemPrice, lockedMessage, skinsOf, type AvatarEntry } from "@app/lib/avatars";
 import { useShop } from "../contexts/ShopContext";
+import { useSettings } from "../contexts/AppDataContext";
+import { skinAction, skinActionState } from "./SkinDetailsScreen";
 import { CharacterPreview, previewSize } from "../components/CharacterPreview";
 import { useSceneKind } from "../components/RouteTransition";
 import { RetryPanel, ScreenHeader } from "../components/ui";
@@ -40,7 +42,14 @@ export function ShopScreen() {
   const navigate = useNavigate();
   const arrivedBy = useSceneKind();
   const { shop, error, loading, refresh } = useShop();
+  const { data: settings } = useSettings();
   const owned = new Set(shop?.ownedIds ?? []);
+  // The character a skin dresses, when the player can't buy the skin until
+  // they unlock it (the same rule Skin Details and the server apply).
+  const requiredCharacter = (skin: AvatarEntry): AvatarEntry | null => {
+    const action = skinAction(skin, skinActionState(settings, shop));
+    return action.kind === "character-required" ? action.character : null;
+  };
   const featured = SHOP_CHARACTERS.find((c) => c.id === FEATURED_CHARACTER_ID);
   const grid = SHOP_CHARACTERS.filter((c) => c.id !== FEATURED_CHARACTER_ID);
   const ownedSkins = grid.filter((c) => owned.has(skinsOf(c.id)[0].id)).length;
@@ -92,6 +101,7 @@ export function ShopScreen() {
                       character={c}
                       skin={skin}
                       owned={owned.has(skin.id)}
+                      needs={requiredCharacter(skin)}
                       onOpen={() => open(c.id, skin.id)}
                     />
                   </motion.li>
@@ -105,8 +115,8 @@ export function ShopScreen() {
   );
 }
 
-/** A look's price, or Owned. */
-function PriceTag({ entry, owned }: { entry: AvatarEntry; owned: boolean }) {
+/** A look's price, or Owned. Dimmed when the look can't be bought yet. */
+function PriceTag({ entry, owned, dim = false }: { entry: AvatarEntry; owned: boolean; dim?: boolean }) {
   if (owned) {
     return (
       <span className="inline-flex items-center gap-1 self-start rounded-full bg-signal/15 px-2 py-0.5 font-mono text-label font-bold uppercase tracking-label text-signal">
@@ -118,7 +128,11 @@ function PriceTag({ entry, owned }: { entry: AvatarEntry; owned: boolean }) {
   const price = gemPrice(entry);
   if (price === null) return null;
   return (
-    <span className="inline-flex items-center gap-1 self-start font-mono text-label font-bold tabular-nums tracking-label text-text-primary">
+    <span
+      className={`inline-flex items-center gap-1 self-start font-mono text-label font-bold tabular-nums tracking-label ${
+        dim ? "text-text-muted" : "text-text-primary"
+      }`}
+    >
       <GemIcon size={13} />
       {formatGems(price)}
     </span>
@@ -181,19 +195,24 @@ function SkinCard({
   character,
   skin,
   owned,
+  needs,
   onOpen,
 }: {
   character: AvatarEntry;
   skin: AvatarEntry;
   owned: boolean;
+  /** The character to unlock before this skin can be bought, or null. */
+  needs: AvatarEntry | null;
   onOpen: () => void;
 }) {
   const price = gemPrice(skin);
+  const state = owned ? "owned" : needs ? `locked, ${lockedMessage(needs)}` : price === null ? "" : `${formatGems(price)} gems`;
   return (
     <button
       type="button"
       data-shop-character={character.id}
-      aria-label={`${skin.name}, ${owned ? "owned" : price === null ? "" : `${formatGems(price)} gems`}`}
+      aria-label={`${skin.name}, ${state}`}
+      data-skin-locked={needs ? needs.id : undefined}
       onClick={onOpen}
       className={`flex w-full flex-col overflow-hidden rounded-2xl border bg-[rgba(16,15,20,0.92)] text-left transition-transform active:scale-[0.97] ${
         owned ? "border-signal/45" : "border-white/10"
@@ -207,6 +226,16 @@ function SkinCard({
           background: `radial-gradient(65% 75% at 44% 82%, rgba(${VOID_RGB}, 0.32), transparent 72%)`,
         }}
       >
+        {needs && (
+          // Over the figures, so a locked card is the same height as the others.
+          <span
+            data-skin-lock-chip
+            className="absolute left-2 top-2 z-10 inline-flex max-w-[calc(100%-1rem)] items-center gap-1 whitespace-nowrap rounded-full bg-void/80 px-2 py-0.5 font-mono text-label font-bold uppercase tracking-label text-text-secondary"
+          >
+            <LockGlyph />
+            <span className="truncate">Needs {needs.name}</span>
+          </span>
+        )}
         {/* The Classic look, small and dimmed behind: what the skin dresses. Placed by percent so both fit a 320px phone. */}
         <span aria-hidden data-character-figure className="absolute bottom-[6px] flex left-[78%] -translate-x-1/2 opacity-45">
           <CharacterPreview avatarId={character.id} pose="idle" locked={false} figurePx={CARD_CLASSIC_PX} sizePx={previewSize(CARD_CLASSIC_PX)} still />
@@ -223,7 +252,7 @@ function SkinCard({
         <span className="truncate font-display text-body font-black uppercase leading-tight text-text-primary">
           {skin.name}
         </span>
-        <PriceTag entry={skin} owned={owned} />
+        <PriceTag entry={skin} owned={owned} dim={needs !== null} />
       </span>
     </button>
   );
@@ -237,6 +266,15 @@ function FloorShadow({ width }: { width: number }) {
       className="absolute bottom-[5px] left-1/2 h-3 -translate-x-1/2 rounded-[50%] bg-black/70 blur-[3px]"
       style={{ width }}
     />
+  );
+}
+
+function LockGlyph() {
+  return (
+    <svg aria-hidden width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
   );
 }
 

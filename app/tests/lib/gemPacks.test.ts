@@ -8,7 +8,9 @@ import {
   APP_STORE_MARKUP,
   GEM_PACKS,
   appStoreCents,
+  enoughFor,
   formatUsd,
+  packBadge,
   gemPackByAppleProduct,
   gemPackById,
 } from "../../src/lib/gemPacks";
@@ -47,6 +49,18 @@ describe("gem packs", () => {
       expect(p.appleUsdCents % 10).toBe(9);
     }
     expect(appStoreCents(1000)).toBe(1309);
+  });
+
+  it("badges each pack with a claim its prices back up", () => {
+    // 500 gems for $4.99 is the base rate; the others give more gems per dollar.
+    expect(GEM_PACKS.map(packBadge)).toEqual([null, "+20% gems", "+30% gems", "Best value"]);
+  });
+
+  it("says what a balance buys, Void skins first", () => {
+    expect(enoughFor(SKIN_GEMS - 1)).toBe("1 Wraith colour");
+    expect(enoughFor(SKIN_GEMS + 120)).toBe("1 Void skin");
+    expect(enoughFor(SKIN_GEMS * 2)).toBe("2 Void skins");
+    expect(enoughFor(599)).toBeNull();
   });
 
   it("formats web prices", () => {

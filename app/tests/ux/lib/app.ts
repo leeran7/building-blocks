@@ -30,7 +30,22 @@ export async function signOut() {}
 export const CHECKOUT_URL = "https://checkout.example.test/ux";
 
 const FIXTURES: Record<string, unknown> = {
-  "/api/settings": { displayName: "Climber", username: "climber", social: null, leaderboardConsent: true, avatarId: null },
+  "/api/settings": {
+    displayName: "Climber",
+    username: "climber",
+    social: null,
+    leaderboardConsent: true,
+    avatarId: null,
+    // A new player past the tutorial: the stick figures, no star characters yet.
+    avatarUnlocks: {
+      stars: 0,
+      tutorialDone: true,
+      seasonDone: false,
+      unlockedIds: ["stick-green", "stick-ember", "stick-amber", "stick-sky", "stick-violet", "stick-pink"],
+      ownedIds: [],
+      grandfatheredId: null,
+    },
+  },
   "/api/shop": { gems: 120, ownedIds: [], appleAccountToken: null, webCheckout: false },
   "/api/dashboard": {
     user: { id: "ux-user", email: "climber@example.com", username: "climber" },

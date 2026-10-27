@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { formatGems } from "@app/lib/avatars";
-import { GEM_PACKS, formatUsd, type GemPack } from "@app/lib/gemPacks";
+import { GEM_PACKS, enoughFor, formatUsd, packBadge, type GemPack } from "@app/lib/gemPacks";
 import { useShop } from "../../contexts/ShopContext";
 import {
   appStorePrices,
@@ -143,13 +143,14 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
         <div role="radiogroup" aria-label="Gem packs" className="grid grid-cols-2 gap-3">
           {GEM_PACKS.map((pack) => {
             const on = pack.id === selected.id;
+            const badge = packBadge(pack);
             return (
               <button
                 key={pack.id}
                 type="button"
                 role="radio"
                 aria-checked={on}
-                aria-label={`${formatGems(pack.gems)} gems, ${packPrice(pack, prices)}${pack.badge ? `, ${pack.badge}` : ""}`}
+                aria-label={`${formatGems(pack.gems)} gems, ${packPrice(pack, prices)}${badge ? `, ${badge}` : ""}`}
                 data-gem-pack={pack.id}
                 onClick={() => {
                   if (!on) void tapLight();
@@ -170,7 +171,7 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
                 <GemIcon size={34} />
                 <span className="font-display text-headline font-black tabular-nums text-text-primary">{formatGems(pack.gems)}</span>
                 <span className="h-3.5 font-mono text-[10px] font-bold uppercase leading-none tracking-eyebrow text-text-secondary">
-                  {pack.badge ?? ""}
+                  {badge ?? ""}
                 </span>
                 <span className="mt-1 w-full rounded-xl border border-white/10 bg-elevated py-2 text-center font-display text-lead font-black tabular-nums text-text-primary">
                   {packPrice(pack, prices)}
@@ -179,6 +180,7 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
             );
           })}
         </div>
+        {shop && <AfterPack balance={shop.gems} pack={selected} />}
         <button
           type="button"
           data-gem-pack-buy={selected.id}
@@ -261,5 +263,22 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
         </div>
       )}
     </SheetPortal>
+  );
+}
+
+/**
+ * The balance now and after `pack`, and what it adds up to, so the player can
+ * judge the pack. It names a price, not a promise: a Void skin also needs its
+ * character unlocked, so "enough for a Void skin" could be untrue.
+ */
+export function AfterPack({ balance, pack }: { balance: number; pack: GemPack }) {
+  const after = balance + pack.gems;
+  const buys = enoughFor(after);
+  return (
+    <p data-gem-after className="mt-4 text-center text-meta leading-5 text-text-secondary">
+      You have <span className="font-bold tabular-nums text-text-primary">{formatGems(balance)}</span> gems. After this pack:{" "}
+      <span className="font-bold tabular-nums text-text-primary">{formatGems(after)}</span>
+      {buys ? `, the price of ${buys}.` : "."}
+    </p>
   );
 }
