@@ -13,6 +13,7 @@ import {
   baselineDiff,
   countByRule,
   focusFindings,
+  landmarkFindings,
   overflowFindings,
   stretchFindings,
   targetFindings,
@@ -49,6 +50,22 @@ test("target check reports a 20 px button, not an inline text link", async ({ pa
   expect(await targetFindings(page, 24)).toHaveLength(1);
   await set(page, CLEAN);
   expect(await targetFindings(page, 44)).toEqual([]);
+});
+
+test("landmark check reports a missing main, two mains and no site header", async ({ page }) => {
+  const rules = async () => (await landmarkFindings(page)).map((f) => f.rule).sort();
+  await page.setContent("<!doctype html><title>F</title><div>No landmarks</div>");
+  expect(await rules()).toEqual(["no-main", "no-site-header"]);
+  await page.setContent("<!doctype html><title>F</title><nav>Site</nav><main>A</main><main>B</main>");
+  expect(await rules()).toEqual(["many-main"]);
+  // A nav inside main is page navigation, not the site header.
+  await page.setContent("<!doctype html><title>F</title><main><nav>Tabs</nav></main>");
+  expect(await rules()).toEqual(["no-site-header"]);
+  // Footer link lists below main are no site header.
+  await page.setContent("<!doctype html><title>F</title><main>A</main><footer><nav>Links</nav></footer>");
+  expect(await rules()).toEqual(["no-site-header"]);
+  await page.setContent('<!doctype html><title>F</title><div style="display:none"><nav>Site</nav></div><main>A</main>');
+  expect(await rules()).toEqual([]);
 });
 
 test("focus check reports a control with no visible focus", async ({ page }) => {

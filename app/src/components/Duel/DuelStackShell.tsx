@@ -58,7 +58,9 @@ export function DuelStackShell({
         </div>
       </div>
 
-      <div className={`${DUEL_STACK_WIDTH} mx-auto w-full px-4`}>{children}</div>
+      <main id="main-content" className={`${DUEL_STACK_WIDTH} mx-auto w-full px-4`}>
+        {children}
+      </main>
     </div>
   );
 }

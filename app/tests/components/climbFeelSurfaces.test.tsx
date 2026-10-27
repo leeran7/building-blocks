@@ -90,35 +90,38 @@ describe("FreeStackShell climb chrome (AC-3)", () => {
     expect(html).not.toMatch(/\banimate-groundRise\b/);
   });
 
-  it("renders the navbar on the leaderboard only, never on the game sections", () => {
-    // The game sections (/play, /daily) are navbar-less: on touch, ClimbScene
-    // mounts `fixed inset-0 z-40` inside this shell's `relative z-10` wrapper
-    // (z capped below the navbar's sticky z-30), so a rendered navbar paints
-    // over the fullscreen game HUD. Product choice: drop the navbar on the game
-    // outright on every device (accepting a ~56px desktop tab-band shift vs
-    // /climb). The Navbar renders a top-level <nav class="sticky top-0 z-30 …">
-    // — assert that landmark's presence, not source text.
+  it("renders the site header outside <main>, hidden on touch on the game sections", () => {
+    // On touch, ClimbScene mounts `fixed inset-0 z-40` inside this shell's
+    // `relative z-10` game wrapper (z capped below the navbar's sticky z-30),
+    // so a navbar there paints over the fullscreen game HUD. The game sections
+    // hide it on coarse pointers only; with a mouse the header stays. The
+    // Navbar renders a top-level <nav class="sticky top-0 z-30 …">.
     const navMarker = /<nav\b[^>]*\bsticky\b[^>]*\btop-0\b/;
-    for (const section of ["play", "daily"] as const) {
-      const html = renderToStaticMarkup(
+    const hiddenOnTouch = /<div class="[^"]*\bpointer-coarse:hidden\b[^"]*"><nav\b[^>]*\bsticky\b/;
+    const render = (section: "play" | "daily" | "leaderboard") =>
+      renderToStaticMarkup(
         createElement(FreeStackShell, {
           section,
           title: section,
           children: createElement("div", null, "canvas"),
         })
       );
-      expect(html).not.toMatch(navMarker);
+    for (const section of ["play", "daily"] as const) {
+      const html = render(section);
+      expect(html).toMatch(hiddenOnTouch);
       // Tab band navigation still renders on the game sections.
       expect(html).toContain('aria-label="Free stack sections"');
     }
-    const lbHtml = renderToStaticMarkup(
-      createElement(FreeStackShell, {
-        section: "leaderboard",
-        title: "Climb",
-        children: createElement("div", null, "lb"),
-      })
-    );
+    const lbHtml = render("leaderboard");
     expect(lbHtml).toMatch(navMarker);
+    expect(lbHtml).not.toMatch(hiddenOnTouch);
+    // The header is the page banner, not part of the main landmark.
+    for (const section of ["play", "daily", "leaderboard"] as const) {
+      const html = render(section);
+      const main = html.indexOf('<main id="main-content"');
+      expect(main).toBeGreaterThan(html.search(navMarker));
+      expect(html.slice(main)).not.toMatch(navMarker);
+    }
   });
 
   it("does not put climb-reveal on the play stage (mobile fullscreen)", () => {

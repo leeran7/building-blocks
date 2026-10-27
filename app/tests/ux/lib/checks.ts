@@ -5,8 +5,9 @@
  * The 8/10 bar these encode (plan "Doomstack to 8/10", "What 8/10 means"):
  * zero serious/critical axe findings, hit areas of at least 44 px in the app
  * and 24 px on the web, a visible keyboard focus on every control, sheets
- * that keep focus inside, zoom allowed, no sideways scroll, and no control
- * stretched across a desktop screen.
+ * that keep focus inside, zoom allowed, no sideways scroll, no control
+ * stretched across a desktop screen, and one main landmark plus the site
+ * header on every web page.
  *
  * tests/ux/selfcheck.spec.ts proves each check reports a planted violation.
  */
@@ -156,6 +157,28 @@ export async function stretchFindings(page: Page, max = 720): Promise<Finding[]>
         where: `${Math.round(el.getBoundingClientRect().width)}px ${el.tagName.toLowerCase()} "${(el.getAttribute("aria-label") || el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40)}"`,
       }));
   }, max);
+}
+
+/**
+ * Website page structure: exactly one main landmark, and the site header (a
+ * <nav>) above it, outside it, so every page has a way home and a skip-link target.
+ * The header counts when it is in the page, even if a layout hides it on
+ * touch screens (the full-screen game on /play and /daily).
+ */
+export async function landmarkFindings(page: Page): Promise<Finding[]> {
+  return page.evaluate(() => {
+    const out: { check: string; rule: string; where: string }[] = [];
+    const mains = document.querySelectorAll("main, [role=main]");
+    if (mains.length === 0) out.push({ check: "landmark", rule: "no-main", where: location.pathname });
+    if (mains.length > 1) out.push({ check: "landmark", rule: "many-main", where: `${mains.length} on ${location.pathname}` });
+    // Above main: the footer's link lists are navs too, but no site header.
+    const first = mains[0];
+    const header = Array.from(document.querySelectorAll("nav, [role=navigation]")).some(
+      (el) => !el.closest("main, [role=main]") && (!first || el.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING),
+    );
+    if (!header) out.push({ check: "landmark", rule: "no-site-header", where: location.pathname });
+    return out;
+  });
 }
 
 /** Findings counted by `check/rule`, the unit the baseline allows. */

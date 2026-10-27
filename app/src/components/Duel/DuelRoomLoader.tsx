@@ -57,15 +57,15 @@ export function DuelRoomLoader({ duelId }: { duelId: string }) {
 
   if (state.phase === "loading") {
     return (
-      <div className="min-h-screen bg-void flex items-center justify-center">
+      <main id="main-content" className="min-h-screen bg-void flex items-center justify-center">
         <span className="text-text-muted font-mono text-sm">Loading duel…</span>
-      </div>
+      </main>
     );
   }
 
   if (state.phase === "error") {
     return (
-      <div className="min-h-screen bg-void flex flex-col items-center justify-center gap-4 px-4 text-center">
+      <main id="main-content" className="min-h-screen bg-void flex flex-col items-center justify-center gap-4 px-4 text-center">
         <p className="text-text-secondary text-sm">{state.message}</p>
         <Link
           href="/duel"
@@ -73,9 +73,14 @@ export function DuelRoomLoader({ duelId }: { duelId: string }) {
         >
           Back to duels
         </Link>
-      </div>
+      </main>
     );
   }
 
-  return <DuelRoomInner duelId={duelId} />;
+  // The room's own states (lobby, run, result) render inside the page landmark.
+  return (
+    <main id="main-content">
+      <DuelRoomInner duelId={duelId} />
+    </main>
+  );
 }
