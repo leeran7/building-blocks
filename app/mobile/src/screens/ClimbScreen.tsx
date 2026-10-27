@@ -36,6 +36,7 @@ import { hasLeaderboardConsent } from "../lib/consent";
 import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { GuestSignInSheet } from "../components/GuestSignInSheet";
+import { BackButton } from "../components/ui";
 import { GUEST_NUDGE_AFTER_RUNS, recordGuestEndlessRun } from "../lib/guestMode";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useHapticsSetting } from "../lib/hapticsSetting";
@@ -410,11 +411,14 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
           lavaPhase={lavaPhaseInfo.phase} lavaPhaseProgress={lavaPhaseInfo.progress}
           muted={muted} onToggleMute={() => setMuted(!muted)} vibration={vibration} announcement={announcement} runId={runId}
           topInset={safeArea.top} leftInset={safeArea.left} rightInset={safeArea.right}
-          backControl={<button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); goBack(); }}>←</button>}
+          // The lobby and countdown overlays carry their own Back over this one.
+          backControl={phase === "lobby" || phase === "countdown" ? undefined : <button type="button" data-game-control className="exp-utility" aria-label="Back to home" title="Back to home" onClick={() => { void tapLight(); goBack(); }}>←</button>}
         />
 
         {phase === "countdown" && (
           <Overlay>
+            {/* The overlay covers the HUD and its back control: give it its own. */}
+            <BackButton onBack={goBack} className="absolute left-4" style={{ top: safeArea.top + 12 }} />
             <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-signal">
               get ready
             </p>
@@ -437,6 +441,8 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
 
         {phase === "lobby" && (
           <Overlay>
+            {/* The overlay covers the HUD and its back control: give it its own. */}
+            <BackButton onBack={goBack} className="absolute left-4" style={{ top: safeArea.top + 12 }} />
             <span className="font-mono text-[11px] uppercase tracking-[0.4em] text-signal">
               {isDaily ? "daily challenge" : "endless climb"}
             </span>

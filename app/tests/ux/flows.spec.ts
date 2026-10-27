@@ -75,6 +75,19 @@ test.describe("app", () => {
     finish(flow, "app-run-start", info);
   });
 
+  test("out of lives: PLAY offers the wait and a practice run", async ({ page }, info) => {
+    await prepareApp(page, "signed-in", { outOfLives: true });
+    await openApp(page, "/");
+    const flow = new Flow(page);
+    await flow.tap(btn(page, /^play level 11$/i));
+    // The card says when the next life comes; without that it is a dead end.
+    const sheet = page.getByRole("dialog");
+    if (!(await sheet.getByText(/next life in \d+:\d\d/i).first().isVisible().catch(() => false))) flow.flag("dead-end");
+    await flow.tap(sheet.getByRole("button", { name: /^practice this level$/i }));
+    await flow.reached(btn(page, /^start$/i));
+    finish(flow, "app-out-of-lives", info);
+  });
+
   test("buy gems from the shop", async ({ page, context }, info) => {
     await prepareApp(page, "signed-in");
     await openApp(page, "/shop");

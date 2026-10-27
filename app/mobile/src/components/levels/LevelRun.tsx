@@ -226,17 +226,20 @@ export function LevelRun({
           ) : null
         }
         rightInset={safeArea.right}
+        // The start page carries its own Back over this one.
         backControl={
-          <button
-            type="button"
-            data-game-control
-            className="exp-utility"
-            aria-label="Back to the level map"
-            title="Back to the level map"
-            onClick={onQuit}
-          >
-            ←
-          </button>
+          phase === "lobby" || phase === "countdown" ? undefined : (
+            <button
+              type="button"
+              data-game-control
+              className="exp-utility"
+              aria-label="Back to the level map"
+              title="Back to the level map"
+              onClick={onQuit}
+            >
+              ←
+            </button>
+          )
         }
       />
 

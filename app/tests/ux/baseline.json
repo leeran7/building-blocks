@@ -11,6 +11,9 @@
     "stretch/wider-than-720px": 3,
     "target/under-44px": 2
   },
+  "desktop|app-guest-home": {
+    "stretch/wider-than-720px": 1
+  },
   "desktop|app-level-intro": {
     "axe/color-contrast": 1,
     "focus/escapes-dialog": 1,
@@ -37,10 +40,6 @@
     "stretch/wider-than-720px": 1
   },
   "desktop|app-shop": {
-    "stretch/wider-than-720px": 1,
-    "target/under-44px": 1
-  },
-  "desktop|app-signin-email": {
     "stretch/wider-than-720px": 1,
     "target/under-44px": 1
   },
@@ -160,7 +159,6 @@
     "zoom/zoom-blocked": 1
   },
   "phone|app-signin-email": {
-    "target/under-44px": 1,
     "zoom/zoom-blocked": 1
   },
   "phone|app-skin-details": {
@@ -180,11 +178,17 @@
   "phone|flow-app-challenge": {
     "flow/taps": 2
   },
+  "phone|flow-app-daily": {
+    "flow/taps": 2
+  },
   "phone|flow-app-guest-to-signin": {
-    "flow/taps": 4
+    "flow/taps": 2
+  },
+  "phone|flow-app-out-of-lives": {
+    "flow/taps": 2
   },
   "phone|flow-app-run-start": {
-    "flow/taps": 4
+    "flow/taps": 3
   },
   "phone|flow-web-hero-to-play": {
     "flow/taps": 1
@@ -294,7 +298,6 @@
     "zoom/zoom-blocked": 1
   },
   "small|app-signin-email": {
-    "target/under-44px": 1,
     "zoom/zoom-blocked": 1
   },
   "small|app-skin-details": {
