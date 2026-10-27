@@ -99,9 +99,5 @@ export const KNOWN_BROKEN: Partial<Record<(typeof FLOW_IDS)[number], { problem: 
     { problem: "blocked-tap", fix: "Phase 1: the Daily intro overlay covers the Back button" },
     { problem: "dead-end", fix: "Phase 1: same; the player can't leave the Daily intro" },
   ],
-  "web-hero-to-play": [
-    { problem: "broken-promise", fix: "PR 1.1: the hero says no account, its button lands on a sign-in wall" },
-    { problem: "dead-end", fix: "PR 1.1: the hero button goes to /play" },
-  ],
 };
 

@@ -6,7 +6,8 @@
  * an instrument stat strip). Right = DuelViz: two player bars racing up the same
  * tower with a lava line, replaced ElevationProfile for duel-primary IA.
  *
- * Server component. WCAG: primary CTA is void text on signal lime (~15:1).
+ * Server component. WCAG: primary CTA (/play, the free climb) is void text on
+ * signal lime (~15:1); it keeps the global accent focus ring (globals.css).
  * The visualization is decorative (aria-hidden); all meaning lives in the pitch.
  * prefers-reduced-motion disables the staggered reveal + rising-ground motion.
  */
@@ -197,21 +198,22 @@ export function Hero({ stats }: { stats: HeroStats }) {
             className="reveal flex flex-col sm:flex-row items-center md:items-start gap-3 mt-8"
             style={{ animationDelay: "210ms" }}
           >
+            {/* Primary: the free climb, so "No account. No download." below is
+                true for the button it sits under (duels need an account). */}
             <Link
-              href="/duel"
-              className="group w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,transform,scale] hover:brightness-110 active:scale-[0.98] focus-visible:outline-hidden min-h-[52px]"
+              href="/play"
+              className="group w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,transform,scale] hover:brightness-110 active:scale-[0.98] min-h-[52px]"
             >
-              Start a duel
-              <span className="transition-transform group-hover:translate-x-0.5">
+              Play now, free
+              <span className="transition-transform group-hover:translate-x-0.5" aria-hidden="true">
                 →
               </span>
             </Link>
             <Link
-              href="/play"
-              aria-label="Play free climb"
+              href="/duel"
               className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[44px] min-w-[44px]"
             >
-              Free climb →
+              Start a duel
             </Link>
           </div>
 

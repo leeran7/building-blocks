@@ -86,7 +86,9 @@ per-tower accents.
 Primary `bg-signal text-void font-semibold rounded-full` (hover `brightness-110`,
 active `scale-[0.98]`, `shadow-signal`) · Secondary `rounded-full border-border-strong
 bg-surface/60` (hover `border-signal/50`) · Ghost mono uppercase `text-muted`→`text-primary`.
-All ship default/hover/active/focus/disabled/loading; min target 44px.
+All ship default/hover/active/focus/disabled/loading; min target 44px. Never
+suppress the focus ring (`focus-visible:outline-hidden`/`outline-none`) without
+drawing a replacement ring; the global accent outline in globals.css is the default.
 
 ## Calls to action
 
@@ -106,3 +108,9 @@ Before adding any CTA or link, run this check:
    plain links or remove them.
 4. Reviewers reject net-new CTAs that duplicate a destination already pitched
    elsewhere.
+
+Copy next to a button must be true for that button. The landing hero's primary is
+**Play now, free** → `/play` (no account needed), with **Start a duel** → `/duel`
+as the secondary, because "No account. No download." sits under both. The UX
+flow `web-hero-to-play` (tests/ux) fails if the hero's first button lands on a
+sign-in wall.
