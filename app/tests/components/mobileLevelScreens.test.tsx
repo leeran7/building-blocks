@@ -255,6 +255,12 @@ describe("level map", () => {
       expect(dialog?.querySelector('[role="status"]')?.textContent).toBe(
         "Couldn’t reach the server. Check your connection and try again.",
       );
+      // Play on the card retries; its own refusal replaces PLAY's, not stacks on it.
+      await click(sheetButton("Play level 1"));
+      expect(startLevel).toHaveBeenCalledTimes(2);
+      expect([...document.body.querySelectorAll('[role="dialog"] [role="status"], [role="dialog"] [role="alert"]')].map((e) => e.textContent)).toEqual([
+        "Couldn’t reach the server. Check your connection and try again.",
+      ]);
       // Closing the card drops the reason: it does not linger on the map.
       await click(button("Close"));
       expect(document.body.textContent).not.toContain("Couldn’t reach the server");

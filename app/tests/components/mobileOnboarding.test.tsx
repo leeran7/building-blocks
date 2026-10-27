@@ -113,7 +113,7 @@ async function flush() {
   });
 }
 
-async function render(client: LevelsClient, path: string, { nav = true }: { nav?: boolean } = {}) {
+async function render(client: LevelsClient, path: string | { pathname: string; state: unknown }, { nav = true }: { nav?: boolean } = {}) {
   await act(async () => {
     root.render(
       <MemoryRouter initialEntries={[path]}>
@@ -196,7 +196,7 @@ async function clearLevel(client: LevelsClient, level: number) {
   });
 }
 
-async function remount(client: LevelsClient, path = "/") {
+async function remount(client: LevelsClient, path: string | { pathname: string; state: unknown } = "/") {
   await act(async () => root.unmount());
   root = createRoot(container);
   await render(client, path);
@@ -223,6 +223,20 @@ describe("first launch", () => {
     await click(button("Skip tour"));
     await remount(client);
     expect(tour()).toBeNull();
+  });
+
+  it("waits while a result's Next level card is open, then tours once it is closed", async () => {
+    const client = memoryClient();
+    await render(client, "/");
+    await clearLevel(client, 1);
+    // Next level on the level 1 result lands on the map with level 2's card up.
+    await remount(client, { pathname: "/", state: { openLevel: 2 } });
+    expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 2");
+    expect(tour()).toBeNull();
+    expect(onboardingDone()).toBe(false);
+    await click(document.querySelector<HTMLButtonElement>('[role="dialog"] button[aria-label="Close"]') ?? undefined);
+    expect(tourTitle()).toBe(MAP_TOUR[0].title);
+    expect(onboardingDone()).toBe(true);
   });
 
   it("still owes the tour after a relaunch between the first map and the clear", async () => {

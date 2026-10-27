@@ -222,12 +222,15 @@ export function LevelMapScreen() {
   }, [newPlayer, onboarding]);
   const tourDue = season !== null && onboarding.tourDue(season.frontier);
   const tourRequested = wantsTour(location.state);
+  // An owed tour waits while a start card is open (a result's Next level lands
+  // here with the next card up): it runs the next time the map is clear.
+  const cardOpen = selected !== null || openLevel !== null;
   useLayoutEffect(() => {
-    if (!season || !(tourRequested || tourDue)) return;
+    if (!season || !(tourRequested || (tourDue && !cardOpen))) return;
     if (tourRequested) navigate(".", { replace: true, state: null });
-    if (tourDue) onboarding.markDone();
+    if (tourDue && !cardOpen) onboarding.markDone();
     setTouring(true);
-  }, [season, tourRequested, tourDue, navigate, onboarding]);
+  }, [season, tourRequested, tourDue, cardOpen, navigate, onboarding]);
 
   // Play starts the next level straight away (plan decision D3); its start
   // card opens only from a floor. When the server refuses, the card opens
@@ -415,7 +418,11 @@ export function LevelMapScreen() {
           <LevelStartSheet
             node={selected}
             player={season.player}
-            onStart={() => startLevel(selected.level, booster)}
+            onStart={() => {
+              // The card shows its own refusal from here on, not the one PLAY got.
+              setNotice(null);
+              return startLevel(selected.level, booster);
+            }}
             onPractice={openPractice}
             onPracticeLevel={() => {
               void tapHeavy();
