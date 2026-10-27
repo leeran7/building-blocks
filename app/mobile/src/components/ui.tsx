@@ -19,14 +19,16 @@ function cx(...parts: Array<string | false | null | undefined>): string {
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 const VARIANT: Record<ButtonVariant, string> = {
-  // Filled signal — the one dominant action per screen.
+  // Filled signal — the one dominant action per screen. Disabled reads grey,
+  // not lime, but stays legible (text-muted, ~5:1; text-disabled was ~1.9:1
+  // and the disabled email Sign In all but vanished, UX audit 2026-10-24).
   primary:
     "bg-signal text-void shadow-signal font-black " +
-    "disabled:bg-elevated disabled:text-text-disabled disabled:shadow-none",
+    "disabled:bg-elevated disabled:text-text-muted disabled:shadow-none disabled:ring-1 disabled:ring-inset disabled:ring-border-subtle",
   // Outlined surface — supporting actions.
   secondary:
     "border border-border-strong bg-surface-raised text-text-primary font-bold " +
-    "disabled:text-text-disabled disabled:border-border-subtle",
+    "disabled:text-text-muted disabled:border-border-subtle",
   // Text-only — tertiary / dismissive.
   ghost:
     "text-text-secondary font-bold disabled:text-text-disabled",

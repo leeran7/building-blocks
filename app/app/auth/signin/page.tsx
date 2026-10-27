@@ -303,7 +303,6 @@ function SignInForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className={`${INPUT_BASE} pr-11`}
-                placeholder="••••••••"
                 required
                 disabled={loading}
               />

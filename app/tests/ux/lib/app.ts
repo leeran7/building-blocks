@@ -24,6 +24,7 @@ export async function signInWithApple() { throw new Error("ux stub"); }
 export async function signInWithGoogle() { throw new Error("ux stub"); }
 export async function signInWithEmail() { throw new Error("ux stub"); }
 export async function createAccountWithEmail() { throw new Error("ux stub"); }
+export async function sendPasswordReset() { throw new Error("ux stub"); }
 export async function signOut() {}
 `;
 
