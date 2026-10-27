@@ -83,7 +83,11 @@ export function App() {
           </motion.div>
         )}
       </AnimatePresence>
-      <div className="relative z-10 flex-1 overflow-hidden">
+      {/* On a wide screen (the app in a desktop browser) the screens sit in a
+          520px column over the full-width backdrop, instead of a PLAY bar
+          stretched 1,300px wide. translateZ makes the column the box that
+          fixed-position screens (runs, the tab bar) fill. */}
+      <div className="relative z-10 mx-auto w-full flex-1 overflow-hidden md:max-w-[520px] md:border-x md:border-white/5 md:[transform:translateZ(0)]">
         {/* Splash, Sign In, guest mode and the app cross-fade into each other. */}
         <AnimatePresence>
           <ShellLayer key={shell}>
@@ -124,8 +128,13 @@ export function App() {
         </AnimatePresence>
       </div>
       {/* Single BottomNav instance — never unmounts on hub route changes, and
-          slides away (or back) with the screen when leaving a tab. */}
-      {authed && <BottomNavDock show={showNav} />}
+          slides away (or back) with the screen when leaving a tab. On a wide
+          screen it sits under the column, the same 520px wide. */}
+      {authed && (
+        <div className="relative z-20 mx-auto w-full md:max-w-[520px] md:[transform:translateZ(0)]">
+          <BottomNavDock show={showNav} />
+        </div>
+      )}
     </div>
     </MotionConfig>
   );
