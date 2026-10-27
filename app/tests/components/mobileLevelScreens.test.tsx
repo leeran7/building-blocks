@@ -1064,6 +1064,14 @@ describe("level result card", () => {
     });
   }
 
+  it("names an XP level-up as a tier, so it can't be read as a map level", async () => {
+    await renderCard({ ...base, newPlayerLevel: 3, player: { ...player, playerLevel: 3 } });
+    const status = [...document.body.querySelectorAll('[role="status"]')].map((n) => n.textContent);
+    expect(status).toContain("Tier 3!");
+    expect(document.body.textContent).not.toMatch(/player level/i);
+    expect(document.body.querySelector('[role="progressbar"]')?.getAttribute("aria-label")).toBe("Tier 3");
+  });
+
   it("shows the stars won, the time against the star times, XP and Next level on a clear", async () => {
     await renderCard(base);
     const text = document.body.textContent ?? "";

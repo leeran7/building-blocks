@@ -9,9 +9,10 @@ import { StarIcon, XpBar } from "./LevelBits";
 import { Row, Section, StarsLeft } from "./SheetRows";
 import { TowerIcon } from "./LevelIcons";
 import { SheetPortal } from "../SheetPortal";
+import { tierLabel } from "../../lib/levels/terms";
 
 /**
- * The XP pill's sheet: the player level, how to earn the next one, and what
+ * The XP pill's sheet: the player's tier (XP level), how to earn the next one, and what
  * the season opens up next (new power-ups and obstacles, star characters and
  * the star chest). A guest earns no characters, so theirs stay out.
  */
@@ -68,7 +69,7 @@ export function XpSheet({ season, guest, onClose }: { season: SeasonView; guest:
         </div>
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 id="xp-sheet-title" className="font-display text-title font-black uppercase tracking-tight text-text-primary">
-            Level {season.player.playerLevel}
+            {tierLabel(season.player.playerLevel)}
           </h2>
           <button
             ref={closeRef}
@@ -90,7 +91,7 @@ export function XpSheet({ season, guest, onClose }: { season: SeasonView; guest:
           <XpBar player={season.player} />
           <p className="text-body text-text-primary">
             <span className="font-bold tabular-nums">{p.xpToNext.toLocaleString()} XP</span>
-            <span className="text-text-secondary"> to level {season.player.playerLevel + 1}</span>
+            <span className="text-text-secondary"> to {tierLabel(season.player.playerLevel + 1)}</span>
           </p>
         </div>
 

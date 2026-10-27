@@ -172,11 +172,15 @@ describe("XP pill on the level map", () => {
     expect(xpSheet()).toBeNull();
     const pill = xpPill();
     expect(pill?.getAttribute("aria-haspopup")).toBe("dialog");
-    expect(pill?.getAttribute("aria-label")).toMatch(/^Player level \d+, [\d,]+ of [\d,]+ XP\. Show what unlocks next$/);
+    expect(pill?.getAttribute("aria-label")).toMatch(/^Tier \d+, [\d,]+ of [\d,]+ XP\. Show what unlocks next$/);
     await click(pill);
 
     expect(xpSheet()?.getAttribute("role")).toBe("dialog");
-    expect(xpSheet()?.querySelector("#xp-sheet-title")?.textContent).toMatch(/^Level \d+$/);
+    const tier = Number(/^Tier (\d+)$/.exec(xpSheet()?.querySelector("#xp-sheet-title")?.textContent ?? "")?.[1]);
+    expect(tier).toBeGreaterThan(0);
+    // The XP line names the next tier, never a "level" a map level could be mistaken for.
+    expect(xpSheet()?.textContent).toMatch(new RegExp(`[\\d,]+ XP to Tier ${tier + 1}`));
+    expect(xpSheet()?.textContent).not.toMatch(/to level \d/i);
     expect(rows()).toEqual(
       expect.arrayContaining([
         expect.stringContaining("Clear level 11"),

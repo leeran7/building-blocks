@@ -20,6 +20,7 @@ import type { EquipResult } from "../../contexts/AppDataContext";
 import { notifyError, notifySuccess } from "../../lib/haptics";
 import { CharacterPreview, previewSize } from "../CharacterPreview";
 import { STUCK_BOOSTER_FAILS } from "@app/levels/engagement";
+import { tierLabel } from "../../lib/levels/terms";
 
 /**
  * The end of a level run. A clear shows the stars earned against the star
@@ -224,7 +225,7 @@ function Cleared({
         )}
         {result.newPlayerLevel !== null && (
           <p role="status" className="font-display text-lead font-black uppercase text-text-primary">
-            Player level {result.newPlayerLevel}!
+            {tierLabel(result.newPlayerLevel)}!
           </p>
         )}
         <UnlockedAvatars ids={result.unlockedAvatars ?? []} equip={equipAvatar} switchWarning={switchWarning} />
