@@ -275,6 +275,7 @@ export function LevelPlayScreen() {
         startPowerUp={practice ? null : (ticket?.startPowerUp ?? null)}
         bestFailFt={marker}
         onHowToPlay={() => setTutorial(topics.length > 0 ? topics : ["basics"])}
+        pickControls={level === 1 && !practice}
       />
       {tutorial && <LevelTutorial topics={tutorial} onDone={closeTutorial} />}
 

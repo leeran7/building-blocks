@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
 import { Button } from "../components/ui";
-import { LevelStartSheet } from "../components/levels/LevelStartSheet";
+import { LevelStartSheet, REFUSAL_COPY } from "../components/levels/LevelStartSheet";
 import { LivesSheet } from "../components/levels/LivesSheet";
 import { XpSheet } from "../components/levels/XpSheet";
 import { ChestSheet } from "../components/levels/ChestSheet";
@@ -212,30 +212,59 @@ export function LevelMapScreen() {
     [client, navigate, setPlayer, refresh, season, runNotes],
   );
 
-  // First launch: the training climb, which comes back here with the tour.
-  // A guest has their own flag, so signing in later still brings the tour.
+  // First launch: no training climb first. Play starts level 1, whose intro
+  // teaches the basics, and the map tour runs once level 1 is cleared. A guest
+  // has their own flag, so signing in later still brings the account's tour.
   const onboarding = guest ? guestOnboarding : accountOnboarding;
-  const firstRun = season !== null && onboarding.needs(season.frontier);
+  const newPlayer = season !== null && onboarding.needs(season.frontier);
   useLayoutEffect(() => {
-    if (!firstRun) return;
-    onboarding.markOffered();
-    navigate("/tutorial", { replace: true });
-  }, [firstRun, navigate, onboarding]);
+    if (newPlayer) onboarding.markPending();
+  }, [newPlayer, onboarding]);
+  const tourDue = season !== null && onboarding.tourDue(season.frontier);
   const tourRequested = wantsTour(location.state);
   useLayoutEffect(() => {
-    if (!season || !tourRequested) return;
-    navigate(".", { replace: true, state: null });
+    if (!season || !(tourRequested || tourDue)) return;
+    if (tourRequested) navigate(".", { replace: true, state: null });
+    if (tourDue) onboarding.markDone();
     setTouring(true);
-  }, [season, tourRequested, navigate]);
+  }, [season, tourRequested, tourDue, navigate, onboarding]);
+
+  // Play starts the next level straight away (plan decision D3); its start
+  // card opens only from a floor. When the server refuses, the card opens
+  // with the reason, and out of lives it opens to offer the wait or a refill.
+  const [starting, setStarting] = useState(false);
+  // A ref as well as state: two taps in one frame both see the old state.
+  const startingRef = useRef(false);
+  const playNext = useCallback(
+    async (node: LevelNode) => {
+      if (startingRef.current) return;
+      void tapLight();
+      if (lockedForGuest(node.level)) {
+        setSignInPrompt(true);
+        return;
+      }
+      if (node.costsLife && (season?.player.lives ?? 0) <= 0) {
+        setSelected(node);
+        return;
+      }
+      startingRef.current = true;
+      setStarting(true);
+      const res = await startLevel(node.level, null);
+      startingRef.current = false;
+      setStarting(false);
+      if (res.ok) return;
+      setSelected(node);
+      if (res.code !== "OUT_OF_LIVES") setNotice({ level: node.level, text: REFUSAL_COPY[res.code] });
+    },
+    [lockedForGuest, season, setSelected, startLevel],
+  );
   const endTour = useCallback(
     (finished: boolean) => {
       setTouring(false);
-      // The last step's button opens the next level.
-      if (!finished || !season) return;
-      if (lockedForGuest(season.frontier)) setSignInPrompt(true);
-      else setSelected(season.levels[season.frontier - 1]);
+      // The last step's button plays the next level.
+      if (finished && season) void playNext(season.levels[season.frontier - 1]);
     },
-    [season, setSelected, lockedForGuest],
+    [season, playNext],
   );
   const openNext = useCallback(
     (node: LevelNode) => {
@@ -356,9 +385,10 @@ export function LevelMapScreen() {
       <div data-play-bar className="absolute inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 px-4 pb-3">
         <button
           type="button"
-          onClick={() => openNext(current)}
+          onClick={() => void playNext(current)}
           data-tour="play"
-          aria-label={lockedForGuest(current.level) ? `Sign in to play level ${current.level}` : `Open level ${current.level}`}
+          aria-busy={starting || undefined}
+          aria-label={lockedForGuest(current.level) ? `Sign in to play level ${current.level}` : `Play level ${current.level}`}
           className="cta-lime flex min-h-[56px] flex-1 items-center justify-center gap-3 rounded-[22px] px-4 text-void transition-transform active:scale-[0.97]"
         >
           <span className="font-display text-cta font-black uppercase">Play</span>

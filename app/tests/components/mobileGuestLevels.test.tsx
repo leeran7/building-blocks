@@ -2,7 +2,7 @@
  * Guest mode's levels taster (Leeran, 2026-10-04): guests play levels 1 to
  * GUEST_LEVEL_CAP on the device-local store, every level above it asks them
  * to sign in, and the guest LevelsProvider never builds the server client.
- * Guests get the training climb on their own flag, never the account's.
+ * Guests get the map tour on their own flag, never the account's.
  * Guest home is the same level map as an account's Play screen.
  *
  * The real GuestShell, level map, start card, play screen and result card
@@ -247,7 +247,7 @@ describe("guest home", () => {
     guestOnboarding.markDone();
     await renderGuest("/");
     expect(pin("Level 1, next to play")).toBeTruthy();
-    expect(byLabel("Open level 1")).toBeTruthy();
+    expect(byLabel("Play level 1")).toBeTruthy();
     expect(document.body.querySelector('[data-tour="lives"]')).not.toBeNull();
     await click(byLabel("Endless, climb as high as you can"));
     expect(pathname).toBe("/climb");
@@ -374,12 +374,19 @@ describe("guest levels taster", () => {
 });
 
 describe("guest training", () => {
-  it("a new guest trains on the guest flag first, then tours the map without tabs", async () => {
+  it("a new guest plays level 1 first, then tours the map without tabs on the guest flag", async () => {
     await renderGuest("/");
-    expect(pathname).toBe("/tutorial");
-    await click(byLabel("Skip tutorial"));
-
     expect(pathname).toBe("/");
+    expect(tour()).toBeNull();
+    await click(byLabel("Play level 1"));
+    expect(pathname).toBe("/levels/1/play");
+    await click(byLabel("stub-clear"));
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await renderGuest("/");
+    expect(pathname).toBe("/");
+    expect(tour()).not.toBeNull();
     expect(localStorage.getItem(GUEST_ONBOARDING_KEY)).toBe("1");
     // The account's flag is untouched: signing in later still runs its tour.
     expect(localStorage.getItem(ONBOARDING_KEY)).toBeNull();
@@ -388,7 +395,7 @@ describe("guest training", () => {
     const titles: string[] = [];
     for (let i = 0; tour() && i < MAP_TOUR.length; i++) {
       titles.push(tour()?.querySelector("h2")?.textContent ?? "");
-      await click(byLabel("Next") ?? byLabel("Play level 1"));
+      await click(byLabel("Next") ?? byLabel("Play level 2"));
     }
     expect(titles).toEqual(GUEST_MAP_TOUR.map((s) => s.title));
     expect(titles).not.toContain("Star chest");
@@ -397,13 +404,12 @@ describe("guest training", () => {
     // The account tour has a Modes step for the map's mode rail; a guest has no rail.
     expect(MAP_TOUR.map((s) => s.title)).toContain("Modes");
     expect(titles).not.toContain("Modes");
-    // The tour's last button opens level 1.
-    expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 1");
+    // The tour's last button starts the next level.
+    expect(pathname).toBe("/levels/2/play");
   });
 
   it("is offered once: the next visit opens on the map", async () => {
-    await renderGuest("/");
-    expect(pathname).toBe("/tutorial");
+    await renderGuest("/tutorial");
     await click(byLabel("Skip tutorial"));
     expect(guestOnboarding.done()).toBe(true);
 
@@ -411,6 +417,7 @@ describe("guest training", () => {
     root = createRoot(container);
     await renderGuest("/");
     expect(pathname).toBe("/");
+    expect(tour()).toBeNull();
     await click(byLabel("Endless, climb as high as you can"));
     expect(pathname).toBe("/climb");
   });

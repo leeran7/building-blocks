@@ -38,6 +38,8 @@ import type { StartPowerUp } from "@app/levels/engagement";
 import { StarRow } from "./LevelBits";
 import { PowerUpName } from "./LevelStartExtras";
 import { BackButton } from "../ui";
+import { ControlSchemePicker } from "@app/components/ControlSchemePicker";
+import { useCoarsePointer } from "@app/hooks/useCoarsePointer";
 
 /**
  * The climb itself, on the level's tower and lava from the season manifest
@@ -60,6 +62,7 @@ export function LevelRun({
   startPowerUp = null,
   bestFailFt = null,
   onHowToPlay,
+  pickControls = false,
 }: {
   level: number;
   seed: string;
@@ -79,6 +82,8 @@ export function LevelRun({
   bestFailFt?: number | null;
   /** Replays the level's tutorial from the start screen. */
   onHowToPlay?: () => void;
+  /** Offer the touch layout picker on the start screen (level 1, touch only). */
+  pickControls?: boolean;
 }) {
   const towerRef = useRef(setup?.tower ?? { ...buildFreeTower(), goalM: goalFt });
   const { state, simRef, renderFeed, start, finished, setTouch, runId, inputLog } = useClimb({
@@ -94,6 +99,7 @@ export function LevelRun({
   const myAvatarId = useSettings().data?.avatarId ?? null;
   const canvasSize = useCanvasSize(canvasBoxRef, { fill: true });
   const safeArea = useSafeAreaInsets();
+  const touch = useCoarsePointer();
   const bottomInset = touchControlsInset(safeArea.bottom);
 
   const phase = state.phase;
@@ -252,6 +258,18 @@ export function LevelRun({
             <p className="mt-3 text-meta text-text-primary">
               You start with <PowerUpName type={startPowerUp.type} /> at GO.
             </p>
+          )}
+          {/* Kept in place (hidden) through the countdown so Start doesn't jump. */}
+          {pickControls && touch && (
+            <div
+              aria-hidden={phase !== "lobby"}
+              className={`mt-5 w-full max-w-[300px] ${phase === "lobby" ? "" : "invisible"}`}
+            >
+              <p id="level-run-controls" className="mb-2 text-center font-mono text-label uppercase tracking-label text-text-secondary">
+                Your controls
+              </p>
+              <ControlSchemePicker labelledBy="level-run-controls" />
+            </div>
           )}
           {/* Start and the countdown share one slot, so pressing Start
               counts down in place without the page jumping. */}

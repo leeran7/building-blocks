@@ -29,17 +29,22 @@ vi.mock("../../src/components/Game/usePowerUpFeedback", () => ({
   usePowerUpFeedback: () => ({ muted: false, setMuted: () => {}, announcement: null, unlockAudio: () => {} }),
 }));
 vi.mock("../../src/hooks/useCanvasSize", () => ({ useCanvasSize: () => ({ width: 390, height: 780 }) }));
+const pointer = vi.hoisted(() => ({ coarse: false }));
+vi.mock("../../src/hooks/useCoarsePointer", () => ({ useCoarsePointer: () => pointer.coarse }));
 vi.mock("../../src/hooks/useSafeAreaInsets", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
 
 import { LevelRun } from "../../mobile/src/components/levels/LevelRun";
 import { season1Catalog } from "../../mobile/src/lib/levels/catalog";
+import { CONTROL_SCHEME_KEY } from "../../src/lib/controlScheme";
 
 let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  pointer.coarse = false;
+  localStorage.clear();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -56,7 +61,7 @@ const button = (label: string) =>
 const timer = () => container.querySelector('[role="timer"]');
 const title = () => container.querySelector("h2")?.textContent;
 
-function mount(onQuit = vi.fn(), autoStart = false) {
+function mount(onQuit = vi.fn(), autoStart = false, pickControls = false) {
   const node = season1Catalog().level(5);
   act(() =>
     root.render(
@@ -71,6 +76,7 @@ function mount(onQuit = vi.fn(), autoStart = false) {
         onEnd: () => {},
         onQuit,
         onHowToPlay: () => {},
+        pickControls,
       }),
     ),
   );
@@ -113,5 +119,30 @@ describe("level intro and countdown", () => {
     expect(timer()?.textContent).toBe("3");
     expect(title()).toBe("Level 5");
     expect(button("Back")).toBeTruthy();
+  });
+
+  it("offers the touch controls on the start page when asked, and saves the pick", () => {
+    pointer.coarse = true;
+    mount(vi.fn(), false, true);
+    const picker = container.querySelector<HTMLElement>('[role="radiogroup"]');
+    expect(picker?.getAttribute("aria-labelledby")).toBe("level-run-controls");
+    const joystick = [...picker!.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((b) => b.textContent?.startsWith("Joystick"));
+    act(() => joystick!.click());
+    expect(localStorage.getItem(CONTROL_SCHEME_KEY)).toBe("joystick");
+    expect(joystick?.getAttribute("aria-checked")).toBe("true");
+    // The countdown keeps its place but hides it, so Start does not jump.
+    act(() => button("Start")!.click());
+    expect(picker?.parentElement?.getAttribute("aria-hidden")).toBe("true");
+    expect(picker?.parentElement?.className).toContain("invisible");
+  });
+
+  it("leaves the controls out on a mouse, or when not asked", () => {
+    mount(vi.fn(), false, true);
+    expect(container.querySelector('[role="radiogroup"]')).toBeNull();
+    act(() => root.unmount());
+    root = createRoot(container);
+    pointer.coarse = true;
+    mount();
+    expect(container.querySelector('[role="radiogroup"]')).toBeNull();
   });
 });

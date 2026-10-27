@@ -31,16 +31,17 @@ type Phase = "intro" | "controls" | "train" | "ready";
 const PRAISE_MS = 2200;
 
 /**
- * The first-run tutorial, part one: what the game is, a choice of on-screen
+ * The full tutorial, part one: what the game is, a choice of on-screen
  * controls (touch devices only), then a short climb the player plays
  * themselves on a practice tower (walk, jump, climb a ladder, grab and use a
  * power-up, touch the summit diamond). It ends on the level
  * map, which runs part two: a tour of the map, its readouts and the tabs.
  *
- * Opened by the map on a first launch, and from Profile → How to play.
+ * Opened from Profile → How to play. A first launch skips it: the map's PLAY
+ * starts level 1, whose intro teaches the basics (and offers the touch
+ * controls), and the map tour follows the first clear.
  *
- * A guest (GuestShell) gets it the same way, from their first visit to the
- * map. It marks the guest's own flag, never the account's.
+ * A guest (GuestShell) marks the guest's own flag, never the account's.
  */
 export function TrainingScreen() {
   const navigate = useNavigate();
