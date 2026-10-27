@@ -150,6 +150,107 @@ jobs:
       - name: Verify season 1
         run: pnpm season:verify 1 --shard ${{ matrix.shard }}
 
+  ux:
+    # UX checks (app/tests/ux, plan "Doomstack to 8/10"): every app screen and
+    # web page at phone, small phone and desktop sizes, measured against
+    # tests/ux/baseline.json, plus the core flows. Not in the CI gate below yet:
+    # add it to `needs` once it has run clean for a while. No secrets: the
+    # tests block all traffic that leaves the runner.
+    name: UX checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ux
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ux
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ux
+      # The baseline is measured with paid modes on, so the 18+ pages and the
+      # links to them are checked too. The build inlines the public flag, so
+      # it is set for the whole job; playwright.ux.config.ts pins both again.
+      PAID_DUELS_ENABLED: "true"
+      NEXT_PUBLIC_PAID_DUELS_ENABLED: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm 9
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+          run_install: false
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('app/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Migrate the test database
+        run: pnpm db:migrate
+
+      # The build loads firebaseAdmin.ts, which refuses to start without a
+      # service account. A key generated here, for a project that doesn't
+      # exist, lets it build; it can't reach any real Firebase project, and the
+      # UX config blanks it again when the website serves.
+      - name: Throwaway Firebase Admin key for the build
+        shell: bash
+        run: |
+          {
+            echo "FIREBASE_PROJECT_ID=ux-checks"
+            echo "FIREBASE_CLIENT_EMAIL=ux-checks@ux-checks.iam.gserviceaccount.com"
+            echo "FIREBASE_PRIVATE_KEY<<UX_KEY_EOF"
+            openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null
+            echo "UX_KEY_EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Build the website
+        run: pnpm build
+
+      - name: Run the UX checks
+        run: pnpm ux
+
+      - name: Upload screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-checks
+          path: |
+            app/test-results/ux
+            app/test-results/ux-artifacts
+            app/playwright-report/ux
+          if-no-files-found: ignore
+
   orchestrator:
     name: Orchestrator loop
     runs-on: ubuntu-latest

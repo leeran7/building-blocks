@@ -9,3 +9,6 @@ tsconfig.tsbuildinfo
 
 # Closed-loop agent run artifacts (handoffs, stage outputs) — not source.
 loop/
+# Playwright output (pnpm test:e2e, pnpm ux).
+test-results/
+playwright-report/
