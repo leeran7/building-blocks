@@ -294,11 +294,6 @@ function SignUpForm() {
         className="relative overflow-hidden bg-surface rounded-2xl border border-border-strong p-8 shadow-lifted edge-signal w-full max-w-sm"
         aria-labelledby="auth-card-title"
       >
-        {/* Logo — mobile only; desktop shows the brand panel */}
-        <div className="mb-5 md:hidden">
-          <Wordmark className="h-8 w-auto" />
-        </div>
-
         {/* Title */}
         <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
           [ sign up ]

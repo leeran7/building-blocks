@@ -73,9 +73,13 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
  * Keyboard focus belongs to the open sheet: it moves into the sheet when it
  * opens, Tab and Shift+Tab cycle inside it, and it goes back to whatever had
  * it before when the sheet closes. With a sheet stacked on another (the gem
- * packs over a level card) the top one's listener, added last, runs last and
- * keeps Tab inside it. Escape stays with each sheet, which knows how it closes.
+ * packs over a level card) only the top open sheet handles Tab; a sheet on its
+ * way out (inert) hands Tab to the one under it. Escape stays with each sheet,
+ * which knows how it closes.
  */
+const openSheets: HTMLElement[] = [];
+const topSheet = () => [...openSheets].reverse().find((root) => !root.inert);
+
 function useSheetFocus(rootRef: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const root = rootRef.current;
@@ -93,8 +97,9 @@ function useSheetFocus(rootRef: RefObject<HTMLDivElement | null>) {
       if (!dialog.hasAttribute("tabindex")) dialog.tabIndex = -1;
       dialog.focus({ preventScroll: true });
     }
+    openSheets.push(root);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Tab") return;
+      if (e.key !== "Tab" || topSheet() !== root) return;
       const list = focusables();
       if (list.length === 0) {
         e.preventDefault();
@@ -114,6 +119,7 @@ function useSheetFocus(rootRef: RefObject<HTMLDivElement | null>) {
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
+      openSheets.splice(openSheets.indexOf(root), 1);
       // Leaving, the sheet is inert, which drops its focus to the body.
       const active = document.activeElement;
       const lost = !active || active === document.body || root.contains(active);

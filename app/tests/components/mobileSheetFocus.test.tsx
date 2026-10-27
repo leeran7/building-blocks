@@ -111,8 +111,12 @@ describe("SheetPortal focus", () => {
     byText("packs last").focus();
     tab();
     expect(document.activeElement?.textContent).toBe("packs first");
-    // Mid-sheet, the card underneath must not pull focus down to itself.
-    tab();
+    // Mid-sheet, the browser moves focus on: neither sheet may take the key
+    // (the card underneath once pulled focus down to itself, and the packs
+    // sheet pulled it back to its first control, so Tab never advanced).
+    const mid = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    window.dispatchEvent(mid);
+    expect(mid.defaultPrevented).toBe(false);
     expect(document.activeElement?.textContent).toBe("packs first");
   });
 
