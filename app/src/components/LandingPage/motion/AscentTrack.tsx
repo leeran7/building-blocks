@@ -25,7 +25,7 @@ export function AscentTrack() {
   return (
     <div
       ref={ref}
-      className="relative -mx-4 h-[260svh] md:mx-0 md:h-[220svh] motion-reduce:h-auto md:motion-reduce:h-auto"
+      className="relative -mx-4 h-[175svh] md:mx-0 md:h-[150svh] motion-reduce:h-auto md:motion-reduce:h-auto"
       data-ascent-track
     >
       <div className="sticky top-14 h-[calc(100svh-3.5rem)] md:py-6 motion-reduce:static motion-reduce:h-[80svh] md:motion-reduce:h-[80svh]">

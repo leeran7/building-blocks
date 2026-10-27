@@ -10,7 +10,7 @@
  */
 
 /** Metres the hero climber climbs over the pinned scroll. */
-export const CLIMB_M = 96;
+export const CLIMB_M = 56;
 /** Metres of tower visible in the scene viewport. */
 export const VIEW_M = 40;
 /** Metres between floors (one ledge per floor). */
