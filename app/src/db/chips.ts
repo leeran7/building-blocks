@@ -401,32 +401,3 @@ export async function chipLeaderboard(limit = 50): Promise<ChipLeaderboardRow[]>
     };
   });
 }
-
-interface TopEarnerRow {
-  display_name: string | null;
-}
-
-export async function getChipDuelStats(): Promise<{ totalDuels: number; topEarner: string | null }> {
-  const [count, topRows] = await Promise.all([
-    prisma.duel.count({
-      where: { is_chip_duel: true, status: DuelStatus.completed },
-    }),
-    prisma.$queryRaw<TopEarnerRow[]>`
-      SELECT u.display_name
-        FROM duels d
-        JOIN users u ON u.id = d.winner_id
-       WHERE d.is_chip_duel   = true
-         AND d.status         = 'completed'
-         AND d.payout_settled = true
-         AND d.winner_id IS NOT NULL
-       GROUP BY d.winner_id, u.display_name
-       ORDER BY SUM(d.payout_cents) DESC
-       LIMIT 1
-    `,
-  ]);
-
-  return {
-    totalDuels: count,
-    topEarner: topRows.length > 0 ? topRows[0].display_name : null,
-  };
-}
