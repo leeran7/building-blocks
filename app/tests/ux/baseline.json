@@ -83,7 +83,7 @@
     "axe/color-contrast": 7
   },
   "desktop|web-home": {
-    "axe/color-contrast": 20,
+    "axe/color-contrast": 15,
     "axe/link-in-text-block": 3,
     "target/under-24px": 1
   },
@@ -219,7 +219,7 @@
     "axe/color-contrast": 7
   },
   "phone|web-home": {
-    "axe/color-contrast": 16,
+    "axe/color-contrast": 15,
     "axe/link-in-text-block": 3
   },
   "phone|web-play": {
@@ -338,7 +338,7 @@
     "axe/color-contrast": 7
   },
   "small|web-home": {
-    "axe/color-contrast": 16,
+    "axe/color-contrast": 15,
     "axe/link-in-text-block": 3
   },
   "small|web-play": {

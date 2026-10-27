@@ -9,10 +9,15 @@
  * one-liner — it does not restate the hero pitch.
  *
  * Server component. Each card is a single anchor so the whole surface is the
- * target (≥44px); the arrow and the altimeter ticks are decorative.
+ * target (≥44px); the arrow and the altimeter ticks are decorative. Motion
+ * (client islands): cards drop onto the stack as they scroll in and tilt
+ * toward the mouse (StackCard), and a click leaves under the lava flood
+ * (LavaLink).
  */
 
 import Link from "next/link";
+import { LavaLink } from "./motion/LavaLink";
+import { StackCard } from "./motion/StackCard";
 import { FREE_CLIMB_HREF, DUEL_HREF, DAILY_HREF } from "../navLinks";
 
 interface ClimbMode {
@@ -80,16 +85,16 @@ export function ChooseYourClimb() {
         <ul className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {MODES.map((mode, i) => (
             <li key={mode.title}>
-              <Link
+              <StackCard index={i}>
+              <LavaLink
                 href={mode.href}
                 aria-label={mode.label}
                 className={
-                  "reveal group relative flex h-full min-h-[44px] flex-col overflow-hidden rounded-2xl border bg-surface p-6 transition-[transform,translate,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-lifted motion-reduce:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
+                  "group relative flex h-full min-h-[44px] flex-col overflow-hidden rounded-2xl border bg-surface p-6 transition-[transform,translate,border-color,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-lifted motion-reduce:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
                   (mode.tone === "signal"
                     ? "border-signal/30 hover:border-signal/60"
                     : "border-border-subtle hover:border-signal/45")
                 }
-                style={{ animationDelay: `${i * 70}ms` }}
               >
                 {/* Altimeter ticks — the tower motif, decorative. */}
                 <span
@@ -117,7 +122,8 @@ export function ChooseYourClimb() {
                     →
                   </span>
                 </span>
-              </Link>
+              </LavaLink>
+              </StackCard>
             </li>
           ))}
         </ul>

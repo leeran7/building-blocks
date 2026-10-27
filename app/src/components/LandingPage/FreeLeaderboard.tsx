@@ -11,6 +11,7 @@ import Link from "next/link";
 import { FREE_LEADERBOARD_HEADING_CLASS } from "../../design/climbFeelTokens";
 import { topFreeClimbers } from "../../db/climb";
 import { ALTITUDE_UNIT } from "../../lib/units";
+import { CountUp } from "./motion/CountUp";
 
 export async function FreeLeaderboard() {
   const climbers = await topFreeClimbers(3).catch(() => []);
@@ -103,7 +104,7 @@ export async function FreeLeaderboard() {
                       </span>
                     )}
                     <span className="font-mono tabular-nums font-bold text-text-secondary">
-                      {c.peakY.toFixed(0)}
+                      <CountUp value={c.peakY} />
                       <span className="text-text-muted font-normal">{ALTITUDE_UNIT}</span>
                     </span>
                   </div>

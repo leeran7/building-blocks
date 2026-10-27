@@ -579,3 +579,171 @@ button:focus-visible,
   }
   .ground-gradient { transform: none !important; }
 }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Animated landing — "the page is the climb" (components/LandingPage/motion)
+   Numbers that motion code also reads live in motion/landingMotion.ts.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* Headline letters drop in and stack like blocks: fall, squash on landing,
+   settle. CSS so it plays before hydration. */
+@keyframes blockDrop {
+  0%   { transform: translateY(-120%) rotate(-7deg); opacity: 0; }
+  55%  { transform: translateY(4%) rotate(0deg) scale(1.06, 0.88); opacity: 1; }
+  72%  { transform: translateY(-6%) scale(0.97, 1.04); }
+  100% { transform: none; opacity: 1; }
+}
+.block-drop {
+  animation: blockDrop 0.62s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+  transform-origin: 50% 100%;
+}
+
+/* "BURIED." glows like cooling magma: a slow molten sweep through the ember.
+   Per letter (each letter is its own dropping box), offset by --i so the
+   sweep reads as one band across the word. */
+@keyframes molten {
+  from { background-position: calc(var(--i, 0) * -0.62em) 0; }
+  to   { background-position: calc(var(--i, 0) * -0.62em + 8em) 0; }
+}
+.molten-letter {
+  color: var(--color-ember);
+  background-image: linear-gradient(100deg, #ff5a2c 0%, #ffb020 12%, #ff5a2c 25%, #c2260c 38%, #ff5a2c 50%, #ffb020 62%, #ff5a2c 75%, #c2260c 88%, #ff5a2c 100%);
+  background-size: 8em 100%;
+  background-repeat: repeat-x;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: blockDrop 0.62s cubic-bezier(0.3, 0.7, 0.4, 1) both, molten 5s linear infinite;
+}
+.molten-text { filter: drop-shadow(0 0 22px rgb(var(--ember-rgb) / 0.35)); }
+@keyframes underlineDraw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.molten-underline {
+  -webkit-text-fill-color: initial;
+  transform-origin: 0 50%;
+  animation: underlineDraw 0.7s cubic-bezier(0.16, 1, 0.3, 1) 1.05s both;
+}
+
+/* Primary CTA: a glint crosses it every few seconds. */
+@keyframes ctaShine {
+  0%, 70% { transform: translateX(-120%) skewX(-18deg); }
+  100%    { transform: translateX(220%) skewX(-18deg); }
+}
+.cta-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
+  animation: ctaShine 4.2s ease-in-out 2s infinite;
+}
+
+@keyframes scrollCue { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+.scroll-cue { animation: enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both, scrollCue 1.6s ease-in-out 2s infinite; }
+
+/* Hero tower scene */
+.tower-wall {
+  background: url("/climb/volcano-tile.jpg") center bottom / 100% auto repeat-y;
+  opacity: 0.55;
+}
+.tower-shaft {
+  background:
+    linear-gradient(90deg, rgb(10 10 12 / 0.85), rgb(23 22 28 / 0.55) 18%, rgb(23 22 28 / 0.55) 82%, rgb(10 10 12 / 0.85)),
+    repeating-linear-gradient(to top, transparent 0 7.6cqh, rgb(255 255 255 / 0.035) 7.6cqh 7.9cqh);
+  border-inline: 1px solid rgb(255 255 255 / 0.06);
+}
+.tower-ladder {
+  background:
+    linear-gradient(90deg, #8a8496 0 0.7cqh, transparent 0.7cqh calc(100% - 0.7cqh), #8a8496 calc(100% - 0.7cqh)),
+    repeating-linear-gradient(to top, transparent 0 2.2cqh, #6d6878 2.2cqh 2.9cqh);
+  opacity: 0.9;
+}
+.tower-ladder--rival { opacity: 0.45; }
+.tower-ledge {
+  border-radius: 0.6cqh;
+  border-top: 2px solid rgb(var(--signal-rgb) / 0.55);
+  background: linear-gradient(to bottom, #2b2833, #17161c);
+  box-shadow: 0 1.2cqh 2.4cqh -1cqh rgb(0 0 0 / 0.8);
+}
+.tower-ledge--l { margin-right: 38%; }
+.tower-ledge--r { margin-left: 38%; }
+.tower-ledge--summit {
+  border-top-color: rgb(var(--signal-rgb));
+  box-shadow: 0 0 3cqh rgb(var(--signal-rgb) / 0.35);
+}
+@keyframes summitSpin { to { transform: rotate(45deg) scale(1.08); } }
+.tower-summit {
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #f4ffd0, rgb(var(--signal-rgb)));
+  box-shadow: 0 0 3cqh rgb(var(--signal-rgb) / 0.8);
+  animation: summitSpin 1.2s ease-in-out infinite alternate;
+}
+@keyframes climberBreathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.4cqh); } }
+.tower-climber { animation: climberBreathe 1.8s ease-in-out infinite; }
+@keyframes summitHop {
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-3cqh) scale(0.96, 1.05); }
+  60% { transform: translateY(0) scale(1.06, 0.92); }
+}
+.tower-climber--summit { animation: summitHop 0.9s ease-in-out infinite; }
+.tower-lava {
+  background: linear-gradient(to bottom, #ff7a2c 0%, #ff5a2c 6%, #c2260c 30%, #4a0f06 70%, #1a0603 100%);
+}
+@keyframes crestFlow { to { background-position: -24cqh 0; } }
+.tower-lava-crest {
+  background:
+    radial-gradient(circle at 6cqh 4cqh, #ff8a3c 3.2cqh, transparent 3.3cqh) 0 0 / 12cqh 4cqh repeat-x,
+    radial-gradient(circle at 6cqh 4.6cqh, #ffb020 2.4cqh, transparent 2.5cqh) 6cqh 0 / 12cqh 4cqh repeat-x;
+  filter: drop-shadow(0 -0.8cqh 2cqh rgb(var(--ember-rgb) / 0.8));
+  animation: crestFlow 2.4s linear infinite;
+}
+@keyframes emberRise {
+  0%   { transform: translateY(0) scale(1); opacity: 0; }
+  15%  { opacity: 1; }
+  100% { transform: translateY(-34cqh) translateX(2cqh) scale(0.3); opacity: 0; }
+}
+.tower-ember {
+  box-shadow: 0 0 6px 1px rgb(var(--ember-rgb) / 0.9);
+  animation: emberRise 3.6s ease-out infinite;
+}
+@keyframes hintPulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--signal-rgb) / 0.35); } 50% { box-shadow: 0 0 0 1cqh rgb(var(--signal-rgb) / 0); } }
+.tower-hint { animation: hintPulse 1.8s ease-in-out infinite; }
+@keyframes warnShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-0.6cqh); } 75% { transform: translateX(0.6cqh); } }
+.tower-warn { animation: warnShake 0.35s ease-in-out infinite; box-shadow: 0 0 3cqh rgb(var(--ember-rgb) / 0.7); }
+
+/* Lava flood: the page's exit transition into a game. The crest sweeps up
+   through the screen and leaves the cooled, void-dark body behind it, so the
+   next page's dark first paint is seamless (LavaFlood rises 180vh). */
+.lava-flood {
+  background: linear-gradient(to bottom, #ffb020 0, #ff5a2c 3vh, #c2260c 12vh, #4a0f06 34vh, #1a0603 58vh, #0a0a0c 80vh);
+  box-shadow: 0 -4vh 8vh rgb(var(--ember-rgb) / 0.55);
+}
+
+/* Velocity marquee — outline display text. */
+.marquee-outline {
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgb(var(--signal-rgb) / 0.75);
+}
+.marquee-outline--ember { -webkit-text-stroke-color: rgb(var(--ember-rgb) / 0.8); }
+
+/* Mode cards: pointer spotlight (positions set by TiltCard). */
+.tilt-spot {
+  background: radial-gradient(420px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgb(var(--signal-rgb) / 0.13), transparent 45%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block-drop,
+  .molten-letter,
+  .molten-underline,
+  .cta-shine::after,
+  .scroll-cue,
+  .tower-summit,
+  .tower-climber,
+  .tower-lava-crest,
+  .tower-ember,
+  .tower-hint,
+  .tower-warn {
+    animation: none !important;
+  }
+  .tower-ember { display: none; }
+}
