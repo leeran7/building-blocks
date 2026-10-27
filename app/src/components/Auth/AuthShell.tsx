@@ -1,7 +1,7 @@
 /**
  * AuthShell — shared split-panel layout for all four auth pages.
  *
- * Desktop: branded left panel (wordmark, pitch, mini-tower deco) + form column.
+ * Desktop: branded left panel (wordmark, pitch, what an account adds) + form column.
  * Mobile: form column only (panel hidden). The form column is the <main>
  * landmark; individual pages provide their own <section> card as children.
  *
@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Wordmark } from "../Brand/Wordmark";
 
-const DECO_BARS = [94, 72, 58, 40];
+const ACCOUNT_PERKS = ["Save every climb and your best heights", "Rank on the leaderboards", "Challenge your friends"];
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
@@ -45,50 +45,20 @@ export function AuthShell({ children }: { children: ReactNode }) {
             <span className="text-signal">everyone.</span>
           </h2>
           <p className="text-sm text-text-secondary mt-4">
-            Race the rising lava for the top of the leaderboard — or go
-            head-to-head in ranked chip duels and tournaments.
+            Race the rising lava to the summit. Free to play in your
+            browser; an account keeps your progress.
           </p>
 
-          {/* Mini elevation deco */}
-          <div className="mt-8 space-y-2" aria-hidden="true">
-            {DECO_BARS.map((w, i) => {
-              const buried = i === DECO_BARS.length - 1;
-              const leader = i === 0;
-              return (
-                <div
-                  key={i}
-                  className={`relative h-9 rounded-lg border bg-surface overflow-hidden flex items-center px-3 ${
-                    leader
-                      ? "border-signal/45"
-                      : buried
-                        ? "border-ember/25 opacity-60"
-                        : "border-border-subtle"
-                  }`}
-                >
-                  <span
-                    className="absolute inset-y-0 left-0"
-                    style={{
-                      width: `${w}%`,
-                      background: buried
-                        ? "linear-gradient(90deg, rgb(255 90 44 / 0.16), transparent)"
-                        : "linear-gradient(90deg, rgb(203 242 77 / 0.16), transparent)",
-                    }}
-                  />
-                  <span
-                    className={`relative z-10 font-mono text-xs font-bold tabular-nums ${
-                      leader
-                        ? "text-signal"
-                        : buried
-                          ? "text-ember"
-                          : "text-text-secondary"
-                    }`}
-                  >
-                    #{i + 1}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          {/* What an account adds. Was a mock leaderboard of empty #1 to #4
+              bars, which read as a broken skeleton (UX audit, 2026-10-24). */}
+          <ul className="mt-8 space-y-3">
+            {ACCOUNT_PERKS.map((perk) => (
+              <li key={perk} className="flex items-center gap-3 text-sm text-text-primary">
+                <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-signal" />
+                {perk}
+              </li>
+            ))}
+          </ul>
         </div>
 
         <p className="relative z-10 font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">

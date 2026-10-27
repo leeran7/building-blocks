@@ -185,6 +185,12 @@ const button = (label: string) =>
     (b) => b.getAttribute("aria-label") === label || b.textContent === label,
   );
 
+/** A button inside the open sheet: the map's own PLAY carries the same label. */
+const sheetButton = (label: string) =>
+  [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+    (b) => b.getAttribute("aria-label") === label || b.textContent === label,
+  );
+
 async function click(el: HTMLElement | undefined) {
   if (!el) throw new Error("element to click not found");
   await act(async () => {
@@ -218,9 +224,82 @@ describe("level map", () => {
     expect(dialog?.textContent).toContain("Level 1");
     expect(dialog?.textContent).toContain("Tutorial level: free to play");
 
-    await click(button("Play level 1"));
+    await click(sheetButton("Play level 1"));
     expect(where.pathname).toBe("/levels/1/play");
     expect(ticketFromState(where.state, 1)?.seed).toBe("s1:level:1:0");
+  });
+
+  describe("the map's PLAY", () => {
+    /** The map's own Play button, outside any sheet. */
+    const mapPlay = (level: number) =>
+      document.body.querySelector<HTMLButtonElement>(`[data-play-bar] button[aria-label="Play level ${level}"]`) ?? undefined;
+
+    it("starts the next level straight away with the server's ticket, no card in between", async () => {
+      const client = memoryClient();
+      await clearLevels(client, 2);
+      await renderMap(client);
+      await click(mapPlay(3));
+      expect(where.pathname).toBe("/levels/3/play");
+      expect(ticketFromState(where.state, 3)?.level).toBe(3);
+    });
+
+    it("opens the level's card with the reason when the server refuses", async () => {
+      const base = memoryClient();
+      const startLevel = vi.fn(async () => ({ ok: false as const, code: "NETWORK" as const }));
+      await renderMap({ ...base, startLevel });
+      await click(mapPlay(1));
+      expect(startLevel).toHaveBeenCalledTimes(1);
+      expect(where.pathname).toBe("/");
+      const dialog = document.body.querySelector('[role="dialog"]');
+      expect(dialog?.querySelector("h2")?.textContent).toBe("Level 1");
+      expect(dialog?.querySelector('[role="status"]')?.textContent).toBe(
+        "Couldn’t reach the server. Check your connection and try again.",
+      );
+      // Play on the card retries; its own refusal replaces PLAY's, not stacks on it.
+      await click(sheetButton("Play level 1"));
+      expect(startLevel).toHaveBeenCalledTimes(2);
+      expect([...document.body.querySelectorAll('[role="dialog"] [role="status"], [role="dialog"] [role="alert"]')].map((e) => e.textContent)).toEqual([
+        "Couldn’t reach the server. Check your connection and try again.",
+      ]);
+      // Closing the card drops the reason: it does not linger on the map.
+      await click(button("Close"));
+      expect(document.body.textContent).not.toContain("Couldn’t reach the server");
+    });
+
+    it("opens the card instead of starting when out of lives, without asking the server", async () => {
+      const base = memoryClient();
+      await clearLevels(base, 10);
+      for (let i = 0; i < 5; i++) {
+        const s = await base.startLevel(11);
+        if (!s.ok) throw new Error("refused");
+        await base.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false });
+      }
+      const startLevel = vi.fn(base.startLevel);
+      await renderMap({ ...base, startLevel });
+      await click(mapPlay(11));
+      expect(startLevel).not.toHaveBeenCalled();
+      expect(where.pathname).toBe("/");
+      expect(document.body.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe("Out of lives.");
+    });
+
+    it("asks the server once when tapped twice while a start is in flight", async () => {
+      const base = memoryClient();
+      let release: () => void = () => {};
+      const gate = new Promise<void>((r) => (release = r));
+      const startLevel = vi.fn(async (...args: Parameters<LevelsClient["startLevel"]>) => {
+        await gate;
+        return base.startLevel(...args);
+      });
+      await renderMap({ ...base, startLevel });
+      const play = mapPlay(1);
+      await click(play);
+      expect(play?.getAttribute("aria-busy")).toBe("true");
+      await click(play);
+      release();
+      await flush();
+      expect(startLevel).toHaveBeenCalledTimes(1);
+      expect(where.pathname).toBe("/levels/1/play");
+    });
   });
 
   it("offers the wait, Practice this level and Practice when out of lives", async () => {
@@ -234,7 +313,7 @@ describe("level map", () => {
     await renderMap(client);
     await click(pin("Level 11, next to play"));
 
-    expect(button("Play level 11")).toBeUndefined();
+    expect(sheetButton("Play level 11")).toBeUndefined();
     expect(document.body.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe("Out of lives.");
     expect(document.body.querySelector('[role="dialog"]')?.textContent).toMatch(/Out of lives\. Next life in \d+:\d\d/);
 
@@ -276,7 +355,7 @@ describe("level map", () => {
 
       await click(button("Refill lives for 50 gems"));
       expect(buyLives).toHaveBeenCalledTimes(1);
-      expect(button("Play level 11")).toBeTruthy();
+      expect(sheetButton("Play level 11")).toBeTruthy();
       expect(document.body.querySelector('[role="dialog"]')?.textContent).not.toContain("Out of lives");
       // The payoff plays over the card: the gems spent, then the hearts back.
       const reveal = document.querySelector("[data-reward-phase]");
@@ -429,7 +508,7 @@ describe("level map", () => {
       await click(button("Refill lives for 50 gems"));
       const alerts = [...document.body.querySelectorAll('[role="dialog"] [role="alert"]')].map((e) => e.textContent);
       expect(alerts).toContain("Couldn’t reach the server. Check your connection and try again.");
-      expect(button("Play level 11")).toBeUndefined();
+      expect(sheetButton("Play level 11")).toBeUndefined();
       expect(document.querySelector("[data-reward-phase]")).toBeNull();
     });
   });
@@ -444,7 +523,7 @@ describe("level map", () => {
   it("leaves the Play bar clear so the lava shows behind it, fading the map out instead", async () => {
     await renderMap(memoryClient());
     const bar = document.body.querySelector<HTMLElement>("[data-play-bar]");
-    expect(bar?.contains(button("Open level 1") ?? null)).toBe(true);
+    expect(bar?.contains(button("Play level 1") ?? null)).toBe(true);
     // No scrim of its own: a dark fill here hid the lava crest above the tab bar.
     expect(bar?.className).not.toMatch(/\bbg-|\bfrom-|\bvia-/);
     const scroller = document.body.querySelector("ol")?.closest<HTMLElement>(".overflow-y-auto");
@@ -573,7 +652,7 @@ describe("star chests and boosters", () => {
     expect(fold?.textContent).toBe(`Starting booster${POWER_UP_SPECS[type as "giant"].label}`);
     expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain("Restart within 3 seconds to keep it.");
 
-    await click(button("Play level 7"));
+    await click(sheetButton("Play level 7"));
     expect(where.pathname).toBe("/levels/7/play");
     expect(runs.mounted.at(-1)?.startPowerUp).toEqual({ type, source: "booster" });
     expect((await client.getSeason()).boosters[type as "giant"] ?? 0).toBe(count - 1);
@@ -589,7 +668,7 @@ describe("star chests and boosters", () => {
     await click(chip);
     await click(button("No booster"));
     expect(chip?.getAttribute("aria-checked")).toBe("false");
-    await click(button("Play level 7"));
+    await click(sheetButton("Play level 7"));
     expect(runs.mounted.at(-1)?.startPowerUp).toBeNull();
     expect((await client.getSeason()).boosters[type as "giant"] ?? 0).toBe(count);
   });
@@ -608,7 +687,7 @@ describe("level play route", () => {
     const client = memoryClient();
     await renderMap(client);
     await click(pin("Level 1, next to play"));
-    await click(button("Play level 1"));
+    await click(sheetButton("Play level 1"));
     await click(button("stub-clear"));
 
     const card = document.body.querySelector('[role="dialog"]');
@@ -626,7 +705,7 @@ describe("level play route", () => {
     await clearLevels(client, 10);
     await renderMap(client);
     await click(pin("Level 11, next to play"));
-    await click(button("Play level 11"));
+    await click(sheetButton("Play level 11"));
     await click(button("stub-lose"));
     expect(document.body.textContent).toContain("4 of 5 lives left");
 
@@ -641,7 +720,7 @@ describe("level play route", () => {
     await clearLevels(client, 10);
     await renderMap(client);
     await click(pin("Level 11, next to play"));
-    await click(button("Play level 11"));
+    await click(sheetButton("Play level 11"));
     await click(button("stub-lose"));
     expect(document.body.textContent).not.toContain("from the summit!");
     await click(button("Retry"));
@@ -671,7 +750,7 @@ describe("level play route", () => {
     };
     await renderMap(failing);
     await click(pin("Level 1, next to play"));
-    await click(button("Play level 1"));
+    await click(sheetButton("Play level 1"));
     await click(button("stub-lose"));
     await click(button("Retry"));
     expect(document.body.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain("Couldn\u2019t reach the server");
@@ -731,7 +810,7 @@ describe("interrupted level runs", () => {
     await clearLevels(client, 10);
     await renderMap(client);
     await click(pin("Level 11, next to play"));
-    await click(button("Play level 11"));
+    await click(sheetButton("Play level 11"));
     const first = ticketFromState(where.state, 11);
     expect(first).not.toBeNull();
     expect(notes().get()).toEqual({ season: 1, level: 11, ticketId: first?.id, costsLife: true });
@@ -782,7 +861,7 @@ describe("interrupted level runs", () => {
     await clearLevels(client, 10);
     await renderMap(client);
     await click(pin("Level 11, next to play"));
-    await click(button("Play level 11"));
+    await click(sheetButton("Play level 11"));
     const ticket = ticketFromState(where.state, 11);
     expect(notes().get()?.ticketId).toBe(ticket?.id);
 
@@ -803,7 +882,7 @@ describe("interrupted level runs", () => {
     await clearLevels(client, 10);
     await renderMap(client);
     await click(pin("Level 11, next to play"));
-    await click(button("Play level 11"));
+    await click(sheetButton("Play level 11"));
     await click(button("stub-lose"));
 
     // Hold the retry's reply until after the player has left for the map.
@@ -834,7 +913,7 @@ describe("interrupted level runs", () => {
     await clearLevels(client, 10);
     await renderMap(client);
     await click(pin("Level 11, next to play"));
-    await click(button("Play level 11"));
+    await click(sheetButton("Play level 11"));
     expect(runs.mounted).toHaveLength(1);
 
     await act(async () => history.back());
@@ -854,7 +933,7 @@ describe("interrupted level runs", () => {
     await clearLevels(client, 10);
     await renderMap(client, "/", { strict: true });
     await click(pin("Level 11, next to play"));
-    await click(button("Play level 11"));
+    await click(sheetButton("Play level 11"));
     const ticket = ticketFromState(where.state, 11);
     expect(where.pathname).toBe("/levels/11/play");
     expect(button("stub-lose")).toBeDefined();
@@ -956,7 +1035,7 @@ describe("interrupted level runs", () => {
     const offline: LevelsClient = { ...base, submitResult: () => Promise.reject(new Error("offline")) };
     await renderMap(offline);
     await click(pin("Level 11, next to play"));
-    await click(button("Play level 11"));
+    await click(sheetButton("Play level 11"));
     const ticket = ticketFromState(where.state, 11);
     await click(button("stub-lose"));
     expect(document.body.textContent).toContain("Couldn\u2019t save this run");
@@ -972,7 +1051,7 @@ describe("interrupted level runs", () => {
     await clearLevels(client, 10);
     await renderMap(client);
     await click(pin("Level 11, next to play"));
-    await click(button("Play level 11"));
+    await click(sheetButton("Play level 11"));
     await click(button("stub-lose"));
     await click(button("Retry"));
     const retried = notes().get();

@@ -50,7 +50,7 @@ test.describe("app", () => {
     await openApp(page, "/");
     const flow = new Flow(page);
     await flow.tap(btn(page, /continue as guest/i));
-    // Guests may get a welcome tutorial and a map tour before the map.
+    // Older builds sent a new guest through a tutorial and a map tour first.
     for (let i = 0; i < 3; i++) {
       if (!(await flow.tapAny([btn(page, /skip tutorial/i), btn(page, /skip tour/i)]))) break;
     }
@@ -65,13 +65,27 @@ test.describe("app", () => {
     await prepareApp(page, "signed-in");
     await openApp(page, "/");
     const flow = new Flow(page);
-    await flow.tap(btn(page, /^open level 1$/i));
-    const onward = [btn(page, /^play level 1$/i), btn(page, /let.s climb/i), btn(page, /^start$/i)];
+    // The map's PLAY starts the level itself (plan D3); its card opens only from a floor.
+    await flow.tap(btn(page, /^play level 1$/i));
+    const onward = [btn(page, /let.s climb/i), btn(page, /^start$/i)];
     for (let i = 0; i < 5 && !(await btn(page, /^jump$/i).first().isVisible()); i++) {
       if (!(await flow.tapAny(onward))) break;
     }
     await flow.reached(btn(page, /^jump$/i));
     finish(flow, "app-run-start", info);
+  });
+
+  test("out of lives: PLAY offers the wait and a practice run", async ({ page }, info) => {
+    await prepareApp(page, "signed-in", { outOfLives: true });
+    await openApp(page, "/");
+    const flow = new Flow(page);
+    await flow.tap(btn(page, /^play level 11$/i));
+    // The card says when the next life comes; without that it is a dead end.
+    const sheet = page.getByRole("dialog");
+    if (!(await sheet.getByText(/next life in \d+:\d\d/i).first().isVisible().catch(() => false))) flow.flag("dead-end");
+    await flow.tap(sheet.getByRole("button", { name: /^practice this level$/i }));
+    await flow.reached(btn(page, /^start$/i));
+    finish(flow, "app-out-of-lives", info);
   });
 
   test("buy gems from the shop", async ({ page, context }, info) => {

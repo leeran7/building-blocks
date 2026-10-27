@@ -367,7 +367,7 @@ function SignUpForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className={`${INPUT_BASE} pr-11`}
-                placeholder="••••••••"
+                placeholder="At least 8 characters"
                 required
                 disabled={loading}
               />

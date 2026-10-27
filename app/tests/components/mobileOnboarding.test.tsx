@@ -1,9 +1,10 @@
 /**
- * The first-run tutorial on mobile: a new player's first map opens the
- * training climb, the climb's goals advance on the player's own input, and
- * it ends on the map's tour, which ends on the next level's card. It is
- * offered once per device, never to a player who has cleared a level, and
- * replays from Profile.
+ * The first-run flow on mobile: a new player's first map stays on the map and
+ * its PLAY starts level 1; the map's tour runs once they have cleared it. The
+ * tour is offered once per device, never to a player who had cleared a level
+ * before this device saw them. The training climb (Profile, How to play)
+ * advances on the player's own input and ends on the tour, whose last step
+ * starts the next level.
  *
  * @vitest-environment happy-dom
  */
@@ -112,7 +113,7 @@ async function flush() {
   });
 }
 
-async function render(client: LevelsClient, path: string, { nav = true }: { nav?: boolean } = {}) {
+async function render(client: LevelsClient, path: string | { pathname: string; state: unknown }, { nav = true }: { nav?: boolean } = {}) {
   await act(async () => {
     root.render(
       <MemoryRouter initialEntries={[path]}>
@@ -123,6 +124,7 @@ async function render(client: LevelsClient, path: string, { nav = true }: { nav?
               <Routes>
                 <Route path="/" element={<LevelMapScreen />} />
                 <Route path="/tutorial" element={<TrainingScreen />} />
+                <Route path="/levels/:level/play" element={<p>level run</p>} />
               </Routes>
               {nav && <BottomNav />}
             </ShopProvider>
@@ -136,6 +138,7 @@ async function render(client: LevelsClient, path: string, { nav = true }: { nav?
 
 const button = (text: string) =>
   [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === text);
+const playButton = (level: number) => document.querySelector<HTMLButtonElement>(`button[aria-label="Play level ${level}"]`) ?? undefined;
 const tour = () => document.querySelector<HTMLElement>("[data-app-tour]");
 const tourTitle = () => tour()?.querySelector("h2")?.textContent;
 
@@ -179,50 +182,107 @@ describe("onboarding flag", () => {
   });
 });
 
+async function clearLevel(client: LevelsClient, level: number) {
+  const s = await client.startLevel(level);
+  if (!s.ok) throw new Error("refused");
+  await client.submitResult(s.ticket.id, {
+    finished: true,
+    level,
+    finishedTick: 3 * TICK_HZ,
+    raceTicks: 3 * TICK_HZ,
+    peakFt: s.ticket.goalFt,
+    replayToken: null,
+    outOfTime: false,
+  });
+}
+
+async function remount(client: LevelsClient, path: string | { pathname: string; state: unknown } = "/") {
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  await render(client, path);
+}
+
 describe("first launch", () => {
-  it("opens the training from a new player's first map", async () => {
+  it("stays on the map, and PLAY starts level 1 with no sheet in between", async () => {
     await render(memoryClient(), "/");
-    expect(where).toBe("/tutorial");
-    expect(container.textContent).toContain("Outclimb the lava");
+    expect(where).toBe("/");
+    expect(tour()).toBeNull();
+    await click(playButton(1));
+    expect(where).toBe("/levels/1/play");
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it("Back out of the training lands on the map, not straight back in", async () => {
+  it("tours the map once level 1 is cleared, and only once", async () => {
     const client = memoryClient();
     await render(client, "/");
-    expect(where).toBe("/tutorial");
-    // Android back from a first entry replaces it with the map.
-    await act(async () => root.unmount());
-    root = createRoot(container);
-    await render(client, "/");
-    expect(where).toBe("/");
-    expect(onboardingDone()).toBe(false);
-    // Next launch offers it again.
-    resetOnboardingForTests();
-    expect(needsOnboarding(1)).toBe(true);
+    expect(tour()).toBeNull();
+    await clearLevel(client, 1);
+    await remount(client);
+    expect(tourTitle()).toBe(MAP_TOUR[0].title);
+    expect(onboardingDone()).toBe(true);
+    await click(button("Skip tour"));
+    await remount(client);
+    expect(tour()).toBeNull();
   });
 
-  it("stays on the map once the tutorial is done on this device", async () => {
+  it("waits while a result's Next level card is open, then tours once it is closed", async () => {
+    const client = memoryClient();
+    await render(client, "/");
+    await clearLevel(client, 1);
+    // Next level on the level 1 result lands on the map with level 2's card up.
+    await remount(client, { pathname: "/", state: { openLevel: 2 } });
+    expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe("Level 2");
+    expect(tour()).toBeNull();
+    expect(onboardingDone()).toBe(false);
+    await click(document.querySelector<HTMLButtonElement>('[role="dialog"] button[aria-label="Close"]') ?? undefined);
+    expect(tourTitle()).toBe(MAP_TOUR[0].title);
+    expect(onboardingDone()).toBe(true);
+  });
+
+  it("still owes the tour after a relaunch between the first map and the clear", async () => {
+    const client = memoryClient();
+    await render(client, "/");
+    // A relaunch forgets the in-memory state; storage still holds the pending tour.
+    resetOnboardingForTests();
+    await clearLevel(client, 1);
+    await remount(client);
+    expect(tourTitle()).toBe(MAP_TOUR[0].title);
+  });
+
+  it("owes the tour for this launch when storage refuses the write", async () => {
+    const client = memoryClient();
+    const setItem = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    try {
+      await render(client, "/");
+      await clearLevel(client, 1);
+      await remount(client);
+      expect(tourTitle()).toBe(MAP_TOUR[0].title);
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it("stays quiet once the tour is done on this device", async () => {
     markOnboardingDone();
-    await render(memoryClient(), "/");
+    const client = memoryClient();
+    await render(client, "/");
+    await clearLevel(client, 1);
+    await remount(client);
     expect(where).toBe("/");
     expect(tour()).toBeNull();
   });
 
-  it("never sends a player who has cleared a level to the training", async () => {
+  it("never tours a player who had cleared a level before this device saw them", async () => {
     const client = memoryClient();
-    const s = await client.startLevel(1);
-    if (!s.ok) throw new Error("refused");
-    await client.submitResult(s.ticket.id, {
-      finished: true,
-      level: 1,
-      finishedTick: 3 * TICK_HZ,
-      raceTicks: 3 * TICK_HZ,
-      peakFt: s.ticket.goalFt,
-      replayToken: null,
-      outOfTime: false,
-    });
+    await clearLevel(client, 1);
     await render(client, "/");
     expect(where).toBe("/");
+    expect(tour()).toBeNull();
+    await clearLevel(client, 2);
+    await remount(client);
+    expect(tour()).toBeNull();
     expect(onboardingDone()).toBe(false);
   });
 });
@@ -300,7 +360,7 @@ describe("training climb", () => {
     }
   });
 
-  it("Skip goes to the map tour, which ends on the next level's card", async () => {
+  it("Skip goes to the map tour, whose last step starts the next level", async () => {
     await render(memoryClient(), "/tutorial");
     await click(button("Skip tutorial"));
     expect(where).toBe("/");
@@ -315,8 +375,8 @@ describe("training climb", () => {
     }
     expect(seen).toEqual(MAP_TOUR.map((s) => s.title));
     expect(tour()).toBeNull();
-    // The level 1 start card is open.
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Level 1");
+    // Level 1 starts: no start card in between.
+    expect(where).toBe("/levels/1/play");
     // The basics demo still plays before level 1: training was skipped.
     expect(unseenTutorials(["basics"])).toEqual(["basics"]);
   });

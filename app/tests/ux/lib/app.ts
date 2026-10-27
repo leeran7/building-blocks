@@ -24,6 +24,7 @@ export async function signInWithApple() { throw new Error("ux stub"); }
 export async function signInWithGoogle() { throw new Error("ux stub"); }
 export async function signInWithEmail() { throw new Error("ux stub"); }
 export async function createAccountWithEmail() { throw new Error("ux stub"); }
+export async function sendPasswordReset() { throw new Error("ux stub"); }
 export async function signOut() {}
 `;
 
@@ -74,8 +75,26 @@ export async function isolate(page: Page): Promise<void> {
 export type AppUser = "signed-in" | "signed-out" | "guest";
 
 /** Prepares `page` (before its first navigation) to run the app as `user`. */
-export async function prepareApp(page: Page, user: AppUser, opts: { onboarded?: boolean } = {}): Promise<void> {
+export async function prepareApp(
+  page: Page,
+  user: AppUser,
+  opts: { onboarded?: boolean; outOfLives?: boolean } = {},
+): Promise<void> {
   const onboarded = opts.onboarded ?? true;
+  if (opts.outOfLives) {
+    // The device-local level store (the app's fallback while the level routes
+    // are not deployed): levels 1 to 10 cleared, every life spent on level 11.
+    await page.addInitScript(() => {
+      const progress: Record<string, { stars: number; bestMs: number }> = {};
+      for (let level = 1; level <= 10; level++) progress[level] = { stars: 3, bestMs: 20_000 };
+      const state = { progress, lives: 0, livesUpdatedAt: Date.now(), xp: 0, openTicket: null, streak: 0 };
+      try {
+        localStorage.setItem("doomstack:levels:mock:v1:ux-user", JSON.stringify(state));
+      } catch {
+        // No storage: the flow then starts with full lives and fails its check.
+      }
+    });
+  }
   await page.addInitScript(
     ([authed, guest, onboarded]) => {
       (window as unknown as { __UX_AUTHED: boolean }).__UX_AUTHED = authed;

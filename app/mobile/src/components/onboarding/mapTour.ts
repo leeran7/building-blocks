@@ -36,7 +36,7 @@ export const MAP_TOUR: readonly TourStep[] = [
   {
     target: "play",
     title: "Play",
-    body: "Opens the next level. Pick a booster there if you have one, then tap Play.",
+    body: "Starts the next level. To bring a booster, tap that level's floor on the map instead.",
   },
   {
     target: "endless",

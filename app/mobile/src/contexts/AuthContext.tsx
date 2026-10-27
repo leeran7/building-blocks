@@ -14,6 +14,7 @@ import {
   signInWithGoogle,
   signInWithEmail,
   createAccountWithEmail,
+  sendPasswordReset,
   signOut as fbSignOut,
   type AuthUser,
 } from "../lib/firebaseAuth";
@@ -28,6 +29,8 @@ interface AuthState {
   signInGoogle: () => Promise<void>;
   signInEmail: (email: string, password: string) => Promise<void>;
   createAccount: (email: string, password: string) => Promise<void>;
+  /** Emails a password reset link (Firebase's own page sets the new password). */
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -39,6 +42,7 @@ const Ctx = createContext<AuthState>({
   signInGoogle: async () => {},
   signInEmail: async () => {},
   createAccount: async () => {},
+  resetPassword: async () => {},
   signOut: async () => {},
 });
 
@@ -92,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInGoogle: signInWithGoogle,
       signInEmail: signInWithEmail,
       createAccount: createAccountWithEmail,
+      resetPassword: sendPasswordReset,
       signOut,
     }),
     [user, loading, signOut],

@@ -393,6 +393,14 @@ describe("ClimbScreen daily lobby: the seed comes only from the server (SEC-DC-3
     climb.phase = "lobby";
   });
 
+  it("has its own Back on the intro, over the covered HUD, which leaves for the map", async () => {
+    await mountDaily(["/", "/climb?daily=1"]);
+    const back = container!.querySelector<HTMLButtonElement>('button[aria-label="Back"]');
+    expect(back).not.toBeNull();
+    await click(back);
+    expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/");
+  });
+
   it("while the server answers: a loading line and no Start button", async () => {
     net.holdInfo = true;
     await mountDaily();

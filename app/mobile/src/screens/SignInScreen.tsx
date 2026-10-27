@@ -13,12 +13,13 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
   const navigate = useNavigate();
   // This screen is only ever rendered by the auth gate for signed-out users;
   // once a real account signs in, the gate swaps to the app automatically.
-  const { signInApple, signInGoogle, signInEmail, createAccount } = useAuth();
-  const [busy, setBusy] = useState<null | "apple" | "google" | "email">(null);
+  const { signInApple, signInGoogle, signInEmail, createAccount, resetPassword } = useAuth();
+  const [busy, setBusy] = useState<null | "apple" | "google" | "email" | "reset">(null);
   const [mode, setMode] = useState<Mode>("options");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
 
   const run = (kind: typeof busy, fn: () => Promise<void>) => async () => {
     void tapMedium();
@@ -29,31 +30,41 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
       navigate("/");
     } catch (e: unknown) {
       void notifyError();
-      // Capacitor Firebase plugin surfaces the error code on a `.code` property
-      // (e.g. "auth/email-already-in-use") rather than embedding it in the message
-      // string like the web SDK does — check both so one handler covers all platforms.
-      const code = (e as Record<string, unknown>)?.code as string ?? "";
-      const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
-      const haystack = `${code} ${msg}`;
-      if (haystack.includes("wrong-password") || haystack.includes("invalid-credential")) {
-        setError("Incorrect email or password.");
-      } else if (haystack.includes("email-already-in-use")) {
-        setError("An account with that email already exists.");
-      } else if (haystack.includes("weak-password")) {
-        setError("Password must be at least 6 characters.");
-      } else if (haystack.includes("invalid-email")) {
-        setError("Enter a valid email address.");
-      } else if (haystack.includes("operation-not-allowed")) {
-        setError("Email sign-in is not enabled — contact support.");
-      } else if (haystack.includes("network") || haystack.includes("network-request-failed")) {
-        setError("Network error — check your connection and try again.");
-      } else {
-        setError("Something went wrong. Try again.");
-        console.error("[auth] unhandled error:", e);
+      setError(authErrorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const sendReset = async () => {
+    void tapMedium();
+    setError(null);
+    setResetSent(false);
+    if (!email) {
+      setError("Enter your email above, then tap Forgot password.");
+      return;
+    }
+    setBusy("reset");
+    try {
+      await resetPassword(email.trim());
+      setResetSent(true);
+    } catch (e: unknown) {
+      // No account with that email gets the same reply as one that has it,
+      // so this form can't be used to find out who plays.
+      if (authErrorCode(e).includes("user-not-found")) setResetSent(true);
+      else {
+        void notifyError();
+        setError(authErrorMessage(e));
       }
     } finally {
       setBusy(null);
     }
+  };
+
+  const leaveForm = () => {
+    setMode("options");
+    setError(null);
+    setResetSent(false);
   };
 
   if (mode === "email-signin" || mode === "email-signup") {
@@ -64,15 +75,16 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
       <PageSwap page="email">
         <main className="flex h-[100dvh] flex-col px-8 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
           <button
-            onClick={() => { setMode("options"); setError(null); }}
-            className="font-mono text-xs uppercase tracking-[0.2em] text-text-muted transition-transform active:scale-95"
+            type="button"
+            onClick={leaveForm}
+            className="inline-flex min-h-[44px] items-center self-start pr-4 font-mono text-xs uppercase tracking-[0.2em] text-text-secondary transition-transform active:scale-95"
           >
             ← Back
           </button>
 
           <div className="flex flex-1 flex-col items-center justify-center gap-6 pb-16">
             <div className="flex flex-col items-center gap-2 text-center">
-              <span className="font-mono text-[10px] uppercase tracking-[0.4em] text-text-muted">
+              <span className="font-mono text-xs uppercase tracking-[0.4em] text-text-muted">
                 {isSignup ? "join the climb" : "welcome back"}
               </span>
               <h2 className="font-display text-2xl font-black uppercase tracking-tight text-text-primary">
@@ -85,7 +97,7 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
                 type="email"
                 placeholder="Email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setResetSent(false); }}
                 inputMode="email"
                 autoCapitalize="none"
                 autoCorrect="off"
@@ -104,6 +116,11 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
               {error && (
                 <p role="alert" className="text-sm text-ember">{error}</p>
               )}
+              {resetSent && (
+                <p role="status" className="text-sm text-text-primary">
+                  If an account uses {email.trim()}, a reset link is on its way. Check your inbox.
+                </p>
+              )}
 
               <Button
                 onPress={run("email", () =>
@@ -115,9 +132,15 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
                 {isSignup ? "Create Account" : "Sign In"}
               </Button>
 
+              {!isSignup && (
+                <Button variant="ghost" onPress={() => void sendReset()} busy={busy === "reset"} disabled={busy !== null}>
+                  Forgot password?
+                </Button>
+              )}
+
               <Button
                 variant="secondary"
-                onPress={() => { setMode(isSignup ? "email-signin" : "email-signup"); setError(null); }}
+                onPress={() => { setMode(isSignup ? "email-signin" : "email-signup"); setError(null); setResetSent(false); }}
               >
                 {isSignup ? "Have an account? Sign in" : "Create account"}
               </Button>
@@ -135,7 +158,7 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
           <h1 className="m-0">
             <LogoLockup className="h-40 w-auto" />
           </h1>
-          <span className="font-mono text-[10px] uppercase tracking-[0.5em] text-text-muted">
+          <span className="font-mono text-xs uppercase tracking-[0.5em] text-text-muted">
             endless&nbsp;climb
           </span>
           <p className="max-w-[270px] text-sm leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
@@ -177,7 +200,9 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
         </div>
 
         {onGuestContinue && (
-          <div className="-mt-6 flex flex-col items-center">
+          // A scrim behind the pair: the lava crest animates under them and
+          // washed the note out mid-wave (UX audit, 2026-10-24).
+          <div className="-mt-6 flex flex-col items-center rounded-lg bg-void/70 px-3 py-1.5">
             <button
               onClick={() => { void tapMedium(); onGuestContinue(); }}
               aria-describedby="guest-continue-note"
@@ -196,6 +221,26 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
       </main>
     </PageSwap>
   );
+}
+
+/** The Firebase error code: the Capacitor plugin puts it on `.code`, the web SDK in the message. */
+function authErrorCode(e: unknown): string {
+  const code = ((e as Record<string, unknown>)?.code as string) ?? "";
+  const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+  return `${code} ${msg}`;
+}
+
+function authErrorMessage(e: unknown): string {
+  const haystack = authErrorCode(e);
+  if (haystack.includes("wrong-password") || haystack.includes("invalid-credential")) return "Incorrect email or password.";
+  if (haystack.includes("email-already-in-use")) return "An account with that email already exists.";
+  if (haystack.includes("weak-password")) return "Password must be at least 6 characters.";
+  if (haystack.includes("invalid-email")) return "Enter a valid email address.";
+  if (haystack.includes("too-many-requests")) return "Too many tries. Wait a minute, then try again.";
+  if (haystack.includes("operation-not-allowed")) return "Email sign-in is not enabled — contact support.";
+  if (haystack.includes("network")) return "Network error — check your connection and try again.";
+  console.error("[auth] unhandled error:", e);
+  return "Something went wrong. Try again.";
 }
 
 function AppleGlyph() {

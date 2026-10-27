@@ -35,17 +35,17 @@ const tapButton = (name: RegExp | string) => async (page: Page) => {
 export const APP_SURFACES: Surface[] = [
   { id: "signin", kind: "app", route: "/", user: "signed-out", ready: button(/continue as guest/i) },
   { id: "signin-email", kind: "app", route: "/", user: "signed-out", open: tapButton(/sign in with email/i), ready: heading(/^sign in$/i) },
-  { id: "guest-home", kind: "app", route: "/", user: "guest", ready: heading(/outclimb the lava/i) },
-  { id: "map", kind: "app", route: "/", user: "signed-in", ready: button(/^open level 1$/i) },
+  { id: "guest-home", kind: "app", route: "/", user: "guest", ready: button(/^play level 1$/i) },
+  { id: "map", kind: "app", route: "/", user: "signed-in", ready: button(/^play level 1$/i) },
   { id: "xp-sheet", kind: "app", route: "/", user: "signed-in", open: tapButton(/^tier \d/i), ready: dialog(/^earn xp$/i) },
-  { id: "level-sheet", kind: "app", route: "/", user: "signed-in", open: tapButton(/^open level 1$/i), ready: dialog(/^level 1$/i) },
+  { id: "level-sheet", kind: "app", route: "/", user: "signed-in", open: tapButton(/^level 1, next to play$/i), ready: dialog(/^level 1$/i) },
   {
     id: "level-intro",
     kind: "app",
     route: "/",
     user: "signed-in",
     open: async (page) => {
-      await tapButton(/^open level 1$/i)(page);
+      // The map's PLAY starts level 1 itself; a new player's tutorial comes first.
       await tapButton(/^play level 1$/i)(page);
     },
     ready: dialog(/^how to climb$/i),
@@ -91,13 +91,16 @@ export const WEB_SURFACES: Surface[] = WEB_PAGES.map(([route, h1]) => ({
 }));
 
 /** The flows in flows.spec.ts, by the id their baseline key uses. */
-export const FLOW_IDS = ["app-guest-to-signin", "app-run-start", "app-buy-gems", "app-daily", "app-challenge", "web-hero-to-play"] as const;
+export const FLOW_IDS = [
+  "app-guest-to-signin",
+  "app-run-start",
+  "app-out-of-lives",
+  "app-buy-gems",
+  "app-daily",
+  "app-challenge",
+  "web-hero-to-play",
+] as const;
 
 /** Flows broken on main today, each with the plan step that fixes it ("Doomstack to 8/10"). */
-export const KNOWN_BROKEN: Partial<Record<(typeof FLOW_IDS)[number], { problem: FlowProblem; fix: string }[]>> = {
-  "app-daily": [
-    { problem: "blocked-tap", fix: "Phase 1: the Daily intro overlay covers the Back button" },
-    { problem: "dead-end", fix: "Phase 1: same; the player can't leave the Daily intro" },
-  ],
-};
+export const KNOWN_BROKEN: Partial<Record<(typeof FLOW_IDS)[number], { problem: FlowProblem; fix: string }[]>> = {};
 
