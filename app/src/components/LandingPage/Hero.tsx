@@ -2,107 +2,71 @@
  * Hero — landing hero (ASCENT design).
  *
  * The product's core mechanic drives the whole composition: you rise, the ground
- * rises to bury you. Left = the pitch (huge duotone display headline, the free
- * climb as the main button with duels second, and the free-climb stats once
- * there are any). Right = DuelViz: two climbers racing up the same tower ahead
- * of the lava, the duel mode as a picture.
+ * rises to bury you. The pitch (huge display headline whose letters drop in and
+ * stack like blocks, the free climb as the main button with duels second, the
+ * free-climb stats once there are any) sits beside AscentTrack: a pinned tower
+ * you climb by scrolling, with a rival on the next ladder and the lava chasing
+ * (see motion/TowerScene). Desktop pins both columns; phones show the pitch,
+ * then the climb full-bleed.
  *
- * Server component. WCAG: primary CTA (/play, the free climb) is void text on
- * signal lime (~15:1); it keeps the global accent focus ring (globals.css).
- * The visualization is decorative (aria-hidden); all meaning lives in the pitch.
- * prefers-reduced-motion disables the staggered reveal + rising-ground motion.
+ * Server component; the motion pieces are client islands. WCAG: primary CTA
+ * (/play, the free climb) is void text on signal lime (~15:1); it keeps the
+ * global accent focus ring (globals.css). The scene is decorative
+ * (aria-hidden); all meaning lives in the pitch. prefers-reduced-motion
+ * disables the letter drop, the pin, the lava chase and the CTA flood.
  */
 
-import Link from "next/link";
-import { ALTITUDE_UNIT, formatAltitude } from "../../lib/units";
+import { Fragment } from "react";
+import { formatAltitude } from "../../lib/units";
+import { AscentTrack } from "./motion/AscentTrack";
+import { LavaLink } from "./motion/LavaLink";
+import { letterDelayMs } from "./motion/landingMotion";
 
-// DuelViz — decorative 1v1 visualization for the hero right column.
-// aria-hidden; all meaning lives in the left-column pitch text.
-function DuelViz() {
-  return (
-    <div
-      className="sheen relative w-full rounded-2xl border border-border-strong bg-surface/80 shadow-lifted overflow-hidden"
-      aria-hidden="true"
-    >
-      {/* survey grid backdrop */}
-      <div className="absolute inset-0 survey-grid opacity-60" />
+const HEADLINE: { text: string; ember?: boolean }[][] = [
+  [{ text: "CLIMB." }],
+  [{ text: "OR" }, { text: "GET" }],
+  [{ text: "BURIED.", ember: true }],
+];
 
-      {/* header — instrument readout */}
-      <div className="relative flex items-center justify-between border-b border-border-subtle px-4 py-3">
-        <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-secondary">
-          <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" />
-          Live 1v1 · same tower
-        </span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ember">
-          ▲ lava rising
-        </span>
-      </div>
+/** The headline as one string: the h1's accessible name, since its letters are split into boxes. */
+export const HEADLINE_TEXT = HEADLINE.map((words) => words.map((w) => w.text).join(" ")).join(" ");
 
-      <div className="relative px-4 py-5 space-y-3">
-        {/* Player A — leading */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-              You
-            </span>
-            <span className="font-mono text-[11px] tabular-nums text-signal font-semibold">
-              312{ALTITUDE_UNIT}
-            </span>
-          </div>
-          <div className="relative h-7 rounded-lg overflow-hidden bg-elevated border border-signal/20">
-            <div
-              className="animate-climb absolute inset-y-0 left-0 rounded-lg"
-              style={{
-                width: "80%",
-                background: "linear-gradient(90deg, rgb(203 242 77 / 0.28), rgb(203 242 77 / 0.10))",
-                animationDelay: "0ms",
-              }}
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[10px] text-signal font-bold">
-              #1
-            </span>
-          </div>
-        </div>
-
-        {/* Player B — trailing */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-              Opponent
-            </span>
-            <span className="font-mono text-[11px] tabular-nums text-text-secondary">
-              278{ALTITUDE_UNIT}
-            </span>
-          </div>
-          <div className="relative h-7 rounded-lg overflow-hidden bg-elevated border border-border-subtle">
-            <div
-              className="animate-climb absolute inset-y-0 left-0 rounded-lg"
-              style={{
-                width: "65%",
-                background: "linear-gradient(90deg, rgb(168 164 178 / 0.20), rgb(168 164 178 / 0.06))",
-                animationDelay: "90ms",
-              }}
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[10px] text-text-muted">
-              #2
-            </span>
-          </div>
-        </div>
-
-        {/* Lava / ground line */}
-        <div className="relative flex items-center gap-2 py-1">
-          <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ember shrink-0">
-            lava 210{ALTITUDE_UNIT}
+/** Headline letters drop in and stack like blocks (CSS, so it runs before hydration). */
+function StackedHeadline() {
+  return HEADLINE.map((words, line) => {
+    let index = 0;
+    return (
+      <span key={line} className="block" aria-hidden="true">
+        {words.map((w, wi) => (
+          <Fragment key={wi}>
+          {wi > 0 && " "}
+          <span
+            className={"inline-block whitespace-nowrap " + (w.ember ? "molten-text relative" : "")}
+          >
+            {[...w.text].map((ch) => {
+              const i = index++;
+              return (
+                <span
+                  key={i}
+                  className={(w.ember ? "molten-letter" : "block-drop") + " inline-block"}
+                  style={{ animationDelay: w.ember ? `${letterDelayMs(line, i)}ms, 0ms` : `${letterDelayMs(line, i)}ms`, ["--i" as string]: i }}
+                >
+                  {ch}
+                </span>
+              );
+            })}
+            {w.ember && (
+              <span
+                className="molten-underline absolute -bottom-1 left-0 h-1 w-full bg-linear-to-r from-ember to-ember/0"
+                aria-hidden="true"
+              />
+            )}
           </span>
-          <div className="flex-1 h-px bg-linear-to-r from-ember/70 to-ember/10" />
-        </div>
-
-      </div>
-
-      {/* molten ground creeping up from the base */}
-      <div className="ground-gradient animate-groundRise pointer-events-none absolute inset-x-0 bottom-0 h-12" />
-    </div>
-  );
+          </Fragment>
+        ))}
+      </span>
+    );
+  });
 }
 
 export interface HeroStats {
@@ -126,7 +90,7 @@ export function Hero({ stats }: { stats: HeroStats }) {
   return (
     <section
       aria-label="Hero"
-      className="topo relative overflow-hidden px-4 pt-16 pb-14 md:pt-24 md:pb-24"
+      className="topo relative overflow-x-clip px-4 pb-6 md:pb-10"
     >
       {/* atmosphere: signal wash top-left, ember pool bottom */}
       <div
@@ -134,15 +98,15 @@ export function Hero({ stats }: { stats: HeroStats }) {
         aria-hidden="true"
         style={{
           background:
-            "radial-gradient(120% 70% at 15% -10%, rgb(203 242 77 / 0.12), transparent 55%), radial-gradient(90% 60% at 90% 110%, rgb(255 90 44 / 0.10), transparent 60%)",
+            "radial-gradient(120% 40% at 15% -5%, rgb(203 242 77 / 0.12), transparent 55%), radial-gradient(90% 30% at 90% 100%, rgb(255 90 44 / 0.10), transparent 60%)",
         }}
       />
 
-      <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-[1.05fr_0.95fr] gap-10 md:gap-14 items-center">
-        {/* Pitch */}
-        <div className="text-center md:text-left">
+      <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-[1.05fr_0.95fr] gap-6 md:gap-14">
+        {/* Pitch — pinned beside the climb on desktop */}
+        <div className="flex min-h-[calc(100svh-3.5rem)] flex-col justify-center py-10 text-center md:sticky md:top-14 md:h-[calc(100svh-3.5rem)] md:min-h-0 md:py-0 md:text-left">
           <span
-            className="reveal inline-flex items-center gap-2 rounded-full border border-border-strong bg-surface/70 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary"
+            className="reveal inline-flex items-center gap-2 self-center md:self-start rounded-full border border-border-strong bg-surface/70 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.16em] text-text-secondary"
             style={{ animationDelay: "0ms" }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-signal animate-pulse" />
@@ -151,24 +115,15 @@ export function Hero({ stats }: { stats: HeroStats }) {
 
           <h1
             className="reveal font-display text-6xl sm:text-7xl lg:text-8xl text-text-primary mt-6"
-            style={{ animationDelay: "70ms" }}
+            style={{ animationDelay: "0ms" }}
+            aria-label={HEADLINE_TEXT}
           >
-            CLIMB.
-            <br />
-            OR GET
-            <br />
-            <span className="relative inline-block text-ember">
-              BURIED.
-              <span
-                className="absolute -bottom-1 left-0 h-1 w-full bg-linear-to-r from-ember to-ember/0"
-                aria-hidden="true"
-              />
-            </span>
+            <StackedHeadline />
           </h1>
 
           <p
             className="reveal text-lg text-text-secondary max-w-md mx-auto md:mx-0 mt-7 leading-relaxed"
-            style={{ animationDelay: "140ms" }}
+            style={{ animationDelay: "900ms" }}
           >
             <strong className="font-semibold text-text-primary">Doomstack</strong>{" "}
             is a free climbing game. Climb an endless tower before the lava
@@ -178,31 +133,33 @@ export function Hero({ stats }: { stats: HeroStats }) {
 
           <div
             className="reveal flex flex-col sm:flex-row items-center md:items-start gap-3 mt-8"
-            style={{ animationDelay: "210ms" }}
+            style={{ animationDelay: "1000ms" }}
           >
             {/* Primary: the free climb, so "No account. No download." below is
                 true for the button it sits under (duels need an account). */}
-            <Link
+            <LavaLink
               href="/play"
-              className="group w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,transform,scale] hover:brightness-110 active:scale-[0.98] min-h-[52px]"
+              magnetic
+              className="cta-shine group relative overflow-hidden w-full sm:w-auto bg-signal text-void font-semibold rounded-full px-7 py-3.5 text-base inline-flex items-center justify-center gap-2 shadow-signal transition-[filter,scale] hover:brightness-110 active:scale-[0.98] min-h-[52px]"
             >
               Play now, free
               <span className="transition-transform group-hover:translate-x-0.5" aria-hidden="true">
                 →
               </span>
-            </Link>
-            <Link
+            </LavaLink>
+            <LavaLink
               href="/duel"
+              magnetic
               className="w-full sm:w-auto rounded-full border border-border-strong bg-surface/60 px-7 py-3.5 text-base font-medium text-text-primary inline-flex items-center justify-center hover:border-signal/50 hover:bg-surface transition-colors min-h-[44px] min-w-[44px]"
             >
               Start a duel
-            </Link>
+            </LavaLink>
           </div>
 
           {/* The two objections, answered in four words — mockup sub-line. */}
           <p
             className="reveal mt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted"
-            style={{ animationDelay: "245ms" }}
+            style={{ animationDelay: "1080ms" }}
           >
             No account. No download.
           </p>
@@ -212,15 +169,15 @@ export function Hero({ stats }: { stats: HeroStats }) {
           {climbStats.length > 0 && (
             <div
               data-climb-chrome
-              className="reveal climb-reveal mt-8 max-w-md mx-auto md:mx-0"
-              style={{ animationDelay: "280ms" }}
+              className="reveal climb-reveal mt-8 w-full max-w-md mx-auto md:mx-0"
+              style={{ animationDelay: "1150ms" }}
             >
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
                 {climbStats.map((s, i) => (
                   <div
                     key={s.label}
                     className="animate-climbPunch bg-surface px-3 py-2 text-center md:text-left"
-                    style={{ animationDelay: `${i * 90}ms` }}
+                    style={{ animationDelay: `${1150 + i * 90}ms` }}
                   >
                     <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
                       {s.label}
@@ -234,18 +191,22 @@ export function Hero({ stats }: { stats: HeroStats }) {
             </div>
           )}
 
+          {/* Phones: the climb is the next screen down. */}
+          <span
+            className="reveal scroll-cue inline-block self-center mt-8 font-mono text-[11px] uppercase tracking-[0.2em] text-signal md:hidden"
+            style={{ animationDelay: "1300ms" }}
+            aria-hidden="true"
+          >
+            Scroll to climb ↓
+          </span>
+
           {/* The "already climbing? sign in" line lives under the mode cards
               (ChooseYourClimb) — one sign-in ask per screen, at the end of the
               choose-a-mode moment rather than in the middle of the pitch. */}
         </div>
 
-        {/* Visualization — decorative DuelViz, aria-hidden */}
-        <div
-          className="reveal relative"
-          style={{ animationDelay: "180ms" }}
-        >
-          <DuelViz />
-        </div>
+        {/* The climb — decorative, aria-hidden inside */}
+        <AscentTrack />
       </div>
     </section>
   );

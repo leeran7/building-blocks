@@ -1,10 +1,15 @@
 /**
  * Landing page — Doomstack hub (ASCENT design).
  *
- * Composition, in DOM order: Navbar → Hero (pitch + CTAs + stat strip) →
+ * Composition, in DOM order: Navbar → Hero (pitch + CTAs + stat strip, beside
+ * the pinned tower you climb by scrolling) → VelocityMarquee →
  * ChooseYourClimb (three mode cards: Solo /play, 1v1 /duel, Daily /daily) →
- * LeaderboardTeaser (top-3 free climbers) →
- * AboutDoomstack (crawlable SEO prose) → Faq → Footer.
+ * Statement (the rule, lit word by word) → LeaderboardTeaser (top-3 free
+ * climbers) → AboutDoomstack (crawlable SEO prose) → Faq → Footer.
+ *
+ * Motion ("the page is the climb"): the client islands live in
+ * src/components/LandingPage/motion, tuned in motion/landingMotion.ts.
+ * LavaChase keeps the lava following you below the hero.
  *
  * The landing leads with the climb (plan "Doomstack to 8/10", D1/D2): the
  * Hero's one filled bg-signal CTA points at /play; chip duels and cash
@@ -23,6 +28,9 @@ import { Faq, buildFaqs } from "../src/components/LandingPage/Faq";
 import { Navbar } from "../src/components/Navbar";
 import { JsonLd } from "../src/components/JsonLd";
 import { getGlobalClimbStats } from "../src/db/climb";
+import { Statement } from "../src/components/LandingPage/Statement";
+import { VelocityMarquee } from "../src/components/LandingPage/motion/VelocityMarquee";
+import { LavaChase } from "../src/components/LandingPage/motion/LavaChase";
 import { AboutDoomstack } from "../src/components/LandingPage/AboutDoomstack";
 import { organizationJsonLd, websiteJsonLd, videoGameJsonLd } from "../src/lib/seo";
 
@@ -45,15 +53,20 @@ export default async function HomePage() {
   return (
     <main id="main-content" className="grain min-h-screen bg-void">
       <JsonLd data={[organizationJsonLd(), websiteJsonLd(), videoGameJsonLd(), faqJsonLd]} />
+      <LavaChase />
       <Navbar />
 
       <Hero
         stats={{ climberCount: climbStats.climberCount, topPeak: climbStats.topPeak }}
       />
 
+      <VelocityMarquee />
+
       {/* Mode index sits immediately under the hero: headline → CTA →
           "choose your climb" is the whole first-screen story. */}
       <ChooseYourClimb />
+
+      <Statement />
 
       {/* Top-3 free climbers, plus the one link to the paid modes when on. */}
       <LeaderboardTeaser />

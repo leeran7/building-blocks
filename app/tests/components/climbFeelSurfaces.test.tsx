@@ -15,6 +15,9 @@ vi.mock("../../src/hooks/useCoarsePointer", () => ({
   useCoarsePointer: vi.fn(() => false),
 }));
 
+// The hero CTAs are LavaLinks, which navigate with the app router after the flood.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 vi.mock("../../src/db/climb", () => ({
   topFreeClimbers: vi.fn(),
 }));
