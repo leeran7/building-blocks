@@ -396,6 +396,12 @@ export interface RetryPanelProps {
   onRetry: () => void;
   /** Extra actions under Try again (e.g. Sign out, Play Endless). */
   children?: ReactNode;
+  /**
+   * A failure inside a screen that still has other content (a card, a banner):
+   * no top gap, and a secondary button so it doesn't outrank the screen's own
+   * primary action.
+   */
+  inline?: boolean;
 }
 
 /**
@@ -406,9 +412,15 @@ export interface RetryPanelProps {
  * failure again. `aria-disabled` rather than `disabled` while busy: disabling
  * the focused button would drop focus to <body>.
  */
-export function RetryPanel({ message, retrying, attempts, onRetry, children }: RetryPanelProps) {
+export function RetryPanel({ message, retrying, attempts, onRetry, children, inline = false }: RetryPanelProps) {
   return (
-    <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-4 px-2 pb-6 pt-12 text-center">
+    <div
+      className={
+        inline
+          ? "flex w-full flex-col items-center gap-3 py-2 text-center"
+          : "mx-auto flex w-full max-w-xs flex-col items-center gap-4 px-2 pb-6 pt-12 text-center"
+      }
+    >
       <p role="alert" key={attempts} className="text-body leading-relaxed text-text-secondary">
         {message}
       </p>
@@ -421,7 +433,7 @@ export function RetryPanel({ message, retrying, attempts, onRetry, children }: R
           void tapLight();
           onRetry();
         }}
-        className={cx(buttonClass("primary", true), "aria-disabled:opacity-60")}
+        className={cx(buttonClass(inline ? "secondary" : "primary", !inline), "aria-disabled:opacity-60")}
       >
         {retrying ? "Retrying…" : "Try again"}
       </button>

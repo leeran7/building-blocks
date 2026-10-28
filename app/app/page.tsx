@@ -3,7 +3,7 @@
  *
  * Composition, in DOM order: Navbar → Hero (pitch + CTAs + stat strip, beside
  * the pinned tower you climb by scrolling) → VelocityMarquee →
- * ChooseYourClimb (three mode cards: Solo /play, 1v1 /duel, Daily /daily) →
+ * ChooseYourClimb (three mode cards: Endless /play, 1v1 /duel, Daily /daily) →
  * Statement (the rule, lit word by word) → LeaderboardTeaser (top-3 free
  * climbers) → AboutDoomstack (crawlable SEO prose) → Faq → Footer.
  *

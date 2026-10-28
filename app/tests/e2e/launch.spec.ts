@@ -16,7 +16,7 @@ test("landing page renders the hero and free-duel social proof", async ({ page }
 test("/rules explains the free climb and 1v1 paid battles", async ({ page }) => {
   await page.goto("/rules");
   const body = page.locator("body");
-  await expect(body).toContainText("Endless");
+  await expect(page.getByRole("heading", { name: "Endless" })).toBeVisible();
   await expect(body).toContainText("1v1 paid battles");
   // The winner-takes-the-pot rule, driven by the real rake config.
   await expect(body).toContainText("payout");

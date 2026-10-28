@@ -243,7 +243,7 @@ function WaitingLobby({
                   onClick={onLeave}
                   className="text-text-muted text-xs underline underline-offset-2"
                 >
-                  Back to duels
+                  Back to 1v1
                 </button>
               </div>
             )}
@@ -1171,7 +1171,7 @@ export function DuelRoom({ duelId }: DuelRoomProps) {
           href="/duel"
           className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
         >
-          Back to duels
+          Back to 1v1
         </Link>
       </div>
     );

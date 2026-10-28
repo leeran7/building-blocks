@@ -1,5 +1,5 @@
 /**
- * /rules — how Doomstack works: levels, the Daily Climb, the free climb, free
+ * /rules — how Doomstack works: levels, the Daily Climb, Endless, free
  * 1v1, chip duels, and (once they open) tournaments.
  */
 
@@ -81,7 +81,7 @@ export default function RulesPage() {
             </p>
           </section>
 
-          {/* Free climb */}
+          {/* Endless */}
           <section className="mb-8">
             <SectionHeading>Endless</SectionHeading>
             <p className="text-text-secondary text-sm mb-2">

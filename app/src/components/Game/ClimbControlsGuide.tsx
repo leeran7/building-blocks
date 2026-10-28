@@ -15,7 +15,7 @@ import {
 } from "../../game/powerups";
 import { PowerUpTypeIcon } from "./PowerUpTypeIcon";
 
-type Variant = "card" | "compact" | "overlay";
+type Variant = "card" | "compact" | "overlay" | "hint";
 
 const KEYBOARD_CONTROLS = [
   {
@@ -52,6 +52,13 @@ const TOUCH_CONTROLS: Record<
   ],
 };
 
+/** One line for a small screen, where the overlay card would push Start off. */
+const HINT: Record<ControlScheme | "keyboard", string> = {
+  keyboard: "← → move · Space jump · ↑ ↓ on ladders",
+  buttons: "Hold ← → to move · tap Jump · hold ↑ on ladders",
+  joystick: "Drag the stick to move · tap Jump · push up on ladders",
+};
+
 const TIPS = [
   "Grab a ladder and climb to go faster than jumping floor to floor.",
   "The lava surges, then stumbles — use the slow windows to climb; your peak height is your score.",
@@ -76,6 +83,15 @@ export function ClimbControlsGuide({
   const touch = useCoarsePointer();
   const [scheme] = useControlScheme();
   const touchControls = TOUCH_CONTROLS[scheme];
+
+  if (variant === "hint") {
+    return (
+      <p className="text-sm leading-snug text-text-secondary">
+        <span className="sr-only">{touch ? "Touch controls: " : "Controls: "}</span>
+        {HINT[touch ? scheme : "keyboard"]}
+      </p>
+    );
+  }
 
   if (variant === "compact") {
     return (

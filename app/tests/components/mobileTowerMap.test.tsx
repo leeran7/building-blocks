@@ -383,6 +383,35 @@ describe("tower map", () => {
     expect(railButtons()).toEqual(["Daily Climb", "Versus", "Ranks"]);
   });
 
+  it("keeps the failed map's Try again mounted and focused while it retries", async () => {
+    const client = memoryClient();
+    let answer: (() => void) | null = null;
+    let calls = 0;
+    client.getSeason = () => {
+      calls++;
+      if (calls === 1) return Promise.reject(new Error("down"));
+      return new Promise((_, reject) => {
+        answer = () => reject(new Error("still down"));
+      });
+    };
+    await renderMap(client, (el) => createElement(AppDataProvider, null, el));
+    const button = (label: string) =>
+      Array.from(container.querySelectorAll("button")).find((b) => b.textContent === label);
+    const retry = button("Try again")!;
+    retry.focus();
+    const firstAlert = container.querySelector('[role="alert"]');
+    await act(async () => retry.click());
+    expect(button("Retrying…")).toBe(retry);
+    expect(document.activeElement).toBe(retry);
+    expect(container.textContent).not.toContain("Loading levels");
+
+    await act(async () => answer!());
+    await settle();
+    expect(button("Try again")).toBe(retry);
+    expect(document.activeElement).toBe(retry);
+    expect(container.querySelector('[role="alert"]')).not.toBe(firstAlert);
+  });
+
   it("keeps a Quick Play search running when the level map loads behind it", async () => {
     const client = memoryClient();
     const realSeason = client.getSeason.bind(client);

@@ -239,6 +239,43 @@ describe("controls guide", () => {
   });
 });
 
+describe("controls hint (the lobby below sm)", () => {
+  it("is one line naming the chosen touch layout, or the keys on a keyboard", () => {
+    const realMatchMedia = window.matchMedia;
+    let coarse = true;
+    window.matchMedia = ((query: string) => ({
+      matches: coarse && query === "(pointer: coarse)",
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    const mount = () =>
+      act(() => {
+        root.render(
+          createElement("div", null,
+            createElement(ControlSchemePicker, { labelledBy: "x" }),
+            createElement("div", { id: "hint" }, createElement(ClimbControlsGuide, { variant: "hint" }))
+          )
+        );
+      });
+    const hint = () => container.querySelector("#hint")!;
+    try {
+      mount();
+      expect(hint().querySelectorAll("p")).toHaveLength(1);
+      expect(hint().textContent).toBe("Touch controls: Hold ← → to move · tap Jump · hold ↑ on ladders");
+      act(() => radio("Joystick").click());
+      expect(hint().textContent).toContain("Drag the stick");
+
+      act(() => root.render(createElement("div")));
+      coarse = false;
+      mount();
+      expect(hint().textContent).toBe("Controls: ← → move · Space jump · ↑ ↓ on ladders");
+    } finally {
+      window.matchMedia = realMatchMedia;
+    }
+  });
+});
+
 describe("in-game settings cog", () => {
   function stubPointer(coarse: boolean) {
     const real = window.matchMedia;

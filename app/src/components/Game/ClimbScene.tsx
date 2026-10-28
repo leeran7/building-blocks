@@ -560,10 +560,13 @@ export function ClimbScene({
                 </p>
               </>
             )}
-            {/* Below sm the card would push Start out of the panel; the page's
-                own Controls section under the game covers it there. */}
+            {/* Below sm the card would push Start out of the panel, so a phone
+                gets the one-line hint instead. */}
             <div className="hidden sm:block">
               <ClimbControlsGuide variant="overlay" />
+            </div>
+            <div className="sm:hidden">
+              <ClimbControlsGuide variant="hint" />
             </div>
             <StartButton onClick={handleStart} label="Start climb" blockedLabel={startBlockedLabel} />
           </Overlay>

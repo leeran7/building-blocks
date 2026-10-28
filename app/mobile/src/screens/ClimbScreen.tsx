@@ -104,6 +104,11 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const [dailyInfo, setDailyInfo] = useState<DailyInfo | null>(null);
   const [dailyInfoFailed, setDailyInfoFailed] = useState(false);
   const [dailyInfoAttempt, setDailyInfoAttempt] = useState(0);
+  // A Try again is in flight: the offline panel stays up (so its button keeps
+  // focus) until the answer lands, instead of flashing to "Loading…".
+  const [dailyRetrying, setDailyRetrying] = useState(false);
+  // Counts failed answers, so each one re-announces the offline alert.
+  const [dailyFailures, setDailyFailures] = useState(0);
   // When the current answer was requested: it is stale once the server's
   // reset falls between that and a new start (RV-DC-3).
   const dailyRequestedAt = useRef(0);
@@ -117,11 +122,13 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     setDailyInfoFailed(false);
     void fetchDailyInfo().then((info) => {
       if (cancelled) return;
+      setDailyRetrying(false);
       if (info) {
         dailyRequestedAt.current = requestedAt;
         setDailyInfo(info);
       } else {
         setDailyInfoFailed(true);
+        setDailyFailures((n) => n + 1);
         setStartWhenReady(false);
       }
     });
@@ -132,7 +139,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const seed = isDaily ? dailyInfo?.seed : undefined;
   const dailyLobby: "ready" | "loading" | "offline" = !isDaily || dailyInfo
     ? "ready"
-    : dailyInfoFailed
+    : dailyInfoFailed || dailyRetrying
       ? "offline"
       : "loading";
 
@@ -470,8 +477,11 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             )}
             {dailyLobby === "offline" && (
               <DailyOffline
+                retrying={dailyRetrying}
+                attempts={dailyFailures}
                 onRetry={() => {
-                  void tapLight();
+                  // RetryPanel already gives the tap its haptic.
+                  setDailyRetrying(true);
                   setDailyInfoAttempt((n) => n + 1);
                 }}
                 onPlayEndless={() => {
@@ -556,12 +566,22 @@ function Overlay({ children }: { children: React.ReactNode }) {
  * The daily's seed comes only from the server, so with no connection the
  * daily cannot start. Say so, and offer a retry or an endless run instead.
  */
-function DailyOffline({ onRetry, onPlayEndless }: { onRetry: () => void; onPlayEndless: () => void }) {
+function DailyOffline({
+  retrying,
+  attempts,
+  onRetry,
+  onPlayEndless,
+}: {
+  retrying: boolean;
+  attempts: number;
+  onRetry: () => void;
+  onPlayEndless: () => void;
+}) {
   return (
     <RetryPanel
       message="Can’t load today’s tower. Check your connection and try again."
-      retrying={false}
-      attempts={0}
+      retrying={retrying}
+      attempts={attempts}
       onRetry={onRetry}
     >
       <Button variant="ghost" onPress={onPlayEndless}>

@@ -1,5 +1,5 @@
 /**
- * Free climb play page — /play
+ * Endless play page — /play
  *
  * The standalone free endless climb game. Scores feed the single /climb
  * leaderboard — not any paid category stack.
@@ -15,7 +15,7 @@ import { buildMetadata } from "../../src/lib/seo";
 export const metadata: Metadata = buildMetadata({
   title: "Play Endless — Doomstack",
   description:
-    "Endless climb — go as high as you can before the rising lava catches you. Your peak height ranks on the free leaderboard.",
+    "Climb an endless tower as high as you can before the rising lava catches you. Your peak height ranks on the Endless leaderboard.",
   path: "/play",
 });
 

@@ -65,7 +65,7 @@ Glossary (one word, one meaning, on the web and in the app):
 | Doomstack | Stack | The game and the company name in copy |
 | Level | stage, floor | A tower on the level map |
 | Tier | level, rank (for XP) | The XP ladder (`XP_TIER` in `mobile/src/lib/levels/terms.ts`) |
-| Endless | Free climb, Solo, Endless climb (as a name) | The solo mode on a fresh endless tower, with one all-time leaderboard (Leeran, 2026-10-28) |
+| Endless | Free climb, Solo | The solo mode on a fresh endless tower, with one all-time leaderboard (Leeran, 2026-10-28) |
 | Daily Climb | Daily challenge | The one tower everyone gets each UTC day ("Daily" on a short tab) |
 | 1v1 | versus match | A head-to-head race (Versus is the app's entry sheet) |
 | Try again | Retry, Reload | The button on a failed load |

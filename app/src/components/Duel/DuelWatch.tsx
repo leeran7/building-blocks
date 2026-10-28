@@ -98,6 +98,8 @@ export function DuelWatch({ duelId }: { duelId: string }) {
   const lastTsRef = useRef(0);
   const tickRef = useRef(0);
   const playingRef = useRef(false);
+  // Set only by Pause, so togglePause can tell a paused replay from a done one.
+  const pausedRef = useRef(false);
 
   // Responsive stage so the replay canvas fills the column (and the screen in
   // full screen) instead of a fixed 360×600 box.
@@ -168,6 +170,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
       lastTsRef.current = 0;
       tickRef.current = 0;
       playingRef.current = true;
+      pausedRef.current = false;
       setPaused(false);
       setWatchPhase("playing");
 
@@ -223,6 +226,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
             renderRef.current = { state: cur, prev: null, stepTs: 0 };
             setState({ ...cur, players: cur.players.map((p) => ({ ...p })) });
             setWatchPhase("done");
+            cancelAnimationFrame(rafRef.current);
             return;
           }
 
@@ -234,6 +238,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
             renderRef.current = { state: cur, prev: null, stepTs: 0 };
             setState({ ...cur, players: cur.players.map((p) => ({ ...p })) });
             setWatchPhase("done");
+            cancelAnimationFrame(rafRef.current);
             return;
           }
         }
@@ -283,13 +288,30 @@ export function DuelWatch({ duelId }: { duelId: string }) {
   const togglePause = useCallback(() => {
     if (playingRef.current) {
       playingRef.current = false;
+      pausedRef.current = true;
       setPaused(true);
-    } else {
+    } else if (pausedRef.current) {
       lastTsRef.current = 0;
+      pausedRef.current = false;
       playingRef.current = true;
       setPaused(false);
     }
   }, []);
+
+  // Space pauses too, so it works in full screen where the button is hidden.
+  // A focused control handles its own Space press.
+  useEffect(() => {
+    if (watchPhase !== "playing") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || e.repeat) return;
+      const t = e.target;
+      if (t instanceof Element && t.closest("button, a, input, textarea, select, [contenteditable]")) return;
+      e.preventDefault();
+      togglePause();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [watchPhase, togglePause]);
 
   const handleCopyLink = useCallback(async () => {
     const url = buildDuelWatchUrl(duelId, window.location.origin);
@@ -360,11 +382,14 @@ export function DuelWatch({ duelId }: { duelId: string }) {
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
               replay
             </span>
-            {watchPhase === "playing" && (
+            {watchPhase === "playing" && !paused && (
               <span className="flex items-center gap-1 font-mono text-xs text-ember">
                 <span className="w-1.5 h-1.5 rounded-full bg-ember motion-safe:animate-pulse" aria-hidden="true" />
                 LIVE
               </span>
+            )}
+            {watchPhase === "playing" && paused && (
+              <span className="font-mono text-xs text-text-muted">PAUSED</span>
             )}
           </div>
         </div>

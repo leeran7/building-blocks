@@ -18,7 +18,7 @@ const runtime = createCrazyGamesRuntime({
   onPauseChange: noopPlatform.onPauseChange,
 });
 
-/** CrazyGames: endless Free Climb only, the CrazyGames SDK v3, midgame ads. */
+/** CrazyGames: Endless only, the CrazyGames SDK v3, midgame ads. */
 export const targetConfig: TargetConfig = {
   id: "crazygames",
   name: "Doomstack",

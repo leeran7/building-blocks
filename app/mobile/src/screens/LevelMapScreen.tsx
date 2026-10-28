@@ -285,18 +285,31 @@ export function LevelMapScreen() {
     navigate("/climb");
   }, [navigate]);
 
+  // refresh() clears `error` while it runs; without this the panel unmounted
+  // for "Loading levels…" and Try again lost focus. `retries` re-mounts the
+  // alert after each answer, so a second failure is announced again.
+  const [retrying, setRetrying] = useState(false);
+  const [retries, setRetries] = useState(0);
+  const retryMap = useCallback(() => {
+    setRetrying(true);
+    void refresh().finally(() => {
+      setRetrying(false);
+      setRetries((n) => n + 1);
+    });
+  }, [refresh]);
+
   if (!season) {
     return (
       // The rail stands at the right edge; the right padding keeps the error
       // and its buttons clear of it on a 320 px phone.
       <main className={`relative flex h-full flex-col items-center justify-center gap-4 text-center ${showRail ? "pl-4 pr-24" : "px-6"}`}>
         <h1 className="sr-only">Level map</h1>
-        {error && !loading ? (
+        {(error && !loading) || retrying ? (
           <RetryPanel
             message="Couldn’t load the level map. Check your connection and try again."
-            retrying={false}
-            attempts={0}
-            onRetry={() => void refresh()}
+            retrying={retrying}
+            attempts={retries}
+            onRetry={retryMap}
           >
             <Button variant="ghost" onPress={openPractice}>Play Endless</Button>
           </RetryPanel>

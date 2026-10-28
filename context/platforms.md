@@ -25,7 +25,7 @@ feature table is checked against each `config.ts` by
 | `app` | on | on | on | on | on | on |
 | `crazygames` | off | off | off | off | off | off |
 
-The CrazyGames root renders `PortalApp` (endless Free Climb only) and never
+The CrazyGames root renders `PortalApp` (Endless only) and never
 imports the app's screens, so online features never ship in that bundle.
 
 ## Constraints per platform

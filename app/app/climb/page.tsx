@@ -12,9 +12,9 @@ import { topFreeClimbers } from "../../src/db/climb";
 import { buildMetadata } from "../../src/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Free Climb Leaderboard — Doomstack",
+  title: "Endless Leaderboard — Doomstack",
   description:
-    "The free endless climb leaderboard. Play for practice and bragging rights — your best peak height is your rank.",
+    "The Endless leaderboard. Climb a fresh tower for free and for bragging rights — your best peak height is your rank.",
   path: "/climb",
 });
 
@@ -35,10 +35,10 @@ export default async function FreeClimbPage() {
 
   return (
     <FreeStackShell section="leaderboard" title="Global leaderboard">
-      {/* H1 drops "Free climb": the navbar breadcrumb ("Free climb") and the
-          eyebrow ("Free climb · no payment") already carry it, so repeating it a
-          third time in the top ~100px was redundant. The <title> metadata keeps
-          the full "Free Climb Leaderboard" phrase for search. */}
+      {/* H1 drops "Endless": the navbar breadcrumb and the eyebrow already
+          carry it, so repeating it a third time in the top ~100px was
+          redundant. The <title> metadata keeps the full "Endless Leaderboard"
+          phrase for search. */}
       <ClimbPanelIntro title="Global leaderboard" />
       <ClimbBoard climbers={climbers ?? []} unavailable={climbers === null} />
       <ClimbAbout />

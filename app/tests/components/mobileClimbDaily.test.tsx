@@ -428,6 +428,30 @@ describe("ClimbScreen daily lobby: the seed comes only from the server (SEC-DC-3
     expect(buttonByText("Start daily")).toBeTruthy();
   });
 
+  it("offline: the panel stays up while Try again is in flight, so its button keeps focus", async () => {
+    net.info = null;
+    await mountDaily();
+    const retry = buttonByText("Try again")!;
+    retry.focus();
+    net.holdInfo = true;
+    await click(retry);
+    // Same element, now busy: not swapped for the "Loading…" line.
+    expect(buttonByText("Retrying…")).toBe(retry);
+    expect(retry.getAttribute("aria-busy")).toBe("true");
+    expect(document.activeElement).toBe(retry);
+    expect(text()).not.toContain("Loading today’s tower");
+
+    // It fails again: the same button is back, and the alert is said again.
+    const firstAlert = container!.querySelector('[role="alert"]');
+    await act(async () => net.heldInfo.shift()!());
+    await settle();
+    expect(buttonByText("Try again")).toBe(retry);
+    expect(document.activeElement).toBe(retry);
+    const alert = container!.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain("Can’t load today’s tower");
+    expect(alert).not.toBe(firstAlert);
+  });
+
   it("offline: Play endless instead opens an endless climb", async () => {
     net.info = null;
     await mountDaily();
