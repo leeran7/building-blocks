@@ -57,6 +57,18 @@ interface ReplayData {
 
 type WatchPhase = "loading" | "ready" | "playing" | "done" | "error";
 
+interface WatchError {
+  title: string;
+  message: string;
+}
+
+/** What the replay page says for each way loading it can fail. */
+const REPLAY_ERRORS = {
+  gone: { title: "Replay not found", message: "This duel is gone, or the link is mistyped." },
+  unfinished: { title: "This duel hasn't finished yet", message: "The replay is ready once both climbers have finished." },
+  failed: { title: "Couldn't load this replay", message: "Check your connection and try again." },
+} satisfies Record<string, WatchError>;
+
 const TICK_DT_MS = (1 / 30) * 1000;
 
 /**
@@ -72,7 +84,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
   const [watchPhase, setWatchPhase] = useState<WatchPhase>("loading");
   const [replayData, setReplayData] = useState<ReplayData | null>(null);
   const [state, setState] = useState<MatchState | null>(null);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [error, setError] = useState<WatchError>(REPLAY_ERRORS.failed);
   const [linkCopied, setLinkCopied] = useState(false);
 
   const stateRef = useRef<MatchState | null>(null);
@@ -107,8 +119,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
     fetch(`/api/duel/${duelId}/replay`)
       .then(async (r) => {
         if (!r.ok) {
-          const body = (await r.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? "Replay not found");
+          throw r.status === 404 ? REPLAY_ERRORS.gone : r.status === 409 ? REPLAY_ERRORS.unfinished : REPLAY_ERRORS.failed;
         }
         return r.json() as Promise<ReplayData>;
       })
@@ -117,7 +128,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
         setWatchPhase("ready");
       })
       .catch((err) => {
-        setErrorMsg(err instanceof Error ? err.message : "Could not load replay");
+        setError(Object.values(REPLAY_ERRORS).includes(err) ? (err as WatchError) : REPLAY_ERRORS.failed);
         setWatchPhase("error");
       });
   }, [duelId]);
@@ -296,8 +307,8 @@ export function DuelWatch({ duelId }: { duelId: string }) {
 
   if (watchPhase === "error") {
     return (
-      <StatusPage contextLabel="1v1" eyebrow="Replay" title="Couldn't load this replay" primary={{ label: "Go to 1v1", href: DUEL_HREF }}>
-        <p>{errorMsg}</p>
+      <StatusPage contextLabel="1v1" eyebrow="Replay" title={error.title} primary={{ label: "Go to 1v1", href: DUEL_HREF }}>
+        <p>{error.message}</p>
       </StatusPage>
     );
   }

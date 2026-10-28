@@ -27,7 +27,7 @@ const GHOST =
 
 export function Navbar({ contextLabel, contextDot }: NavbarProps) {
   return (
-    <nav className="sticky top-0 z-30 h-14 bg-void/80 backdrop-blur-md border-b border-border-subtle px-4 md:px-6 flex items-center justify-between">
+    <nav className="sticky top-0 z-30 h-14 bg-void/80 backdrop-blur-md border-b border-border-subtle px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2">
       <div className="flex items-center gap-3 min-w-0">
         <Link
           href="/"
@@ -36,7 +36,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
         >
           <Wordmark
             decorative
-            className="h-8 w-auto group-hover:scale-105 transition-transform"
+            className="h-6 sm:h-8 w-auto group-hover:scale-105 transition-transform"
           />
         </Link>
         {contextLabel && (

@@ -154,7 +154,8 @@ export async function overflowFindings(page: Page): Promise<Finding[]> {
  */
 export async function stretchFindings(page: Page, max = 720): Promise<Finding[]> {
   return page.evaluate((max) => {
-    const isScrim = (el: HTMLElement) => el.tabIndex === -1 && (el.textContent ?? "").trim() === "";
+    const isScrim = (el: HTMLElement) =>
+      el.tagName === "BUTTON" && el.getAttribute("tabindex") === "-1" && (el.textContent ?? "").trim() === "";
     return Array.from(document.querySelectorAll<HTMLElement>("button, a[href], [role=button]"))
       .filter((el) => el.getBoundingClientRect().width > max && !isScrim(el))
       .map((el) => ({

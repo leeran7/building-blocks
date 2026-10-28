@@ -97,6 +97,46 @@ describe("ChallengeScreen load failure", () => {
     expect(container.textContent).toContain("No friends yet");
   });
 
+  it("shows Retrying until every list has answered, and ignores taps meanwhile", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    act(() => {
+      root = createRoot(container);
+      root.render(createElement(MemoryRouter, null, createElement(ChallengeScreen)));
+    });
+    await flush();
+
+    // The reload hangs: the button stays busy and a second tap does nothing.
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(() => new Promise<Response>(() => {}));
+    await act(async () => {
+      buttons("Try again")[0].click();
+    });
+    await flush();
+    expect(buttons("Try again")).toHaveLength(0);
+    const busy = buttons("Retrying…");
+    expect(busy).toHaveLength(1);
+    expect(busy[0].getAttribute("aria-busy")).toBe("true");
+    await act(async () => {
+      busy[0].click();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("offers Try again again once a retry has failed", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    act(() => {
+      root = createRoot(container);
+      root.render(createElement(MemoryRouter, null, createElement(ChallengeScreen)));
+    });
+    await flush();
+    await act(async () => {
+      buttons("Try again")[0].click();
+    });
+    await flush();
+    expect(alerts()).toHaveLength(1);
+    expect(buttons("Try again")).toHaveLength(1);
+  });
+
   it("keeps the error up while one list still fails", async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) =>
       new URL(String(input)).pathname === "/api/friends" ? Promise.resolve(jsonResponse({}, 500)) : emptyAccount(input),

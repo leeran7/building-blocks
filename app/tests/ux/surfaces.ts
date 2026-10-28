@@ -85,8 +85,6 @@ const WEB_PAGES: [route: string, h1: RegExp][] = [
   ["/terms", /^terms of service$/i],
   ["/privacy", /^privacy policy$/i],
   ["/beta", /^join the beta$/i],
-  // Signed out, as the checks run: the sign-in state.
-  ["/account/payout", /^tournament payouts$/i],
   ["/auth/verify-email", /^check your inbox$/i],
 ];
 
@@ -97,6 +95,14 @@ export const WEB_SURFACES: Surface[] = [
     route,
     ready: heading(h1),
   })),
+  // Signed out, as the checks run: ready once the sign-in state (not the
+  // loading state, which has the same h1) is up.
+  {
+    id: "account-payout",
+    kind: "web",
+    route: "/account/payout",
+    ready: (page: Page) => page.getByRole("main").getByRole("link", { name: /^sign in$/i }),
+  },
   // Any unknown path: the site's own 404 page.
   { id: "not-found", kind: "web", route: "/no-such-page", status: 404, ready: heading(/^page not found$/i) },
 ];

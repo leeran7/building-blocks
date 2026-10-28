@@ -1,4 +1,3 @@
-// @ts-nocheck — tournaments disabled; remove with the early return when enabling
 import { NextRequest, NextResponse } from "next/server";
 import { TOURNAMENTS_COMING_SOON, TOURNAMENTS_ENABLED } from "../../../../../src/config/tournaments";
 import { requireAuth, AuthError } from "../../../../../src/lib/requireAuth";

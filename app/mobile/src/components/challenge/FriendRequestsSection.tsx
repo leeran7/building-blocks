@@ -37,6 +37,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted, onLoadError }: F
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const onLoadErrorRef = useRef(onLoadError);
+  const requestRef = useRef(0);
   useEffect(() => {
     onLoadErrorRef.current = onLoadError;
   }, [onLoadError]);
@@ -47,10 +48,14 @@ export function FriendRequestsSection({ refreshKey, onAccepted, onLoadError }: F
   const invalidateAppData = useInvalidateAppData();
 
   const fetchRequests = useCallback(async () => {
+    // Only the latest load may report: an older one that fails late must not
+    // bring an error back over a newer success.
+    const request = ++requestRef.current;
     setLoading(true);
     setError(null);
     try {
       const res = await apiFetch("/api/friends/requests");
+      if (request !== requestRef.current) return;
       if (res.ok) {
         const data = (await res.json()) as {
           incoming: FriendRequest[];
@@ -64,6 +69,7 @@ export function FriendRequestsSection({ refreshKey, onAccepted, onLoadError }: F
         onLoadErrorRef.current?.(true);
       }
     } catch {
+      if (request !== requestRef.current) return;
       setError("Network error loading friend requests.");
       onLoadErrorRef.current?.(true);
     }

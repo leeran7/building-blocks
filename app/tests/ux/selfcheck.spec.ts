@@ -123,6 +123,9 @@ test("stretch check reports a button wider than 720 px", async ({ page }) => {
   // A sheet scrim (empty, out of the tab order) is not.
   await set(page, page_('<button aria-label="Close" tabindex="-1" style="position:fixed;inset:0"></button>'));
   expect(await stretchFindings(page)).toEqual([]);
+  // A wide icon-only role=button out of the tab order is still a stretched control.
+  await set(page, page_('<div role="button" tabindex="-1" aria-label="Play" style="width:1300px;height:56px"><svg width="20" height="20"></svg></div>'));
+  expect(await stretchFindings(page)).toHaveLength(1);
   await set(page, CLEAN);
   expect(await stretchFindings(page)).toEqual([]);
 });

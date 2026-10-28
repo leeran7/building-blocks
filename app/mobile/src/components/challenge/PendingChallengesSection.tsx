@@ -49,6 +49,7 @@ export function PendingChallengesSection({ refreshKey, onLoadError }: PendingCha
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const onLoadErrorRef = useRef(onLoadError);
+  const requestRef = useRef(0);
   useEffect(() => {
     onLoadErrorRef.current = onLoadError;
   }, [onLoadError]);
@@ -58,10 +59,14 @@ export function PendingChallengesSection({ refreshKey, onLoadError }: PendingCha
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
   const fetchChallenges = useCallback(async () => {
+    // Only the latest load may report: an older one that fails late must not
+    // bring an error back over a newer success.
+    const request = ++requestRef.current;
     setLoading(true);
     setError(null);
     try {
       const res = await apiFetch("/api/challenge");
+      if (request !== requestRef.current) return;
       if (res.ok) {
         const data = (await res.json()) as ChallengeItem[];
         setChallenges(data);
@@ -71,6 +76,7 @@ export function PendingChallengesSection({ refreshKey, onLoadError }: PendingCha
         onLoadErrorRef.current?.(true);
       }
     } catch {
+      if (request !== requestRef.current) return;
       setError("Network error loading challenges.");
       onLoadErrorRef.current?.(true);
     }

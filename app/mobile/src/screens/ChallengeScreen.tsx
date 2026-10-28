@@ -32,15 +32,24 @@ export function ChallengeScreen() {
   // a failure shows once for the screen instead of three times.
   const [failed, setFailed] = useState<ReadonlySet<LoadPart>>(new Set());
   const [retries, setRetries] = useState(0);
+  // Parts a Try again is still reloading; the button shows busy until all report.
+  const [pending, setPending] = useState<ReadonlySet<LoadPart>>(new Set());
   const reportError = useCallback(
-    (part: LoadPart) => (didFail: boolean) =>
+    (part: LoadPart) => (didFail: boolean) => {
+      setPending((prev) => {
+        if (!prev.has(part)) return prev;
+        const next = new Set(prev);
+        next.delete(part);
+        return next;
+      });
       setFailed((prev) => {
         if (prev.has(part) === didFail) return prev;
         const next = new Set(prev);
         if (didFail) next.add(part);
         else next.delete(part);
         return next;
-      }),
+      });
+    },
     [],
   );
   const [onChallengesError] = useState(() => reportError("challenges"));
@@ -48,6 +57,7 @@ export function ChallengeScreen() {
   const [onFriendsError] = useState(() => reportError("friends"));
   const retryAll = useCallback(() => {
     setRetries((n) => n + 1);
+    setPending(new Set<LoadPart>(["challenges", "requests", "friends"]));
     setFriendsRefreshKey((k) => k + 1);
     setRequestsRefreshKey((k) => k + 1);
     setChallengesRefreshKey((k) => k + 1);
@@ -107,7 +117,7 @@ export function ChallengeScreen() {
           {failed.size > 0 && (
             <RetryPanel
               message="Couldn't load your friends and challenges. Check your connection and try again."
-              retrying={false}
+              retrying={pending.size > 0}
               attempts={retries}
               onRetry={retryAll}
             />
