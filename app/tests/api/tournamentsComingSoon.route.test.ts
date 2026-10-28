@@ -19,10 +19,13 @@ vi.mock("../../src/db/tournaments", () => ({
 }));
 vi.mock("../../src/lib/requireAuth", () => ({ requireAuth: vi.fn(), AuthError: class extends Error {} }));
 vi.mock("../../src/api/stripeConnect", () => ({ createEntryFeeCheckout: vi.fn() }));
+// Loads Firebase Admin on import, which CI has no keys for.
+vi.mock("../../src/db/notification", () => ({ createNotification: vi.fn() }));
 
 import * as db from "../../src/db/tournaments";
 import { requireAuth } from "../../src/lib/requireAuth";
 import { createEntryFeeCheckout } from "../../src/api/stripeConnect";
+import { createNotification } from "../../src/db/notification";
 import { TOURNAMENTS_COMING_SOON } from "../../src/config/tournaments";
 import { GET as list } from "../../app/api/tournaments/route";
 import { GET as detail } from "../../app/api/tournaments/[id]/route";
@@ -58,6 +61,7 @@ describe("tournaments while coming soon", () => {
     for (const fn of Object.values(db)) expect(fn).not.toHaveBeenCalled();
     expect(requireAuth).not.toHaveBeenCalled();
     expect(createEntryFeeCheckout).not.toHaveBeenCalled();
+    expect(createNotification).not.toHaveBeenCalled();
   });
 
   it("renders the coming-soon page on /tournaments and on a tournament link", async () => {
