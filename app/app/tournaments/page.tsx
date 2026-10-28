@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { TournamentList } from "../../src/components/Tournament/TournamentList";
+import { TournamentsComingSoon } from "../../src/components/Tournament/TournamentsComingSoon";
+import { TOURNAMENTS_COMING_SOON } from "../../src/config/tournaments";
 import { resolveRankedEligibility } from "../../src/lib/rankedEligibility";
 import { buildMetadata } from "../../src/lib/seo";
 
@@ -20,6 +22,7 @@ export const metadata: Metadata = buildMetadata({
 export const dynamic = "force-dynamic";
 
 export default async function TournamentsPage() {
+  if (TOURNAMENTS_COMING_SOON) return <TournamentsComingSoon />;
   // Server-authoritative: resolved at request time so the entry-fee picker and
   // "Join queue" never render on an optimistic "available" assumption.
   const { allowed } = resolveRankedEligibility(await headers());

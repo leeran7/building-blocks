@@ -117,6 +117,12 @@ test("overflow check reports sideways scroll", async ({ page }) => {
 test("stretch check reports a button wider than 720 px", async ({ page }) => {
   await set(page, page_('<button style="width:1300px;height:56px">Play</button>'));
   expect(await stretchFindings(page)).toHaveLength(1);
+  // A focusable empty button is still a control, even with no text.
+  await set(page, page_('<button aria-label="Play" style="width:1300px;height:56px"></button>'));
+  expect(await stretchFindings(page)).toHaveLength(1);
+  // A sheet scrim (empty, out of the tab order) is not.
+  await set(page, page_('<button aria-label="Close" tabindex="-1" style="position:fixed;inset:0"></button>'));
+  expect(await stretchFindings(page)).toEqual([]);
   await set(page, CLEAN);
   expect(await stretchFindings(page)).toEqual([]);
 });

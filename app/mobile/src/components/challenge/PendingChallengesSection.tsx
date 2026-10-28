@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { climberDisplay } from "@app/lib/handle";
 import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
@@ -33,16 +33,25 @@ function isExpired(expiresAt: string): boolean {
 }
 
 export interface PendingChallengesSectionProps {
+  /**
+   * Reports whether the last load failed. When given, the parent shows one
+   * error for the whole screen and this section renders nothing on failure.
+   */
+  onLoadError?: (failed: boolean) => void;
   /** Bump this to force a refetch (e.g. after sending a new challenge). */
   refreshKey?: number;
 }
 
 /** Incoming (accept/decline) and outgoing (cancel) in-app challenge invitations. */
-export function PendingChallengesSection({ refreshKey }: PendingChallengesSectionProps = {}) {
+export function PendingChallengesSection({ refreshKey, onLoadError }: PendingChallengesSectionProps = {}) {
   const navigate = useNavigate();
   const [challenges, setChallenges] = useState<ChallengeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const onLoadErrorRef = useRef(onLoadError);
+  useEffect(() => {
+    onLoadErrorRef.current = onLoadError;
+  }, [onLoadError]);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
@@ -56,11 +65,14 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
       if (res.ok) {
         const data = (await res.json()) as ChallengeItem[];
         setChallenges(data);
+        onLoadErrorRef.current?.(false);
       } else {
         setError("Could not load challenges.");
+        onLoadErrorRef.current?.(true);
       }
     } catch {
       setError("Network error loading challenges.");
+      onLoadErrorRef.current?.(true);
     }
     setLoading(false);
   }, []);
@@ -154,11 +166,12 @@ export function PendingChallengesSection({ refreshKey }: PendingChallengesSectio
   }
 
   if (error) {
+    if (onLoadError) return null;
     return (
       <div className="flex flex-col items-center gap-2 py-2" role="alert">
         <p className="text-meta leading-5 text-ember">{error}</p>
         <Button variant="ghost" fullWidth={false} onPress={fetchChallenges}>
-          Retry
+          Try again
         </Button>
       </div>
     );

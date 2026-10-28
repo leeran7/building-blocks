@@ -1,6 +1,6 @@
 // @ts-nocheck — tournaments disabled; remove with the early return when enabling
 import { NextRequest, NextResponse } from "next/server";
-import { TOURNAMENTS_ENABLED } from "../../../../src/config/tournaments";
+import { TOURNAMENTS_COMING_SOON, TOURNAMENTS_ENABLED } from "../../../../src/config/tournaments";
 import { requireAuth, AuthError } from "../../../../src/lib/requireAuth";
 import { checkRateLimit } from "../../../../src/lib/rateLimit";
 import { assertPaidDuelAllowed } from "../../../../src/lib/paidDuelGeo";
@@ -16,8 +16,7 @@ function comingSoon() {
 }
 
 export async function GET() {
-  // Tournaments coming soon — remove this early return to enable
-  return comingSoon();
+  if (TOURNAMENTS_COMING_SOON) return comingSoon();
 
   if (!TOURNAMENTS_ENABLED) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -27,8 +26,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  // Tournaments coming soon — remove this early return to enable
-  return comingSoon();
+  if (TOURNAMENTS_COMING_SOON) return comingSoon();
 
   if (!TOURNAMENTS_ENABLED) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

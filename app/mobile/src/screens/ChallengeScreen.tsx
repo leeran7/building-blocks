@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { shareInvite } from "@app/lib/shareInvite";
 import { apiFetch, API_BASE } from "../lib/api";
 import { parentRoute, useBackOr } from "../lib/navigation";
-import { ScreenHeader, ScreenBody, Card, Button } from "../components/ui";
+import { PushHeader, ScreenBody, Card, Button, RetryPanel } from "../components/ui";
 import { PendingChallengesSection } from "../components/challenge/PendingChallengesSection";
 import { FriendRequestsSection } from "../components/challenge/FriendRequestsSection";
 import { FriendsListSection } from "../components/challenge/FriendsListSection";
 import { UserSearchSection } from "../components/challenge/UserSearchSection";
+
+type LoadPart = "challenges" | "requests" | "friends";
 
 type ShareState =
   | { status: "idle" }
@@ -26,6 +28,30 @@ export function ChallengeScreen() {
   const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
   const [challengesRefreshKey, setChallengesRefreshKey] = useState(0);
   const [shareState, setShareState] = useState<ShareState>({ status: "idle" });
+  // The three lists load separately but fail together (same connection), so
+  // a failure shows once for the screen instead of three times.
+  const [failed, setFailed] = useState<ReadonlySet<LoadPart>>(new Set());
+  const [retries, setRetries] = useState(0);
+  const reportError = useCallback(
+    (part: LoadPart) => (didFail: boolean) =>
+      setFailed((prev) => {
+        if (prev.has(part) === didFail) return prev;
+        const next = new Set(prev);
+        if (didFail) next.add(part);
+        else next.delete(part);
+        return next;
+      }),
+    [],
+  );
+  const [onChallengesError] = useState(() => reportError("challenges"));
+  const [onRequestsError] = useState(() => reportError("requests"));
+  const [onFriendsError] = useState(() => reportError("friends"));
+  const retryAll = useCallback(() => {
+    setRetries((n) => n + 1);
+    setFriendsRefreshKey((k) => k + 1);
+    setRequestsRefreshKey((k) => k + 1);
+    setChallengesRefreshKey((k) => k + 1);
+  }, []);
 
   const handleFriendAccepted = useCallback(() => {
     setFriendsRefreshKey((k) => k + 1);
@@ -75,19 +101,30 @@ export function ChallengeScreen() {
     // Dimmed backdrop: the section headings sit on the scene itself, and over
     // the lava band they measured 1.1-3.3:1 without it.
     <main className="flex h-full flex-col bg-void/75">
-      <ScreenHeader eyebrow="1v1" title="Challenge" onBack={goBack} />
+      <PushHeader title="Challenge" onBack={goBack} />
       <ScreenBody>
         <div className="flex flex-col gap-6 pt-1 pb-4">
-          <PendingChallengesSection refreshKey={challengesRefreshKey} />
+          {failed.size > 0 && (
+            <RetryPanel
+              message="Couldn't load your friends and challenges. Check your connection and try again."
+              retrying={false}
+              attempts={retries}
+              onRetry={retryAll}
+            />
+          )}
+
+          <PendingChallengesSection refreshKey={challengesRefreshKey} onLoadError={onChallengesError} />
 
           <FriendRequestsSection
             refreshKey={requestsRefreshKey}
             onAccepted={handleFriendAccepted}
+            onLoadError={onRequestsError}
           />
 
           <FriendsListSection
             refreshKey={friendsRefreshKey}
             onChallengeSent={handleChallengeSent}
+            onLoadError={onFriendsError}
           />
 
           <UserSearchSection onFriendRequestSent={handleRequestSent} />

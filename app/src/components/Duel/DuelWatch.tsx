@@ -14,6 +14,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Navbar } from "../Navbar";
 import { Spinner } from "../ui/Spinner";
+import { StatusPage } from "../ui/StatusPage";
+import { DUEL_HREF } from "../navLinks";
 import { ClimbCanvas } from "../Game/ClimbCanvas";
 import { FullscreenButton } from "../Game/FullscreenButton";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
@@ -294,18 +296,9 @@ export function DuelWatch({ duelId }: { duelId: string }) {
 
   if (watchPhase === "error") {
     return (
-      <div className="min-h-screen bg-void text-text-primary">
-        <Navbar contextLabel="1v1" />
-        <main id="main-content" className="flex flex-col items-center justify-center gap-4 px-4 text-center pt-24">
-          <p className="text-ember text-base">{errorMsg}</p>
-          <Link
-            href="/duel"
-            className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-          >
-            Back to duels
-          </Link>
-        </main>
-      </div>
+      <StatusPage contextLabel="1v1" eyebrow="Replay" title="Couldn't load this replay" primary={{ label: "Go to 1v1", href: DUEL_HREF }}>
+        <p>{errorMsg}</p>
+      </StatusPage>
     );
   }
 
@@ -331,11 +324,11 @@ export function DuelWatch({ duelId }: { duelId: string }) {
       <main id="main-content" className="flex w-full flex-1 flex-col items-center">
         {/* Header bar */}
         <div className="w-full max-w-md flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle">
-          <div className="font-mono text-xs tabular-nums">
+          <h1 className="font-mono text-xs font-normal tabular-nums">
             <span className="text-signal">{p1Name}</span>
             <span className="text-text-muted mx-1">vs</span>
             <span className="text-[#6bb8ff]">{p2Name}</span>
-          </div>
+          </h1>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
               replay

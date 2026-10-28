@@ -19,6 +19,8 @@ export interface Surface {
   route: string;
   /** App only: who is using the app. */
   user?: AppUser;
+  /** Web only: the HTTP status the page must answer with (default 200). */
+  status?: number;
   open?: (page: Page) => Promise<void>;
   ready: (page: Page) => Locator;
 }
@@ -38,6 +40,8 @@ export const APP_SURFACES: Surface[] = [
   { id: "guest-home", kind: "app", route: "/", user: "guest", ready: button(/^play level 1$/i) },
   { id: "map", kind: "app", route: "/", user: "signed-in", ready: button(/^play level 1$/i) },
   { id: "xp-sheet", kind: "app", route: "/", user: "signed-in", open: tapButton(/^tier \d/i), ready: dialog(/^earn xp$/i) },
+  { id: "versus-sheet", kind: "app", route: "/", user: "signed-in", open: tapButton(/^versus$/i), ready: dialog(/^versus$/i) },
+  { id: "chest-sheet", kind: "app", route: "/", user: "signed-in", open: tapButton(/show your boosters/i), ready: dialog(/^star chest$/i) },
   { id: "level-sheet", kind: "app", route: "/", user: "signed-in", open: tapButton(/^level 1, next to play$/i), ready: dialog(/^level 1$/i) },
   {
     id: "level-intro",
@@ -51,7 +55,7 @@ export const APP_SURFACES: Surface[] = [
     ready: dialog(/^how to climb$/i),
   },
   { id: "endless", kind: "app", route: "/climb", user: "signed-in", ready: heading(/^climb$/i) },
-  { id: "daily", kind: "app", route: "/climb?daily=1", user: "signed-in", ready: heading(/^daily$/i) },
+  { id: "daily", kind: "app", route: "/climb?daily=1", user: "signed-in", ready: heading(/^today.s tower$/i) },
   { id: "training", kind: "app", route: "/tutorial", user: "signed-in", ready: heading(/outclimb the lava/i) },
   { id: "shop", kind: "app", route: "/shop", user: "signed-in", ready: heading(/^shop$/i) },
   { id: "gem-sheet", kind: "app", route: "/shop", user: "signed-in", open: tapButton(/^get gems$/i), ready: dialog(/^get gems$/i) },
@@ -75,20 +79,27 @@ const WEB_PAGES: [route: string, h1: RegExp][] = [
   ["/daily", /^daily climb$/i],
   ["/duel", /^1v1 arena$/i],
   ["/duel/chips", /^chip duels$/i],
-  ["/duel/leaderboard", /^free 1v1$/i],
+  ["/duel/leaderboard", /^1v1 leaderboard$/i],
   ["/tournaments", /^tournaments$/i],
   ["/rules", /^rules$/i],
   ["/terms", /^terms of service$/i],
   ["/privacy", /^privacy policy$/i],
   ["/beta", /^join the beta$/i],
+  // Signed out, as the checks run: the sign-in state.
+  ["/account/payout", /^tournament payouts$/i],
+  ["/auth/verify-email", /^check your inbox$/i],
 ];
 
-export const WEB_SURFACES: Surface[] = WEB_PAGES.map(([route, h1]) => ({
-  id: route === "/" ? "home" : route.slice(1).replaceAll("/", "-"),
-  kind: "web" as const,
-  route,
-  ready: heading(h1),
-}));
+export const WEB_SURFACES: Surface[] = [
+  ...WEB_PAGES.map(([route, h1]) => ({
+    id: route === "/" ? "home" : route.slice(1).replaceAll("/", "-"),
+    kind: "web" as const,
+    route,
+    ready: heading(h1),
+  })),
+  // Any unknown path: the site's own 404 page.
+  { id: "not-found", kind: "web", route: "/no-such-page", status: 404, ready: heading(/^page not found$/i) },
+];
 
 /** The flows in flows.spec.ts, by the id their baseline key uses. */
 export const FLOW_IDS = [

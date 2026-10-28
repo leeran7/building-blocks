@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "./AuthContext";
-import { fetchShop, settleUnfinishedPurchases, watchAppleTransactions, type ShopState } from "../lib/shop";
+import { fetchShop, settleUnfinishedPurchases, ShopError, watchAppleTransactions, type ShopState } from "../lib/shop";
 
 /**
  * The player's gems and owned characters/skins, shared by every Shop screen so
@@ -67,7 +67,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
           if (gems !== null && current()) setShop((s) => (s ? { ...s, gems } : s));
         }
       } catch (err) {
-        if (current()) setError(err instanceof Error ? err.message : "Couldn't load the Shop.");
+        if (current()) setError(err instanceof ShopError ? err.message : "Couldn't load the Shop. Check your connection and try again.");
       } finally {
         if (inFlight.current === run) inFlight.current = null;
         setLoading(false);

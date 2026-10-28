@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { climberDisplay } from "@app/lib/handle";
 import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
 import { apiFetch } from "../../lib/api";
@@ -19,6 +19,11 @@ interface OutgoingRequest {
 }
 
 export interface FriendRequestsSectionProps {
+  /**
+   * Reports whether the last load failed. When given, the parent shows one
+   * error for the whole screen and this section renders nothing on failure.
+   */
+  onLoadError?: (failed: boolean) => void;
   /** Bump this to force a refetch (e.g. after a request is sent from search). */
   refreshKey?: number;
   /** Fired when an incoming request is accepted, so the parent can refresh the friends list. */
@@ -26,11 +31,15 @@ export interface FriendRequestsSectionProps {
 }
 
 /** Incoming (accept/decline) and outgoing (cancel) friend requests. Collapses when empty. */
-export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequestsSectionProps) {
+export function FriendRequestsSection({ refreshKey, onAccepted, onLoadError }: FriendRequestsSectionProps) {
   const [incoming, setIncoming] = useState<FriendRequest[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const onLoadErrorRef = useRef(onLoadError);
+  useEffect(() => {
+    onLoadErrorRef.current = onLoadError;
+  }, [onLoadError]);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
@@ -49,11 +58,14 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
         };
         setIncoming(data.incoming);
         setOutgoing(data.outgoing);
+        onLoadErrorRef.current?.(false);
       } else {
         setError("Could not load friend requests.");
+        onLoadErrorRef.current?.(true);
       }
     } catch {
       setError("Network error loading friend requests.");
+      onLoadErrorRef.current?.(true);
     }
     setLoading(false);
   }, []);
@@ -149,11 +161,12 @@ export function FriendRequestsSection({ refreshKey, onAccepted }: FriendRequests
   }
 
   if (error) {
+    if (onLoadError) return null;
     return (
       <div className="flex flex-col items-center gap-2 py-2" role="alert">
         <p className="text-meta leading-5 text-ember">{error}</p>
         <Button variant="ghost" fullWidth={false} onPress={fetchRequests}>
-          Retry
+          Try again
         </Button>
       </div>
     );

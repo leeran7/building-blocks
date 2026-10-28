@@ -300,7 +300,7 @@ describe("nextStarUnlock / starUnlockCount", () => {
     };
     renderPicker();
     expect(container.querySelector("[data-avatar-next]")?.textContent).toBe("Next: Lynx · 10 stars to unlock");
-    expect(container.querySelector("[data-avatar-pinned]")?.textContent).toContain("1 / 17 unlocked");
+    expect(container.querySelector("[data-avatar-pinned]")?.textContent).toContain("1 / 17 star unlocks");
   });
 
   it("hides the next strip once every star character is unlocked", () => {
@@ -314,7 +314,7 @@ describe("nextStarUnlock / starUnlockCount", () => {
     };
     renderPicker();
     expect(container.querySelector("[data-avatar-next]")).toBeNull();
-    expect(container.querySelector("[data-avatar-pinned]")?.textContent).toContain("17 / 17 unlocked");
+    expect(container.querySelector("[data-avatar-pinned]")?.textContent).toContain("17 / 17 star unlocks");
   });
 });
 

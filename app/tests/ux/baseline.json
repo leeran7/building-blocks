@@ -5,12 +5,6 @@
   "desktop|app-level-intro": {
     "focus/escapes-dialog": 1
   },
-  "desktop|app-level-sheet": {
-    "stretch/wider-than-720px": 1
-  },
-  "desktop|app-xp-sheet": {
-    "stretch/wider-than-720px": 1
-  },
   "phone|flow-app-buy-gems": {
     "flow/taps": 2
   },

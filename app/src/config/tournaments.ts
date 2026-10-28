@@ -10,3 +10,11 @@ export function isValidBracketSize(n: number): n is BracketSize {
 export function totalRounds(bracketSize: number): number {
   return Math.log2(bracketSize);
 }
+
+/**
+ * Tournaments are announced but not open yet. While this is true every
+ * tournament API route answers 503 COMING_SOON, and the /tournaments pages say
+ * "coming soon" instead of asking visitors to sign in and enter. Flip it to
+ * open them; TOURNAMENTS_ENABLED (the paid-modes flag) still applies after.
+ */
+export const TOURNAMENTS_COMING_SOON: boolean = true;

@@ -108,7 +108,7 @@ function VerifyEmailForm() {
         className="relative overflow-hidden bg-surface rounded-2xl border border-border-strong p-8 shadow-lifted edge-signal w-full max-w-sm text-center"
         aria-labelledby="auth-card-title"
       >
-        <p className="text-2xl font-bold text-text-primary mb-6 md:hidden">Stack</p>
+        <p className="text-2xl font-bold text-text-primary mb-6 md:hidden">Doomstack</p>
 
         {isVerified ? (
           // AC-53: Already verified state

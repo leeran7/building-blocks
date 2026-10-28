@@ -11,7 +11,7 @@ import Link from "next/link";
 import { Wordmark } from "../Brand/Wordmark";
 
 const LINK =
-  "text-sm text-text-secondary hover:text-signal transition-colors min-h-[36px] inline-flex items-center";
+  "text-sm text-text-secondary hover:text-signal transition-colors min-h-[44px] inline-flex items-center";
 const COL_HEAD =
   "font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted mb-3";
 
@@ -176,7 +176,7 @@ export function Footer({ showCta = true }: { showCta?: boolean }) {
       <div className="border-t border-border-subtle">
         <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between gap-4">
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
-            © {year} Stack
+            © {year} Doomstack
           </p>
           <p
             className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted"

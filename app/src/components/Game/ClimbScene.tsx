@@ -721,8 +721,10 @@ export function ClimbScene({
 }
 
 function Overlay({ children }: { children: ReactNode }) {
+  // pt-24 keeps tall cards (the lobby on a phone) clear of the height and lava
+  // readouts at the top of the scene, which stay visible under the scrim.
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-xl bg-void/70 backdrop-blur-xs p-4 text-center">
+    <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto rounded-xl bg-void/70 backdrop-blur-xs px-4 pb-4 pt-24 text-center">
       <div className="my-auto flex w-full max-w-sm flex-col items-center py-2">
         {children}
       </div>
