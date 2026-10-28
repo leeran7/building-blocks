@@ -1,6 +1,10 @@
 /**
- * POST /api/gems/checkout { packId } — buy a gem pack with Stripe Checkout
- * (web, and native builds where App Store purchases are unavailable).
+ * POST /api/gems/checkout { packId, returnTo? } — buy a gem pack with Stripe
+ * Checkout (web, and native builds where App Store purchases are unavailable).
+ *
+ * `returnTo: "play"` (the website's app at /play) brings the buyer back there;
+ * anything else returns to the home page. The return URLs are built from the
+ * configured site URL, never from the request.
  *
  * The server prices the session from the pack table (src/lib/gemPacks.ts);
  * the body names only the pack. The webhook (metadata.type = "gem_pack")
@@ -19,7 +23,7 @@ import { checkRateLimit } from "../../../../src/lib/rateLimit";
 import { getStripe } from "../../../../src/api/stripe";
 import { resolveBaseUrl } from "../../../../src/config/public";
 import { formatGems } from "../../../../src/lib/avatars";
-import { gemPackById } from "../../../../src/lib/gemPacks";
+import { checkoutReturnPath, gemPackById } from "../../../../src/lib/gemPacks";
 
 export const runtime = "nodejs";
 
@@ -48,13 +52,15 @@ export const POST = withAuth(async (request: NextRequest, uid: string) => {
   } catch {
     return NextResponse.json({ error: "Invalid JSON", code: "BAD_REQUEST" }, { status: 400 });
   }
-  const pack = gemPackById(typeof body === "object" && body !== null ? (body as { packId?: unknown }).packId : null);
+  const fields = typeof body === "object" && body !== null ? (body as { packId?: unknown; returnTo?: unknown }) : null;
+  const pack = gemPackById(fields?.packId ?? null);
   if (pack === null) {
     return NextResponse.json({ error: "Unknown gem pack", code: "UNKNOWN_PACK" }, { status: 400 });
   }
 
   try {
     const baseUrl = resolveBaseUrl();
+    const returnPath = checkoutReturnPath(fields?.returnTo);
     const session = await getStripe().checkout.sessions.create({
       mode: "payment",
       client_reference_id: uid,
@@ -73,8 +79,8 @@ export const POST = withAuth(async (request: NextRequest, uid: string) => {
         },
       ],
       metadata: { type: "gem_pack", user_id: uid, pack_id: pack.id },
-      success_url: `${baseUrl}/?gems=1`,
-      cancel_url: `${baseUrl}/?gems=0`,
+      success_url: `${baseUrl}${returnPath}?gems=1`,
+      cancel_url: `${baseUrl}${returnPath}?gems=0`,
     });
     return NextResponse.json({ checkoutUrl: session.url });
   } catch (err) {

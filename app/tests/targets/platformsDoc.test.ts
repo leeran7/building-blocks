@@ -12,6 +12,7 @@ const DOC = readFileSync(new URL("../../../context/platforms.md", import.meta.ur
 
 const CONFIGS: Record<TargetId, () => Promise<{ targetConfig: TargetConfig }>> = {
   app: () => import("../../mobile/src/targets/app/config"),
+  web: () => import("../../mobile/src/targets/web/config"),
   crazygames: () => import("../../mobile/src/targets/crazygames/config"),
 };
 

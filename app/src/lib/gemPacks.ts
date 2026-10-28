@@ -103,3 +103,12 @@ export function gemPackByAppleProduct(v: unknown): GemPack | null {
 export function formatUsd(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
+
+/**
+ * Where Stripe Checkout sends a gem buyer back: "/play" (the website's app)
+ * when asked for by name, the home page for anything else. An allow-list, so
+ * a request can never choose an arbitrary return URL.
+ */
+export function checkoutReturnPath(returnTo: unknown): "/" | "/play" {
+  return returnTo === "play" ? "/play" : "/";
+}

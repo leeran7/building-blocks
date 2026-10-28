@@ -7,6 +7,8 @@ import { setVolcanoTileSrc } from "@app/components/Game/climbBackground";
 import volcanoTile from "@app/../public/climb/volcano-tile.jpg";
 import { Capacitor } from "@capacitor/core";
 import { applyBundledClimberSheets } from "./lib/climberSheets";
+import { WEB_BUILD } from "./lib/buildTarget";
+import { webStartRoute } from "./lib/webEntry";
 // Brand fonts ship inside the bundle (no Google Fonts request), so the native
 // app matches the web type and still renders correctly offline.
 import "@fontsource-variable/bricolage-grotesque/wght.css";
@@ -34,6 +36,13 @@ if (!Capacitor.isNativePlatform()) {
   document
     .querySelector('meta[name="viewport"]')
     ?.setAttribute("content", "width=device-width, initial-scale=1.0, viewport-fit=cover");
+}
+
+// The website opens the app on the screen its page is for (/daily, back from
+// Checkout), before the router reads the hash.
+if (WEB_BUILD) {
+  const route = webStartRoute(window.location.pathname, window.location.search, window.location.hash);
+  if (route !== null) window.location.hash = route;
 }
 
 // The host SDK loads before the first render; init() resolves even when the

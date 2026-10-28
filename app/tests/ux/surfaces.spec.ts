@@ -4,9 +4,10 @@
  * count differs from the baseline (lib/baseline.ts): higher is a regression,
  * lower means the baseline must come down with the fix.
  *
- * Minimum hit area: 44 px in the app (Apple HIG, Android 48 dp), 24 px on the
- * web (WCAG 2.2 SC 2.5.8). The keyboard walk runs at desktop size only, where
- * keyboards are used; the zoom check runs at phone sizes only.
+ * Minimum hit area: 44 px in the app and the website pages that run it (Apple
+ * HIG, Android 48 dp), 24 px on the rest of the web (WCAG 2.2 SC 2.5.8). The
+ * keyboard walk runs at desktop size only, where keyboards are used; the zoom
+ * check runs at phone sizes only.
  */
 
 import { test, expect } from "@playwright/test";
@@ -55,12 +56,12 @@ for (const surface of surfaces) {
 
     const findings: Finding[] = [
       ...(await axeFindings(page)),
-      ...(await targetFindings(page, surface.kind === "app" ? 44 : 24)),
+      ...(await targetFindings(page, surface.kind === "app" || surface.webApp ? 44 : 24)),
       ...(await overflowFindings(page)),
       ...(project === "desktop" ? await stretchFindings(page) : []),
       ...(project === "desktop" ? [] : await zoomFindings(page)),
       ...(project === "desktop" ? await focusFindings(page, 20) : []),
-      ...(surface.kind === "web" ? await landmarkFindings(page) : []),
+      ...(surface.kind === "web" && !surface.webApp ? await landmarkFindings(page) : []),
     ];
 
     const key = baselineKey(project, `${surface.kind}-${surface.id}`);

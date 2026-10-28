@@ -214,5 +214,23 @@ describe("POST /api/gems/checkout", () => {
     // Managed Payments refuses a line item without an eligible digital-goods tax code.
     expect(item.product_data!.tax_code).toBe("txcd_10201000");
     expect(params.metadata).toEqual({ type: "gem_pack", user_id: "u1", pack_id: PACK.id });
+    expect(params.success_url).toMatch(/^https?:\/\/[^/]+\/\?gems=1$/);
+    expect(params.cancel_url).toMatch(/^https?:\/\/[^/]+\/\?gems=0$/);
+  });
+
+  it("brings the website's app back to /play, and any other return value home", async () => {
+    const create = vi.fn(async () => ({ url: "https://checkout.stripe.com/c/1" }));
+    vi.mocked(getStripe).mockReturnValue({ checkout: { sessions: { create } } } as unknown as Stripe);
+    const returnsTo = async (returnTo: unknown) => {
+      create.mockClear();
+      await checkoutRoute(authed("/api/gems/checkout", { packId: PACK.id, returnTo }));
+      const params = (create.mock.calls[0] as unknown as [Stripe.Checkout.SessionCreateParams])[0];
+      return [new URL(params.success_url!).pathname, new URL(params.cancel_url!).pathname, new URL(params.success_url!).host];
+    };
+    const [, , host] = await returnsTo(undefined);
+    expect(await returnsTo("play")).toEqual(["/play", "/play", host]);
+    for (const other of ["/play", "https://evil.example/play", "PLAY", ["play"], { toString: () => "play" }, null]) {
+      expect(await returnsTo(other)).toEqual(["/", "/", host]);
+    }
   });
 });

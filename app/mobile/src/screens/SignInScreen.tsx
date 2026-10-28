@@ -6,6 +6,7 @@ import { Button } from "../components/ui";
 import { LogoLockup } from "../components/LogoMark";
 import { PageSwap } from "../components/PageSwap";
 import { GUEST_LEVEL_CAP } from "../lib/levels/guestClient";
+import { WEB_BUILD } from "../lib/buildTarget";
 
 type Mode = "options" | "email-signin" | "email-signup";
 
@@ -168,16 +169,20 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
         </div>
 
         <div className="flex w-full max-w-xs flex-col gap-3">
-          <Button
-            onPress={run("apple", signInApple)}
-            busy={busy === "apple"}
-            disabled={busy !== null}
-            variant="secondary"
-            className="border-transparent bg-text-primary text-void"
-          >
-            <AppleGlyph />
-            Continue with Apple
-          </Button>
+          {/* The website's own sign-in has no Apple: Firebase's Apple provider
+              is set up for the native app only. */}
+          {!WEB_BUILD && (
+            <Button
+              onPress={run("apple", signInApple)}
+              busy={busy === "apple"}
+              disabled={busy !== null}
+              variant="secondary"
+              className="border-transparent bg-text-primary text-void"
+            >
+              <AppleGlyph />
+              Continue with Apple
+            </Button>
+          )}
           <Button
             onPress={run("google", signInGoogle)}
             busy={busy === "google"}

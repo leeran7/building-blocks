@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { WEB_BUILD } from "./buildTarget";
 
 /**
  * Guest mode ("Continue as Guest"), kept on the device across launches until
@@ -13,17 +14,24 @@ export const GUEST_NUDGE_KEY = "doomstack:guest:nudge-shown";
 /** The finished guest Endless run that brings the sign-in nudge. */
 export const GUEST_NUDGE_AFTER_RUNS = 3;
 
-export function readGuestMode(): boolean {
+/**
+ * On the website a signed-out visitor starts as a guest: /play opens on the
+ * level map, never on a sign-in wall. Tapping Sign In leaves guest mode ("0"
+ * is stored), and the choice holds until "Continue as Guest" again.
+ */
+export function readGuestMode(webBuild = WEB_BUILD): boolean {
   try {
-    return localStorage.getItem(GUEST_MODE_KEY) === "1";
+    const stored = localStorage.getItem(GUEST_MODE_KEY);
+    return stored === "1" || (webBuild && stored !== "0");
   } catch {
-    return false;
+    return webBuild;
   }
 }
 
 function writeGuestMode(on: boolean): void {
   try {
     if (on) localStorage.setItem(GUEST_MODE_KEY, "1");
+    else if (WEB_BUILD) localStorage.setItem(GUEST_MODE_KEY, "0");
     else localStorage.removeItem(GUEST_MODE_KEY);
   } catch {
     /* storage unavailable: guest mode lasts this launch */

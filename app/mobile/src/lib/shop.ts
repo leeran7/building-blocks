@@ -3,6 +3,7 @@ import { NativePurchases, PURCHASE_TYPE } from "@capgo/native-purchases";
 import { GEM_PACKS, formatUsd, type GemPack } from "@app/lib/gemPacks";
 import { apiFetch, isNative } from "./api";
 import { openExternal } from "./external";
+import { WEB_BUILD } from "./buildTarget";
 
 /**
  * Shop API client and gem-pack buying.
@@ -156,17 +157,43 @@ async function settleAppleTransaction(jws: string): Promise<number> {
   return body.gems;
 }
 
-/** Buy a gem pack at its web price: Stripe Checkout in the browser. Throws ShopError on failure. */
-export async function buyGemPackOnWeb(pack: GemPack): Promise<PackPurchaseResult> {
+/** Stripe Checkout's own host: the only place the web build leaves the page for. */
+const STRIPE_CHECKOUT_HOST = "checkout.stripe.com";
+
+/** The checkout URL when it is an https Stripe Checkout page, else null. */
+export function stripeCheckoutUrl(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" && url.host === STRIPE_CHECKOUT_HOST ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Buy a gem pack at its web price: Stripe Checkout in the browser. Throws
+ * ShopError on failure.
+ *
+ * Native builds open Checkout in the in-app browser. The web build goes there
+ * in the same tab (a new tab opened after the request returns would be
+ * blocked as a popup) and asks Stripe to bring the buyer back to /play.
+ */
+export async function buyGemPackOnWeb(pack: GemPack, webBuild = WEB_BUILD): Promise<PackPurchaseResult> {
   const res = await apiFetch("/api/gems/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ packId: pack.id }),
+    body: JSON.stringify(webBuild ? { packId: pack.id, returnTo: "play" } : { packId: pack.id }),
   });
   if (!res.ok) throw await errorOf(res, "Couldn't start checkout. Try again.");
   const body = (await res.json().catch(() => null)) as { checkoutUrl?: unknown } | null;
   if (typeof body?.checkoutUrl !== "string") throw new ShopError("Couldn't start checkout. Try again.", null);
-  await openExternal(body.checkoutUrl);
+  if (webBuild) {
+    const url = stripeCheckoutUrl(body.checkoutUrl);
+    if (url === null) throw new ShopError("Couldn't start checkout. Try again.", null);
+    window.location.assign(url);
+  } else {
+    await openExternal(body.checkoutUrl);
+  }
   return { kind: "checkout" };
 }
 

@@ -19,6 +19,11 @@ export interface Surface {
   route: string;
   /** App only: who is using the app. */
   user?: AppUser;
+  /**
+   * Web only: the page runs the app (the web build, rewritten onto /play and
+   * /daily), so it is held to the app's 44 px bar and has no site landmarks.
+   */
+  webApp?: true;
   open?: (page: Page) => Promise<void>;
   ready: (page: Page) => Locator;
 }
@@ -70,9 +75,7 @@ const WEB_PAGES: [route: string, h1: RegExp][] = [
   ["/auth/signin", /^welcome back$/i],
   ["/auth/signup", /^create account$/i],
   ["/auth/reset-password", /^reset your password$/i],
-  ["/play", /^play the climb$/i],
   ["/climb", /^global leaderboard$/i],
-  ["/daily", /^daily climb$/i],
   ["/duel", /^1v1 arena$/i],
   ["/duel/chips", /^chip duels$/i],
   ["/duel/leaderboard", /^free 1v1$/i],
@@ -83,12 +86,17 @@ const WEB_PAGES: [route: string, h1: RegExp][] = [
   ["/beta", /^join the beta$/i],
 ];
 
-export const WEB_SURFACES: Surface[] = WEB_PAGES.map(([route, h1]) => ({
-  id: route === "/" ? "home" : route.slice(1).replaceAll("/", "-"),
-  kind: "web" as const,
-  route,
-  ready: heading(h1),
-}));
+export const WEB_SURFACES: Surface[] = [
+  ...WEB_PAGES.map(([route, h1]) => ({
+    id: route === "/" ? "home" : route.slice(1).replaceAll("/", "-"),
+    kind: "web" as const,
+    route,
+    ready: heading(h1),
+  })),
+  // The website's app, as a signed-out visitor meets it: a guest on the map.
+  { id: "play", kind: "web", route: "/play", webApp: true, ready: button(/^play level 1$/i) },
+  { id: "daily", kind: "web", route: "/daily", webApp: true, ready: heading(/^daily$/i) },
+];
 
 /** The flows in flows.spec.ts, by the id their baseline key uses. */
 export const FLOW_IDS = [

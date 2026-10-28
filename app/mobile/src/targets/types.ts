@@ -15,9 +15,9 @@
 
 import type { ComponentType } from "react";
 
-export type TargetId = "app" | "crazygames";
+export type TargetId = "app" | "web" | "crazygames";
 
-export const TARGET_IDS: readonly TargetId[] = ["app", "crazygames"];
+export const TARGET_IDS: readonly TargetId[] = ["app", "web", "crazygames"];
 
 /** What a target ships. Its root imports only the screens these allow. */
 export interface TargetFeatures {

@@ -12,3 +12,6 @@ loop/
 # Playwright output (pnpm test:e2e, pnpm ux).
 test-results/
 playwright-report/
+
+# The website's app bundle (pnpm mobile:build --mode web), made by pnpm build.
+public/app/

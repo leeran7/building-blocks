@@ -143,7 +143,8 @@ test.describe("web", () => {
     const signInWall = await page.getByText(/sign in to (play|get matched)/i).first().isVisible().catch(() => false);
     if (promisesNoAccount && signInWall) flow.flag("broken-promise");
     await flow.reached(
-      async () => new URL(page.url()).pathname === "/play" && (await page.getByRole("heading", { name: /^play the climb$/i }).first().isVisible()) && !signInWall,
+      // /play runs the app: a visitor lands on the level map as a guest.
+      async () => new URL(page.url()).pathname === "/play" && (await page.getByRole("button", { name: /^play level 1$/i }).first().isVisible()) && !signInWall,
     );
     finish(flow, "web-hero-to-play", info);
   });

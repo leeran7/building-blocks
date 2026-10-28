@@ -39,6 +39,7 @@ import {
   buyGemPack,
   buyGemPackOnWeb,
   offersWebCheckout,
+  stripeCheckoutUrl,
   packPrice,
   settleStoreTransaction,
   settleUnfinishedPurchases,
@@ -182,6 +183,50 @@ describe("paying outside the App Store", () => {
     expect(apiFetch).toHaveBeenCalledWith("/api/gems/checkout", expect.objectContaining({ body: JSON.stringify({ packId: PACK.id }) }));
     expect(openExternal).toHaveBeenCalledWith("https://checkout.stripe.com/c/1");
     expect(plugin.purchaseProduct).not.toHaveBeenCalled();
+  });
+
+  it("on the website, goes to Stripe Checkout in the same tab and asks to come back to /play", async () => {
+    apiFetch.mockResolvedValueOnce(json(200, { checkoutUrl: "https://checkout.stripe.com/c/2" }));
+    const assign = vi.fn();
+    vi.stubGlobal("window", { location: { assign } });
+    try {
+      expect(await buyGemPackOnWeb(PACK, true)).toEqual({ kind: "checkout" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/gems/checkout",
+      expect.objectContaining({ body: JSON.stringify({ packId: PACK.id, returnTo: "play" }) }),
+    );
+    expect(assign).toHaveBeenCalledWith("https://checkout.stripe.com/c/2");
+    expect(openExternal).not.toHaveBeenCalled();
+  });
+
+  it("on the website, never leaves the page for a checkout URL that isn't Stripe's", async () => {
+    apiFetch.mockResolvedValueOnce(json(200, { checkoutUrl: "https://checkout.stripe.com.evil.example/c/2" }));
+    const assign = vi.fn();
+    vi.stubGlobal("window", { location: { assign } });
+    try {
+      await expect(buyGemPackOnWeb(PACK, true)).rejects.toBeInstanceOf(ShopError);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("accepts only https Stripe Checkout URLs", () => {
+    expect(stripeCheckoutUrl("https://checkout.stripe.com/c/pay/cs_1#x")).toBe("https://checkout.stripe.com/c/pay/cs_1#x");
+    for (const bad of [
+      "http://checkout.stripe.com/c/1",
+      "https://checkout.stripe.com.evil.example/c/1",
+      "https://evil.example/?u=https://checkout.stripe.com",
+      "https://user@evil.example/c/1",
+      "javascript:alert(1)",
+      "/c/1",
+      "",
+    ]) {
+      expect(stripeCheckoutUrl(bad), bad).toBeNull();
+    }
   });
 
   it("shows the marked-up App Store price on iOS until the store's own price loads", () => {

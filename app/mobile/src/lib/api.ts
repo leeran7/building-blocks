@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { getFreshToken } from "./firebaseAuth";
+import { WEB_BUILD } from "./buildTarget";
 
 /**
  * The bundled app has no origin of its own, so every API call is absolute to
@@ -7,11 +8,16 @@ import { getFreshToken } from "./firebaseAuth";
  * the global `fetch` is patched on-device to use native HTTP — bypassing
  * browser CORS and letting us attach a cross-origin Bearer token.
  *
+ * The web build is served by the site itself, so it calls the origin it was
+ * loaded from: same-origin (no CORS), and a preview deployment talks to its
+ * own API rather than production. Share links built from this base point at
+ * that origin too.
+ *
  * In the browser dev server this base still points at prod; cross-origin calls
  * there are expected to be blocked by CORS until a dev proxy is added — device
  * builds are the real target.
  */
-export const API_BASE = "https://www.doomstack.lol";
+export const API_BASE = WEB_BUILD ? window.location.origin : "https://www.doomstack.lol";
 
 export const isNative = Capacitor.isNativePlatform();
 

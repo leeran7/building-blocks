@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+const fs = require("fs");
 const path = require("path");
 const { createRequire } = require("module");
 
@@ -39,6 +40,13 @@ const securityHeaders = [
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.google.com https://*.firebaseapp.com https://apis.google.com",
     ].join("; "),
   },
+];
+
+// The website's app (pnpm mobile:build --mode web writes public/app).
+const WEB_APP_BUILT = fs.existsSync(path.join(__dirname, "public/app/index.html"));
+const WEB_APP_PAGES = [
+  { source: "/play", missing: [{ type: "query", key: "r" }], destination: "/app/index.html" },
+  { source: "/daily", destination: "/app/index.html" },
 ];
 
 const nextConfig = {
@@ -97,12 +105,20 @@ const nextConfig = {
   // www.doomstack.lol (recommended for signInWithRedirect — avoids Safari
   // third-party-cookie breakage). Proxies the __/auth + __/firebase helper
   // paths to the Firebase project. Keep the target in sync with the project id.
+  //
+  // /play and /daily run the app itself (the web build in public/app, made by
+  // `pnpm build`), ahead of their Next pages. A replay link (/play?r=…) keeps
+  // the Next page, which plays replays. When the bundle wasn't built (plain
+  // `pnpm dev`), the Next pages serve as before.
   async rewrites() {
     const fbHost = "https://building-blocks-88190.firebaseapp.com";
-    return [
-      { source: "/__/auth/:path*", destination: `${fbHost}/__/auth/:path*` },
-      { source: "/__/firebase/:path*", destination: `${fbHost}/__/firebase/:path*` },
-    ];
+    return {
+      beforeFiles: WEB_APP_BUILT ? WEB_APP_PAGES : [],
+      afterFiles: [
+        { source: "/__/auth/:path*", destination: `${fbHost}/__/auth/:path*` },
+        { source: "/__/firebase/:path*", destination: `${fbHost}/__/firebase/:path*` },
+      ],
+    };
   },
   // Canonical host is www.doomstack.lol (PUBLIC_CONFIG.siteUrl). Redirect the
   // apex to it so search engines never see both as separate indexable hosts.

@@ -13,7 +13,8 @@ feature table is checked against each `config.ts` by
 
 | Target | Ships to | Build output | Sign-in | Payments | Ads |
 |--------|----------|--------------|---------|----------|-----|
-| `app` | iOS and Android (Capacitor), web at doomstack.lol | `mobile/dist`, Xcode / Android Studio | Firebase: Apple, Google, email | iOS: StoreKit 2 gem packs. Android and web: Stripe Checkout | none |
+| `app` | iOS and Android (Capacitor) | `mobile/dist`, Xcode / Android Studio | Firebase: Apple, Google, email | iOS: StoreKit 2 gem packs. Android: Stripe Checkout | none |
+| `web` | doomstack.lol/play and /daily (the site serves it) | `public/app`, made by `pnpm build` | Firebase: Google, email (shared with the site) | Stripe Checkout in the same tab, back to /play | none |
 | `crazygames` | CrazyGames portal | ZIP via `pnpm portal:package crazygames` | none | none | CrazyGames SDK v3 midgame on Play again |
 
 ## Features
@@ -23,6 +24,7 @@ feature table is checked against each `config.ts` by
 | Target | signIn | shop | duels | leaderboard | daily | levels |
 |--------|--------|------|-------|-------------|-------|--------|
 | `app` | on | on | on | on | on | on |
+| `web` | on | on | on | on | on | on |
 | `crazygames` | off | off | off | off | off | off |
 
 The CrazyGames root renders `PortalApp` (endless Free Climb only) and never
@@ -45,7 +47,18 @@ imports the app's screens, so online features never ship in that bundle.
 - Call `gameplayStart`/`gameplayStop`, `loadingStart`/`loadingStop`, and
   `happytime` on a new best. No midgame ad in the first 3 minutes.
 
-**App (iOS, Android, web)**
+**Web (doomstack.lol/play, /daily)**
+- `next.config.js` rewrites /play and /daily onto `public/app/index.html`;
+  a replay link (`/play?r=`) keeps the Next page. Without the bundle (plain
+  `pnpm dev`) the Next pages serve as before.
+- Calls the API on its own origin, so a preview deployment uses its own API.
+- Signed-out visitors start as guests on the level map, never a sign-in wall.
+- No Apple sign-in (Firebase's Apple provider is set up for the native app).
+- Stripe Checkout opens in the same tab (only `checkout.stripe.com`) and
+  returns to /play, which opens the Shop.
+- The site's CSP applies: fonts ship as files, never `data:` URLs.
+
+**App (iOS, Android)**
 - iOS store rules: digital goods go through StoreKit; see
   `skills/mobile-release/SKILL.md` before a version bump or submission.
 - The app is the only target with the full experience; new features land

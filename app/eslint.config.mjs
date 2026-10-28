@@ -25,6 +25,8 @@ const config = [
       "next-env.d.ts",
       "playwright-report/**",
       "test-results/**",
+      // The website's app bundle (pnpm mobile:build --mode web).
+      "public/app/**",
       // Native game shell: the Vite SPA build output and the generated native
       // Capacitor projects are not part of the Next lint surface.
       "mobile/dist/**",
