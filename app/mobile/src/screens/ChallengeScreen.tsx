@@ -120,7 +120,7 @@ export function ChallengeScreen() {
               retrying={pending.size > 0}
               attempts={retries}
               onRetry={retryAll}
-              inline
+              variant="inline"
             />
           )}
 

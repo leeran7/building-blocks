@@ -179,7 +179,7 @@ export function SettingsScreen() {
                 retrying={settingsRetry.retrying}
                 attempts={settingsRetry.attempts}
                 onRetry={() => void settingsRetry.retry()}
-                inline
+                variant="inline"
               />
             ) : !settingsData ? (
               <div

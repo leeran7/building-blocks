@@ -360,58 +360,67 @@ export function DuelWatch({ duelId }: { duelId: string }) {
   const playerNames: Record<string, string> = { [p1Id]: p1Name, [p2Id]: p2Name };
   const avatarIds = avatarIdsByPlayer([replayData.player1, replayData.player2]);
 
+  const p1Peak = replayData.player1?.peak ?? null;
+  const p2Peak = replayData.player2?.peak ?? null;
+  const winner = replayData.winnerId === p1Id ? 1 : replayData.winnerId === p2Id ? 2 : 0;
+  // Share of the two peaks, for the bar under the names.
+  const p1Share = p1Peak != null && p2Peak != null && p1Peak + p2Peak > 0 ? p1Peak / (p1Peak + p2Peak) : null;
+  const elapsed = formatClock(((state?.tick ?? 0) * TICK_DT_MS) / 1000);
+  const status = watchPhase === "done" ? "Finished" : paused ? "Paused" : "Replay";
+
   return (
     <div
       ref={sceneRef}
       className={
         isFullscreen
           ? "flex h-screen w-screen flex-col items-center overflow-hidden bg-void text-text-primary"
-          : "flex flex-col items-center min-h-screen bg-void text-text-primary"
+          : "flex min-h-screen flex-col bg-void text-text-primary"
       }
     >
       {!isFullscreen && <Navbar contextLabel="1v1" />}
-      <main id="main-content" className="flex w-full flex-1 flex-col items-center">
-        {/* Header bar */}
-        <div className="w-full max-w-md flex items-center justify-between px-4 py-3 bg-surface border-b border-border-subtle">
-          <h1 className="font-mono text-xs font-normal tabular-nums">
-            <span className="text-signal">{p1Name}</span>
-            <span className="text-text-muted mx-1">vs</span>
-            <span className="text-[#6bb8ff]">{p2Name}</span>
-          </h1>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-              replay
-            </span>
-            {watchPhase === "playing" && !paused && (
-              <span className="flex items-center gap-1 font-mono text-xs text-ember">
-                <span className="w-1.5 h-1.5 rounded-full bg-ember motion-safe:animate-pulse" aria-hidden="true" />
-                LIVE
+      <main id="main-content" className="mx-auto flex w-full max-w-md flex-1 flex-col">
+        {/* Result first: who won and by how much, before the tower. */}
+        {!isFullscreen && (
+          <header className="px-4 pb-3 pt-4">
+            <p className="font-mono text-label uppercase tracking-[0.16em] text-text-muted">
+              1v1 replay{replayData.forfeit ? " · won by forfeit" : ""}
+            </p>
+            <h1 className="mt-2 flex items-start gap-3">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-display text-2xl font-extrabold text-signal">
+                  {p1Name}
+                  {winner === 1 && <WinTag />}
+                </span>
+                {p1Peak != null && (
+                  <span className="block font-mono text-sm font-normal tabular-nums text-text-secondary">{formatAltitude(p1Peak, 0)}</span>
+                )}
               </span>
+              <span className="self-center font-mono text-xs font-normal text-text-muted"> vs </span>
+              <span className="min-w-0 flex-1 text-right">
+                <span className="block truncate font-display text-2xl font-extrabold text-[#6bb8ff]">
+                  {winner === 2 && <WinTag />}
+                  {p2Name}
+                </span>
+                {p2Peak != null && (
+                  <span className="block font-mono text-sm font-normal tabular-nums text-text-secondary">{formatAltitude(p2Peak, 0)}</span>
+                )}
+              </span>
+            </h1>
+            {p1Share != null && (
+              <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-elevated" aria-hidden="true">
+                <span className="bg-signal" style={{ width: `${p1Share * 100}%` }} />
+                <span className="flex-1 bg-[#6bb8ff]" />
+              </div>
             )}
-            {watchPhase === "playing" && paused && (
-              <span className="font-mono text-xs text-text-muted">PAUSED</span>
-            )}
-          </div>
-        </div>
-
-        {/* Altitude readouts */}
-        {state && (state.phase === "climb" || state.phase === "countdown") && (
-          <div className="w-full max-w-md flex justify-between px-4 py-2 bg-surface-raised border-b border-border-subtle font-mono text-xs tabular-nums">
-            <span className="text-signal">
-              {p1Name}: {formatAltitude(state.players[0]?.y ?? 0, 1)}
-            </span>
-            <span className="text-[#6bb8ff]">
-              {p2Name}: {formatAltitude(state.players[1]?.y ?? 0, 1)}
-            </span>
-          </div>
+          </header>
         )}
 
-        {/* Canvas */}
-        <div className="relative flex-1 flex items-start justify-center pt-4 w-full">
+        {/* The tower, framed */}
+        <div className="flex flex-1 items-start justify-center px-4">
           <div
             ref={canvasBoxRef}
             data-climb-surface
-            className="relative"
+            className={isFullscreen ? "relative" : "relative overflow-hidden rounded-2xl border border-border-subtle"}
             style={{ width: canvasSize.width }}
           >
             {state && (
@@ -425,6 +434,16 @@ export function DuelWatch({ duelId }: { duelId: string }) {
               />
             )}
 
+            <p
+              className={`absolute bottom-2 left-2 z-30 flex items-center gap-1.5 rounded-lg bg-void/75 px-2 py-1 font-mono text-xs uppercase tabular-nums ${
+                status === "Replay" ? "text-ember" : "text-text-secondary"
+              }`}
+            >
+              {status === "Replay" && <span className="h-1.5 w-1.5 rounded-full bg-ember motion-safe:animate-pulse" aria-hidden="true" />}
+              {status}
+              {status !== "Finished" && ` ${elapsed}`}
+            </p>
+
             {fullscreenSupported && (
               <FullscreenButton
                 isFullscreen={isFullscreen}
@@ -436,62 +455,45 @@ export function DuelWatch({ duelId }: { duelId: string }) {
           </div>
         </div>
 
-        {/* Bottom actions */}
-        <div className="w-full max-w-md px-4 py-6 flex flex-col gap-3 border-t border-border-subtle">
-          {/* Winner badge */}
-          {(watchPhase === "done") && (
-            <div className="text-center mb-2">
-              <p className="font-mono text-xs uppercase tracking-[0.16em] text-text-muted">
-                {replayData.forfeit ? "Won by forfeit" : "Winner"}
-              </p>
-              <p className="font-display text-2xl font-black text-signal mt-1">
-                {replayData.winnerId === p1Id
-                  ? p1Name
-                  : replayData.winnerId === p2Id
-                  ? p2Name
-                  : "Draw"}
-              </p>
-              {/* Peaks */}
-              <div className="flex justify-center gap-6 mt-2 font-mono text-xs text-text-muted tabular-nums">
-                {replayData.player1?.peak != null && (
-                  <span>
-                    <span className="text-signal">{p1Name}</span>{" "}
-                    {formatAltitude(replayData.player1.peak, 1)}
-                  </span>
-                )}
-                {replayData.player2?.peak != null && (
-                  <span>
-                    <span className="text-[#6bb8ff]">{p2Name}</span>{" "}
-                    {formatAltitude(replayData.player2.peak, 1)}
-                  </span>
-                )}
-              </div>
+        {/* Controls */}
+        {!isFullscreen && (
+          <div className="flex flex-col gap-2 px-4 pb-6 pt-3">
+            <div className="flex gap-2">
+              <button
+                onClick={watchPhase === "playing" ? togglePause : handleWatchAgain}
+                className="flex-1 inline-flex items-center justify-center rounded-full px-4 min-h-[48px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale]"
+              >
+                {watchPhase === "playing" ? (paused ? "Resume" : "Pause") : "Watch again"}
+              </button>
+              <button
+                onClick={handleCopyLink}
+                className="flex-1 inline-flex items-center justify-center rounded-full px-4 min-h-[48px] border border-border-strong text-text-primary text-sm hover:border-signal/50 transition-colors"
+              >
+                {linkCopied ? "Link copied!" : "Share replay"}
+              </button>
             </div>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              onClick={watchPhase === "playing" ? togglePause : handleWatchAgain}
-              className="flex-1 inline-flex items-center justify-center rounded-full px-4 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale]"
+            <Link
+              href="/duel"
+              className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] font-mono text-xs uppercase tracking-[0.12em] text-text-muted hover:text-text-primary transition-colors"
             >
-              {watchPhase === "playing" ? (paused ? "Resume" : "Pause") : "Watch again"}
-            </button>
-            <button
-              onClick={handleCopyLink}
-              className="flex-1 inline-flex items-center justify-center rounded-full px-4 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-            >
-              {linkCopied ? "Link copied!" : "Share replay"}
-            </button>
+              Back to 1v1
+            </Link>
           </div>
-
-          <Link
-            href="/duel"
-            className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] font-mono text-xs uppercase tracking-[0.12em] text-text-muted hover:text-text-primary transition-colors"
-          >
-            Back to 1v1
-          </Link>
-        </div>
+        )}
       </main>
     </div>
   );
 }
+
+function WinTag() {
+  return (
+    <span className="mx-1.5 align-middle font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-signal">win</span>
+  );
+}
+
+/** Seconds as m:ss. */
+function formatClock(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+

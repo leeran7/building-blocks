@@ -412,7 +412,7 @@ describe("ClimbScreen daily lobby: the seed comes only from the server (SEC-DC-3
     expect(climb.seeds.at(-1)).toBe(SERVER_SEED);
   });
 
-  it("offline: says so, offers Try again and Play endless instead, and never starts a daily", async () => {
+  it("offline: says so, offers Try again and Play Endless, and never starts a daily", async () => {
     net.info = null;
     await mountDaily();
     const alert = container!.querySelector('[role="alert"]');
@@ -452,10 +452,10 @@ describe("ClimbScreen daily lobby: the seed comes only from the server (SEC-DC-3
     expect(alert).not.toBe(firstAlert);
   });
 
-  it("offline: Play endless instead opens an endless climb", async () => {
+  it("offline: Play Endless opens an endless climb", async () => {
     net.info = null;
     await mountDaily();
-    await click(buttonByText("Play endless instead"));
+    await click(buttonByText("Play Endless"));
     expect(container!.querySelector('[data-testid="path"]')?.textContent).toBe("/climb");
     expect(buttonByText("Start climb")).toBeTruthy();
     expect(container!.querySelector('[role="alert"]')).toBeNull();

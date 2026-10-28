@@ -299,14 +299,19 @@ export function LevelMapScreen() {
   }, [refresh]);
 
   if (!season) {
+    const failed = (error && !loading) || retrying;
     return (
-      // The rail stands at the right edge; the right padding keeps the error
-      // and its buttons clear of it on a 320 px phone.
-      <main className={`relative flex h-full flex-col items-center justify-center gap-4 text-center ${showRail ? "pl-4 pr-24" : "px-6"}`}>
+      <main
+        className={`relative flex h-full flex-col items-center justify-center gap-4 text-center ${
+          showRail && !failed ? "pl-4 pr-24" : "px-4"
+        }`}
+      >
         <h1 className="sr-only">Level map</h1>
-        {(error && !loading) || retrying ? (
+        {failed ? (
           <RetryPanel
-            message="Couldn’t load the level map. Check your connection and try again."
+            eyebrow="Offline"
+            title="The map didn’t load"
+            message="Check your connection. Your levels and stars are safe."
             retrying={retrying}
             attempts={retries}
             onRetry={retryMap}
@@ -319,9 +324,11 @@ export function LevelMapScreen() {
           </p>
         )}
         {/* The other modes don't need the level map: keep them reachable while it
-            loads or after it fails. Keyed like the loaded map's, so the same rail
-            (and a matchmaking search in it) carries over when the season lands. */}
-        <BottomStack key="bottom-stack">{showRail && <ModeRail />}</BottomStack>
+            loads. Keyed like the loaded map's, so the same rail (and a
+            matchmaking search in it) carries over when the season lands. Once
+            it has failed the rail goes: the card sits centered where the rail
+            stood, and Daily, 1v1 and Ranks need the same connection anyway. */}
+        <BottomStack key="bottom-stack">{showRail && !failed && <ModeRail />}</BottomStack>
       </main>
     );
   }

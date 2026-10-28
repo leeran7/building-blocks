@@ -484,10 +484,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
                   setDailyRetrying(true);
                   setDailyInfoAttempt((n) => n + 1);
                 }}
-                onPlayEndless={() => {
-                  void tapLight();
-                  navigate("/climb", { replace: true });
-                }}
+                onPlayEndless={() => navigate("/climb", { replace: true })}
               />
             )}
           </Overlay>
@@ -556,7 +553,13 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
 
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-void/75 px-6 backdrop-blur-md">
+    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6">
+      {/* The scrim fades out above the lava band, so the lava stays bright
+          under the lobby instead of blurring into a brown smear. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 bg-void/75 backdrop-blur-md [mask-image:linear-gradient(to_bottom,black_68%,transparent_80%)]"
+      />
       {children}
     </div>
   );
@@ -578,16 +581,20 @@ function DailyOffline({
   onPlayEndless: () => void;
 }) {
   return (
-    <RetryPanel
-      message="Can’t load today’s tower. Check your connection and try again."
-      retrying={retrying}
-      attempts={attempts}
-      onRetry={onRetry}
-    >
-      <Button variant="ghost" onPress={onPlayEndless}>
-        Play endless instead
-      </Button>
-    </RetryPanel>
+    <div className="mt-8 w-full max-w-sm">
+      <RetryPanel
+        variant="banner"
+        title="Can’t load today’s tower"
+        message="Everyone gets the same tower, so it comes from our server. Check your connection and try again."
+        retrying={retrying}
+        attempts={attempts}
+        onRetry={onRetry}
+      >
+        <Button variant="secondary" onPress={onPlayEndless}>
+          Play Endless
+        </Button>
+      </RetryPanel>
+    </div>
   );
 }
 

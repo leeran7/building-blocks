@@ -389,55 +389,114 @@ export function StateMessage({ children }: { children: ReactNode }) {
 export interface RetryPanelProps {
   /** What failed and what to do, in plain words. */
   message: ReactNode;
+  /** A short headline above the message ("The map didn’t load"). */
+  title?: string;
+  /** A mono status label over a card's title ("Offline"); only where it's true. */
+  eyebrow?: string;
   /** From useRetry: the refresh is in flight. */
   retrying: boolean;
   /** From useRetry: bumps once per settled retry, re-announcing the message. */
   attempts: number;
   onRetry: () => void;
-  /** Extra actions under Try again (e.g. Sign out, Play Endless). */
+  /** Extra actions beside or under Try again (e.g. Sign out, Play Endless). */
   children?: ReactNode;
   /**
-   * A failure inside a screen that still has other content (a card, a banner):
-   * no top gap, and a secondary button so it doesn't outrank the screen's own
-   * primary action.
+   * - `card` (default): the screen failed to load, a dark centered card
+   *   with a full-width Try again.
+   * - `banner`: part of a screen failed and the rest still reads (the Daily
+   *   intro): an ember-dot row over full-width actions.
+   * - `inline`: a failure inside a screen that has other content (a section,
+   *   a list): no card, and a secondary button so it doesn't outrank the
+   *   screen's own primary action.
    */
-  inline?: boolean;
+  variant?: "card" | "banner" | "inline";
 }
 
 /**
- * The app's one load-failure state: what failed in a sentence, and a primary
- * Try again that survives its own retry. The screen keeps this mounted while
- * `retrying` (see useRetry), so the same button element keeps focus through a
- * retry that fails again, and the alert re-mounts so screen readers hear the
- * failure again. `aria-disabled` rather than `disabled` while busy: disabling
- * the focused button would drop focus to <body>.
+ * The app's one load-failure state: what failed in a sentence, and a Try again
+ * that survives its own retry. The screen keeps this mounted while `retrying`
+ * (see useRetry), so the same button element keeps focus through a retry that
+ * fails again, and the alert re-mounts so screen readers hear the failure
+ * again. `aria-disabled` rather than `disabled` while busy: disabling the
+ * focused button would drop focus to <body>.
  */
-export function RetryPanel({ message, retrying, attempts, onRetry, children, inline = false }: RetryPanelProps) {
-  return (
-    <div
-      className={
-        inline
-          ? "flex w-full flex-col items-center gap-3 py-2 text-center"
-          : "mx-auto flex w-full max-w-xs flex-col items-center gap-4 px-2 pb-6 pt-12 text-center"
-      }
+export function RetryPanel({
+  message,
+  title,
+  eyebrow,
+  retrying,
+  attempts,
+  onRetry,
+  children,
+  variant = "card",
+}: RetryPanelProps) {
+  const button = (
+    <button
+      type="button"
+      aria-disabled={retrying}
+      aria-busy={retrying}
+      onClick={() => {
+        if (retrying) return;
+        void tapLight();
+        onRetry();
+      }}
+      className={cx(
+        buttonClass(variant === "inline" ? "secondary" : "primary", variant !== "inline"),
+        "aria-disabled:opacity-60",
+      )}
     >
-      <p role="alert" key={attempts} className="text-body leading-relaxed text-text-secondary">
-        {message}
-      </p>
-      <button
-        type="button"
-        aria-disabled={retrying}
-        aria-busy={retrying}
-        onClick={() => {
-          if (retrying) return;
-          void tapLight();
-          onRetry();
-        }}
-        className={cx(buttonClass(inline ? "secondary" : "primary", !inline), "aria-disabled:opacity-60")}
-      >
-        {retrying ? "Retrying…" : "Try again"}
-      </button>
-      {children}
+      {retrying ? "Retrying…" : "Try again"}
+    </button>
+  );
+
+  if (variant === "inline") {
+    return (
+      <div className="flex w-full flex-col items-center gap-3 py-2 text-center">
+        <p role="alert" key={attempts} className="text-body leading-relaxed text-text-secondary">
+          {message}
+        </p>
+        {button}
+        {children}
+      </div>
+    );
+  }
+
+  if (variant === "banner") {
+    return (
+      <div className="w-full rounded-3xl border border-ember/35 bg-void/85 p-4 text-left backdrop-blur-md">
+        <div className="flex items-start gap-3">
+          <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-ember shadow-[0_0_10px_var(--color-ember)]" />
+          <div key={attempts} role="alert">
+            {title && <p className="text-body font-bold text-text-primary">{title}</p>}
+            <p className="mt-0.5 text-meta leading-relaxed text-text-secondary">{message}</p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-col gap-2">
+          {button}
+          {children}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-sm rounded-3xl border border-white/10 bg-void/85 p-5 text-center backdrop-blur-md">
+      {eyebrow && (
+        <p className="mb-2 flex items-center justify-center gap-2 font-mono text-label uppercase tracking-label text-ember">
+          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-ember" />
+          {eyebrow}
+        </p>
+      )}
+      <div key={attempts} role="alert">
+        {title && (
+          <h2 className="font-display text-2xl font-extrabold leading-tight text-text-primary">{title}</h2>
+        )}
+        <p className={cx("text-body leading-relaxed text-text-secondary", title && "mt-2")}>{message}</p>
+      </div>
+      <div className="mt-5 flex flex-col gap-1">
+        {button}
+        {children}
+      </div>
     </div>
   );
 }

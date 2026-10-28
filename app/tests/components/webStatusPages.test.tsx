@@ -146,6 +146,9 @@ describe("website state pages", () => {
     // Not full screen: the page keeps its header (the stage mounts after the
     // loading state, and that once read as full screen).
     expect(container.querySelector("nav")).not.toBeNull();
+    // The result leads: winner tagged, both peaks, names spaced for readers.
+    const h1 = container.querySelector("h1")!;
+    expect(h1.textContent?.replace(/\s+/g, " ").trim()).toBe("Kestrelwin10ft vs Moth8ft");
     expect(control()?.textContent).toBe("Pause");
     await wait();
     expect(sim.steps).toBeGreaterThan(0);
@@ -156,8 +159,7 @@ describe("website state pages", () => {
     await wait();
     expect(sim.steps).toBe(atPause);
 
-    expect(container.textContent).toContain("PAUSED");
-    expect(container.textContent).not.toContain("LIVE");
+    expect(container.textContent).toContain("Paused 0:");
 
     act(() => control()!.click());
     expect(control()?.textContent).toBe("Pause");
