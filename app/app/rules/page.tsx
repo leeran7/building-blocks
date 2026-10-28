@@ -83,7 +83,7 @@ export default function RulesPage() {
 
           {/* Free climb */}
           <section className="mb-8">
-            <SectionHeading>The free climb</SectionHeading>
+            <SectionHeading>Endless</SectionHeading>
             <p className="text-text-secondary text-sm mb-2">
               One global leaderboard, no payment required. Climb an endless,
               procedurally generated tower — ladders, platforms, and rising lava —

@@ -73,7 +73,7 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
     // like a pushed screen and Back slides the options back.
     return (
       <PageSwap page="email">
-        <main className="flex h-[100dvh] flex-col px-8 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
+        <main className="flex h-[100dvh] flex-col overflow-y-auto px-8 pt-[calc(env(safe-area-inset-top)+3.5rem)]">
           <button
             type="button"
             onClick={leaveForm}
@@ -87,12 +87,14 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
               <span className="font-mono text-xs uppercase tracking-[0.4em] text-text-muted">
                 {isSignup ? "join the climb" : "welcome back"}
               </span>
-              <h2 className="font-display text-2xl font-black uppercase tracking-tight text-text-primary">
+              <h1 className="font-display text-2xl font-black uppercase tracking-tight text-text-primary">
                 {isSignup ? "Create Account" : "Sign In"}
-              </h2>
+              </h1>
             </div>
 
-            <div className="flex w-full max-w-xs flex-col gap-3">
+            {/* A solid panel: on a short phone the lava rises behind the lower
+                buttons, and "Forgot password?" was unreadable on its glow. */}
+            <div className="flex w-full max-w-xs flex-col gap-3 rounded-3xl bg-void/85 p-3 backdrop-blur-md">
               <input
                 type="email"
                 placeholder="Email"
@@ -202,7 +204,7 @@ export function SignInScreen({ onGuestContinue }: { onGuestContinue?: () => void
         {onGuestContinue && (
           // A scrim behind the pair: the lava crest animates under them and
           // washed the note out mid-wave (UX audit, 2026-10-24).
-          <div className="-mt-6 flex flex-col items-center rounded-lg bg-void/70 px-3 py-1.5">
+          <div className="-mt-6 flex flex-col items-center rounded-lg bg-void/85 px-3 py-1.5 backdrop-blur-md">
             <button
               onClick={() => { void tapMedium(); onGuestContinue(); }}
               aria-describedby="guest-continue-note"

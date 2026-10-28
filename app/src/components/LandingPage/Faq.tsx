@@ -29,8 +29,8 @@ export function buildFaqs(): QA[] {
       a: "Go to /duel and create a private challenge link. Anyone who opens it gets matched against you on the exact same tower with the same rising lava — no account needed to accept.",
     },
     {
-      q: "What's the free climb?",
-      a: "The free climb at /play is a solo endless tower with one global leaderboard. No opponent, no lava catch-up mechanic — just you and the tower. Best peak height is your rank. Free, no account required to play.",
+      q: "What's Endless?",
+      a: "Endless, at /play, is a solo endless tower with one global leaderboard. No opponent, no lava catch-up mechanic — just you and the tower. Best peak height is your rank. Free, no account required to play.",
     },
     {
       q: "Can I watch a replay?",

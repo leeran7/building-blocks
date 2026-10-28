@@ -59,7 +59,7 @@ const button = (label: string) =>
     (b) => b.textContent?.trim() === label || b.getAttribute("aria-label") === label,
   );
 const timer = () => container.querySelector('[role="timer"]');
-const title = () => container.querySelector("h2")?.textContent;
+const title = () => container.querySelector("h1")?.textContent;
 
 function mount(onQuit = vi.fn(), autoStart = false, pickControls = false) {
   const node = season1Catalog().level(5);

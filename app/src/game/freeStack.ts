@@ -13,7 +13,7 @@ export const FREE_STACK_SLUG = "free";
 /** Display metadata for the free stack (not one of the 74 paid categories). */
 export const FREE_STACK: GameCategory = {
   slug: FREE_STACK_SLUG,
-  label: "Free climb",
+  label: "Endless",
   family: "Gaming & Interactive",
   themeArchetype: "ladder-climb",
   risingHazardType: "lava",

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
-import { Button } from "../components/ui";
+import { Button, RetryPanel } from "../components/ui";
 import { LevelStartSheet, REFUSAL_COPY } from "../components/levels/LevelStartSheet";
 import { LivesSheet } from "../components/levels/LivesSheet";
 import { XpSheet } from "../components/levels/XpSheet";
@@ -287,15 +287,19 @@ export function LevelMapScreen() {
 
   if (!season) {
     return (
-      <main className="relative flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+      // The rail stands at the right edge; the right padding keeps the error
+      // and its buttons clear of it on a 320 px phone.
+      <main className={`relative flex h-full flex-col items-center justify-center gap-4 text-center ${showRail ? "pl-4 pr-24" : "px-6"}`}>
+        <h1 className="sr-only">Level map</h1>
         {error && !loading ? (
-          <>
-            <p className="text-body text-text-secondary">Couldn&rsquo;t load the level map.</p>
-            <div className="w-full max-w-xs">
-              <Button onPress={() => void refresh()}>Try again</Button>
-            </div>
+          <RetryPanel
+            message="Couldn’t load the level map. Check your connection and try again."
+            retrying={false}
+            attempts={0}
+            onRetry={() => void refresh()}
+          >
             <Button variant="ghost" onPress={openPractice}>Play Endless</Button>
-          </>
+          </RetryPanel>
         ) : (
           <p role="status" className="font-mono text-label uppercase tracking-label text-text-muted">
             Loading levels…
@@ -317,6 +321,7 @@ export function LevelMapScreen() {
     // An account's tab bar sits under this screen and clears the home
     // indicator; a guest has no tab bar, so the screen stops above it.
     <main className="relative flex h-full flex-col" style={guest ? { height: "calc(100% - env(safe-area-inset-bottom))" } : undefined}>
+      <h1 className="sr-only">Level map</h1>
       <header ref={headerRef} className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         <MapHeader
           seasonName={season.name}

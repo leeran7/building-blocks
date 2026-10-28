@@ -30,17 +30,17 @@ describe("ogImageUrl", () => {
 describe("buildMetadata", () => {
   it("sets a matching canonical, OG url, and OG/Twitter title+description", () => {
     const meta = buildMetadata({
-      title: "Free climb leaderboard — Doomstack",
+      title: "Endless leaderboard — Doomstack",
       description: "The global free-climb leaderboard.",
       path: "/climb",
     });
 
     expect(meta.alternates?.canonical).toBe(`${SITE_URL}/climb`);
     expect(meta.openGraph?.url).toBe(`${SITE_URL}/climb`);
-    expect(meta.openGraph?.title).toBe("Free climb leaderboard — Doomstack");
+    expect(meta.openGraph?.title).toBe("Endless leaderboard — Doomstack");
     expect(meta.twitter).toMatchObject({
       card: "summary_large_image",
-      title: "Free climb leaderboard — Doomstack",
+      title: "Endless leaderboard — Doomstack",
     });
   });
 

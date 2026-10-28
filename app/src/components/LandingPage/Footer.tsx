@@ -11,7 +11,7 @@ import Link from "next/link";
 import { Wordmark } from "../Brand/Wordmark";
 
 const LINK =
-  "text-sm text-text-secondary hover:text-signal transition-colors min-h-[44px] inline-flex items-center";
+  "text-sm text-text-secondary hover:text-signal transition-colors min-h-[44px] min-w-[44px] inline-flex items-center";
 const COL_HEAD =
   "font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted mb-3";
 
@@ -83,7 +83,7 @@ export function Footer({ showCta = true }: { showCta?: boolean }) {
             </li>
             <li>
               <Link href="/play" className={LINK}>
-                Free climb
+                Endless
               </Link>
             </li>
             <li>

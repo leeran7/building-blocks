@@ -44,7 +44,7 @@ export function FreeStackShell({
           With a mouse the game stays in the page, so the header stays too.
           pointer-coarse matches useCoarsePointer, which picks the touch layout. */}
       <div className={gameSection ? "shrink-0 pointer-coarse:hidden" : "shrink-0"}>
-        <Navbar contextLabel="Free climb" />
+        <Navbar contextLabel={section === "daily" ? "Daily Climb" : "Endless"} />
       </div>
 
       <main id="main-content" className="relative flex flex-1 flex-col">
@@ -55,7 +55,7 @@ export function FreeStackShell({
             <div
               className="climb-reveal inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
               role="tablist"
-              aria-label="Free stack sections"
+              aria-label="Endless and Daily Climb sections"
             >
               <NavTab
                 href="/climb"

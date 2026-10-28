@@ -36,7 +36,7 @@ import { hasLeaderboardConsent } from "../lib/consent";
 import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { GuestSignInSheet } from "../components/GuestSignInSheet";
-import { BackButton } from "../components/ui";
+import { BackButton, Button, RetryPanel } from "../components/ui";
 import { GUEST_NUDGE_AFTER_RUNS, recordGuestEndlessRun } from "../lib/guestMode";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useHapticsSetting } from "../lib/hapticsSetting";
@@ -388,7 +388,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   }, [isDaily]);
 
   return (
-    <div className="fixed inset-0 z-40 bg-void">
+    <main className="fixed inset-0 z-40 bg-void">
       <div
         ref={canvasBoxRef}
         data-climb-surface
@@ -446,9 +446,9 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             <span className="font-mono text-[11px] uppercase tracking-[0.4em] text-signal">
               {isDaily ? "daily climb" : "endless climb"}
             </span>
-            <h2 className="mt-3 font-display text-5xl font-black uppercase leading-none tracking-tight text-text-primary">
+            <h1 className="mt-3 font-display text-5xl font-black uppercase leading-none tracking-tight text-text-primary">
               {isDaily ? "Today\u2019s tower" : "Climb"}
-            </h2>
+            </h1>
             <span className="mt-4 h-px w-14 bg-border-strong" />
             <p className="mt-4 max-w-[280px] text-center text-sm leading-relaxed text-text-secondary">
               {isDaily
@@ -540,7 +540,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
       </div>
 
       {touchActive && <TouchControls active={touchActive} onInput={setTouch} />}
-    </div>
+    </main>
   );
 }
 
@@ -558,25 +558,16 @@ function Overlay({ children }: { children: React.ReactNode }) {
  */
 function DailyOffline({ onRetry, onPlayEndless }: { onRetry: () => void; onPlayEndless: () => void }) {
   return (
-    <div role="alert" className="mt-6 flex flex-col items-center gap-3 text-center">
-      <p className="max-w-65 text-meta text-text-secondary">
-        Can&rsquo;t load today&rsquo;s tower. Check your connection and try again.
-      </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="min-h-[44px] rounded-full border-2 border-signal/70 bg-signal/10 px-8 font-display text-body font-black uppercase tracking-chip text-signal transition-transform duration-150 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-      >
-        Try again
-      </button>
-      <button
-        type="button"
-        onClick={onPlayEndless}
-        className="min-h-[44px] rounded-full px-6 font-mono text-label uppercase tracking-label text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-      >
+    <RetryPanel
+      message="Can’t load today’s tower. Check your connection and try again."
+      retrying={false}
+      attempts={0}
+      onRetry={onRetry}
+    >
+      <Button variant="ghost" onPress={onPlayEndless}>
         Play endless instead
-      </button>
-    </div>
+      </Button>
+    </RetryPanel>
   );
 }
 

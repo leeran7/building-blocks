@@ -1,7 +1,4 @@
 {
-  "desktop|app-gem-sheet": {
-    "stretch/wider-than-720px": 2
-  },
   "desktop|app-level-intro": {
     "focus/escapes-dialog": 1
   },

@@ -250,9 +250,9 @@ export function LevelRun({
           <span className={`font-mono text-label uppercase tracking-eyebrow ${isHardLevel(level) ? "text-ember" : "text-signal"}`}>
             {practice ? "Practice" : isHardLevel(level) ? "Hard level" : "Level"}
           </span>
-          <h2 className="mt-2 font-display text-5xl font-black uppercase leading-none tracking-tight text-text-primary">
+          <h1 className="mt-2 font-display text-5xl font-black uppercase leading-none tracking-tight text-text-primary">
             Level {level}
-          </h2>
+          </h1>
           <span className="mt-4 h-px w-14 bg-border-strong" />
           <p className="mt-4 max-w-[280px] text-center text-body text-text-secondary">
             Climb to the summit at {Math.round(goalFt).toLocaleString()} {ALTITUDE_UNIT} and touch the diamond before the lava catches you.

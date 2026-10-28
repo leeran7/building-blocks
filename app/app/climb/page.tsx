@@ -1,5 +1,5 @@
 /**
- * Free climb leaderboard — /climb
+ * Endless leaderboard — /climb
  *
  * The ONE global free skill leaderboard. Not tied to any paid category stack.
  */

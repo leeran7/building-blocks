@@ -86,6 +86,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
   const [state, setState] = useState<MatchState | null>(null);
   const [error, setError] = useState<WatchError>(REPLAY_ERRORS.failed);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [paused, setPaused] = useState(false);
 
   const stateRef = useRef<MatchState | null>(null);
   // Render handle for the canvas: latest tick plus the one before it, so the
@@ -111,8 +112,9 @@ export function DuelWatch({ duelId }: { duelId: string }) {
   const canvasSize = useCanvasSize(canvasBoxRef, {
     maxWidth: isFullscreen ? undefined : 420,
   });
-  // Kill page scroll while the replay is actively playing.
-  useBodyScrollLock(isFullscreen || watchPhase === "playing");
+  // Only full screen locks the page: a watcher needs to scroll to the replay's
+  // own controls (Pause, Share) below the canvas on a phone.
+  useBodyScrollLock(isFullscreen);
 
   // Fetch replay data on mount
   useEffect(() => {
@@ -166,6 +168,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
       lastTsRef.current = 0;
       tickRef.current = 0;
       playingRef.current = true;
+      setPaused(false);
       setWatchPhase("playing");
 
       const NO_INPUT: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
@@ -274,6 +277,19 @@ export function DuelWatch({ duelId }: { duelId: string }) {
       setWatchPhase("ready");
     }
   }, [replayData]);
+
+  // The loop keeps requesting frames while paused and skips them, so resuming
+  // only has to restart the clock (else the pause would count as one huge dt).
+  const togglePause = useCallback(() => {
+    if (playingRef.current) {
+      playingRef.current = false;
+      setPaused(true);
+    } else {
+      lastTsRef.current = 0;
+      playingRef.current = true;
+      setPaused(false);
+    }
+  }, []);
 
   const handleCopyLink = useCallback(async () => {
     const url = buildDuelWatchUrl(duelId, window.location.origin);
@@ -388,7 +404,8 @@ export function DuelWatch({ duelId }: { duelId: string }) {
               <FullscreenButton
                 isFullscreen={isFullscreen}
                 onToggle={toggleFullscreen}
-                className="absolute right-2 top-2 z-30"
+                // Bottom corner: the top one holds the lava readout.
+                className="absolute bottom-2 right-2 z-30"
               />
             )}
           </div>
@@ -429,10 +446,10 @@ export function DuelWatch({ duelId }: { duelId: string }) {
 
           <div className="flex gap-2">
             <button
-              onClick={handleWatchAgain}
+              onClick={watchPhase === "playing" ? togglePause : handleWatchAgain}
               className="flex-1 inline-flex items-center justify-center rounded-full px-4 min-h-[44px] bg-signal text-void font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale]"
             >
-              Watch again
+              {watchPhase === "playing" ? (paused ? "Resume" : "Pause") : "Watch again"}
             </button>
             <button
               onClick={handleCopyLink}
@@ -446,7 +463,7 @@ export function DuelWatch({ duelId }: { duelId: string }) {
             href="/duel"
             className="inline-flex items-center justify-center rounded-full px-6 min-h-[44px] font-mono text-xs uppercase tracking-[0.12em] text-text-muted hover:text-text-primary transition-colors"
           >
-            Back to duels
+            Back to 1v1
           </Link>
         </div>
       </main>

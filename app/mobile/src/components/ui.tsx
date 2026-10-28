@@ -38,6 +38,19 @@ const VARIANT: Record<ButtonVariant, string> = {
     "disabled:opacity-50",
 };
 
+/** Button's look, for a button that needs its own behaviour (RetryPanel). */
+function buttonClass(variant: ButtonVariant, fullWidth: boolean): string {
+  return cx(
+    "inline-flex min-h-[50px] items-center justify-center gap-2 rounded-full px-6",
+    "font-display text-meta uppercase tracking-wide",
+    "transition-transform duration-150 active:scale-[0.97]",
+    "disabled:active:scale-100",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void",
+    fullWidth && "w-full",
+    VARIANT[variant],
+  );
+}
+
 export interface ButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick"> {
   variant?: ButtonVariant;
@@ -72,16 +85,7 @@ export function Button({
         void tapLight();
         onPress?.();
       }}
-      className={cx(
-        "inline-flex min-h-[50px] items-center justify-center gap-2 rounded-full px-6",
-        "font-display text-meta uppercase tracking-wide",
-        "transition-transform duration-150 active:scale-[0.97]",
-        "disabled:active:scale-100",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void",
-        fullWidth && "w-full",
-        VARIANT[variant],
-        className,
-      )}
+      className={cx(buttonClass(variant, fullWidth), className)}
     >
       {busy ? <Dots /> : children}
     </button>
@@ -390,24 +394,24 @@ export interface RetryPanelProps {
   /** From useRetry: bumps once per settled retry, re-announcing the message. */
   attempts: number;
   onRetry: () => void;
-  /** Extra actions under Try again (e.g. Sign out). */
+  /** Extra actions under Try again (e.g. Sign out, Play Endless). */
   children?: ReactNode;
 }
 
 /**
- * Load-failure state with a Try again button that survives its own retry.
- * The screen keeps this mounted while `retrying` (see useRetry), so the same
- * button element keeps focus through a retry that fails again, and the alert
- * re-mounts so screen readers hear the failure again. `aria-disabled` rather
- * than `disabled` while busy: disabling the focused button would drop focus
- * to <body>.
+ * The app's one load-failure state: what failed in a sentence, and a primary
+ * Try again that survives its own retry. The screen keeps this mounted while
+ * `retrying` (see useRetry), so the same button element keeps focus through a
+ * retry that fails again, and the alert re-mounts so screen readers hear the
+ * failure again. `aria-disabled` rather than `disabled` while busy: disabling
+ * the focused button would drop focus to <body>.
  */
 export function RetryPanel({ message, retrying, attempts, onRetry, children }: RetryPanelProps) {
   return (
-    <div className="flex flex-col items-center gap-4 pb-6">
-      <div role="alert" key={attempts}>
-        <StateMessage>{message}</StateMessage>
-      </div>
+    <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-4 px-2 pb-6 pt-12 text-center">
+      <p role="alert" key={attempts} className="text-body leading-relaxed text-text-secondary">
+        {message}
+      </p>
       <button
         type="button"
         aria-disabled={retrying}
@@ -417,7 +421,7 @@ export function RetryPanel({ message, retrying, attempts, onRetry, children }: R
           void tapLight();
           onRetry();
         }}
-        className="glass min-h-[48px] rounded-2xl border border-white/10 px-6 text-body font-semibold text-text-primary transition-opacity aria-disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+        className={cx(buttonClass("primary", true), "aria-disabled:opacity-60")}
       >
         {retrying ? "Retrying…" : "Try again"}
       </button>

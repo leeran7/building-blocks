@@ -23,7 +23,7 @@ interface NavbarProps {
 // with the appended `hidden` at the same specificity and won, leaking the links
 // under the wordmark on phones.
 const GHOST =
-  "items-center justify-center whitespace-nowrap px-3 min-h-[44px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
+  "items-center justify-center whitespace-nowrap px-3 min-h-[44px] min-w-[44px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
 
 export function Navbar({ contextLabel, contextDot }: NavbarProps) {
   return (
@@ -32,7 +32,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
         <Link
           href="/"
           aria-label="Doomstack — home"
-          className="group flex items-center gap-2.5 shrink-0"
+          className="group flex min-h-[44px] min-w-[44px] items-center gap-2.5 shrink-0"
         >
           <Wordmark
             decorative
@@ -68,7 +68,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
           Daily
         </Link>
         <Link href={FREE_CLIMB_HREF} className={`${GHOST} hidden sm:inline-flex`}>
-          Free climb
+          Endless
         </Link>
         <NavbarAuth />
       </div>

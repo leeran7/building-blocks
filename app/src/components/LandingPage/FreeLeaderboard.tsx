@@ -19,7 +19,7 @@ export async function FreeLeaderboard() {
   return (
     <section
       id="free"
-      aria-label="Free climb leaderboard"
+      aria-label="Endless leaderboard"
       data-climb-chrome
       className="scroll-reveal relative h-full overflow-hidden scroll-mt-20 rounded-2xl border border-border-subtle bg-surface/30 p-6"
     >
@@ -46,13 +46,13 @@ export async function FreeLeaderboard() {
               No stakes, no payout — one endless climb for practice and bragging
               rights. Best peak height is your rank.{" "}
               <Link href="/play" className="text-text-secondary underline underline-offset-4 hover:text-signal">
-                Play free →
+                Play Endless →
               </Link>
             </p>
           </div>
           <Link
             href="/climb"
-            className="hidden sm:inline-flex min-h-6 items-center font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary whitespace-nowrap transition"
+            className="hidden sm:inline-flex min-h-[44px] items-center font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary whitespace-nowrap transition"
           >
             Full leaderboard →
           </Link>
@@ -70,7 +70,7 @@ export async function FreeLeaderboard() {
             <p className="relative text-text-secondary text-sm mt-3">
               Be the first to set a height record.{" "}
               <Link href="/play" className="text-text-primary underline underline-offset-4 hover:text-signal">
-                Play the free climb →
+                Play Endless →
               </Link>
             </p>
           </div>
@@ -78,7 +78,7 @@ export async function FreeLeaderboard() {
           <ol
             className="climb-reveal flex flex-col gap-1.5"
             style={{ animationDelay: "90ms" }}
-            aria-label="Free climb leaderboard"
+            aria-label="Endless leaderboard"
           >
             {climbers.map((c) => {
               const first = c.rank === 1;

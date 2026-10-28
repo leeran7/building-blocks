@@ -259,7 +259,7 @@ export function LevelPlayScreen() {
   const nearMiss = (peakFt: number) => (setup ? nearMissHeadline(setup.tower, peakFt, goalFt) : null);
 
   return (
-    <div className="fixed inset-0 z-40 bg-void">
+    <main className="fixed inset-0 z-40 bg-void">
       <LevelRun
         key={runKey}
         level={level}
@@ -322,6 +322,6 @@ export function LevelPlayScreen() {
         )}
       </AnimatePresence>
       {refill.overlays}
-    </div>
+    </main>
   );
 }

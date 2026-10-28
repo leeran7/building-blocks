@@ -209,7 +209,7 @@ export function ClimbBoard({
 function BoardScopeNav() {
   return (
     <nav aria-label="Leaderboards" className="flex flex-wrap gap-2">
-      <ScopeLink href="/climb" label="Solo" current />
+      <ScopeLink href="/climb" label="Endless" current />
       <ScopeLink href={DUEL_LEADERBOARD_HREF} label="1v1" />
     </nav>
   );

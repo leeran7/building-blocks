@@ -79,7 +79,7 @@ export function ClimbPlayClient({ replayToken }: ClimbPlayClientProps) {
     <PlayShell>
       <ClimbScene
         tower={tower}
-        categoryLabel={replay ? "Shared replay" : "Free climb"}
+        categoryLabel={replay ? "Shared replay" : "Endless"}
         replay={replay}
       />
     </PlayShell>

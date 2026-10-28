@@ -37,10 +37,10 @@ interface ClimbMode {
 const MODES: ClimbMode[] = [
   {
     href: FREE_CLIMB_HREF,
-    title: "Solo",
+    title: "Endless",
     description: "Endless tower. Outclimb the rising lava and set your peak.",
     action: "Play now",
-    label: "Play free climb",
+    label: "Play Endless",
     tone: "signal",
   },
   {

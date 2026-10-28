@@ -26,7 +26,7 @@ const CLIMBERS: ClimberRank[] = [
 describe("ClimbBoard smoke render", () => {
   it("renders the board scope nav, standings, and CTA panel for a signed-out viewer", () => {
     const html = renderToStaticMarkup(createElement(ClimbBoard, { climbers: CLIMBERS }));
-    expect(html).toContain("Solo");
+    expect(html).toContain("Endless");
     expect(html).toContain("1v1");
     expect(html).toContain("apex");
     expect(html).toContain("rival");

@@ -550,8 +550,8 @@ export function ClimbScene({
             </p>
             {lobbyExtra ?? (
               <>
-                <h2 className="font-display text-4xl text-text-primary mt-2">
-                  Endless climb
+                <h2 className="font-display text-3xl sm:text-4xl text-text-primary mt-2">
+                  Climb
                 </h2>
                 <p className="text-text-secondary text-sm mt-3 max-w-[280px] text-center leading-relaxed">
                   Climb as high as you can before the rising lava catches you. It
@@ -560,7 +560,11 @@ export function ClimbScene({
                 </p>
               </>
             )}
-            <ClimbControlsGuide variant="overlay" />
+            {/* Below sm the card would push Start out of the panel; the page's
+                own Controls section under the game covers it there. */}
+            <div className="hidden sm:block">
+              <ClimbControlsGuide variant="overlay" />
+            </div>
             <StartButton onClick={handleStart} label="Start climb" blockedLabel={startBlockedLabel} />
           </Overlay>
         )}

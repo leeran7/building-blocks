@@ -51,6 +51,6 @@ describe("LeaderboardTeaser — paid duels OFF", () => {
     const html = renderToStaticMarkup(await LeaderboardTeaser());
 
     expect(html).toContain("no climbers yet");
-    expect(html).toContain("Play the free climb");
+    expect(html).toContain("Play Endless");
   });
 });

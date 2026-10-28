@@ -100,7 +100,7 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
   // Portalled to the body: screens sit in a stacking context under the tab
   // bar, which would cover the sheet's buy button.
   return (
-    <SheetPortal centered={false}
+    <SheetPortal
       scrim={
         <div ref={scrimRef} aria-hidden className="absolute inset-0 bg-void/70 backdrop-blur-sm" onClick={onClose} />
       }
