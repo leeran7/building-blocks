@@ -28,28 +28,48 @@ export function readGuestMode(webBuild = WEB_BUILD): boolean {
   }
 }
 
-function writeGuestMode(on: boolean): void {
+/**
+ * How a guest left (or entered) guest mode:
+ *  - "guest": Continue as Guest;
+ *  - "sign-in": tapped Sign In, so the website remembers not to start as a guest;
+ *  - "account": signed in. On the website a later sign-out goes back to the
+ *    guest map; the native app goes back to Sign In.
+ */
+export type GuestChange = "guest" | "sign-in" | "account";
+
+export function writeGuestMode(change: GuestChange, webBuild = WEB_BUILD): void {
   try {
-    if (on) localStorage.setItem(GUEST_MODE_KEY, "1");
-    else if (WEB_BUILD) localStorage.setItem(GUEST_MODE_KEY, "0");
+    if (change === "guest") localStorage.setItem(GUEST_MODE_KEY, "1");
+    else if (change === "sign-in" && webBuild) localStorage.setItem(GUEST_MODE_KEY, "0");
     else localStorage.removeItem(GUEST_MODE_KEY);
   } catch {
     /* storage unavailable: guest mode lasts this launch */
   }
 }
 
-/** Guest mode and the two ways in and out of it. */
-export function useGuestMode(): { guestMode: boolean; enterGuest: () => void; exitGuest: () => void } {
+/** Guest mode and the ways in and out of it. */
+export function useGuestMode(): {
+  guestMode: boolean;
+  enterGuest: () => void;
+  exitGuest: () => void;
+  endGuestForAccount: () => void;
+} {
   const [guestMode, setGuestMode] = useState(readGuestMode);
   const enterGuest = useCallback(() => {
     setGuestMode(true);
-    writeGuestMode(true);
+    writeGuestMode("guest");
   }, []);
   const exitGuest = useCallback(() => {
     setGuestMode(false);
-    writeGuestMode(false);
+    writeGuestMode("sign-in");
   }, []);
-  return { guestMode, enterGuest, exitGuest };
+  // Signed in: the account replaces guest mode, and the next sign-out starts
+  // over (a guest again on the website, Sign In in the native app).
+  const endGuestForAccount = useCallback(() => {
+    writeGuestMode("account");
+    setGuestMode(readGuestMode());
+  }, []);
+  return { guestMode, enterGuest, exitGuest, endGuestForAccount };
 }
 
 /** Run nudge shown this launch, for when storage refuses the write: never twice. */

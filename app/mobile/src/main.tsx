@@ -42,7 +42,9 @@ if (!Capacitor.isNativePlatform()) {
 // Checkout), before the router reads the hash.
 if (WEB_BUILD) {
   const route = webStartRoute(window.location.pathname, window.location.search, window.location.hash);
-  if (route !== null) window.location.hash = route;
+  // Replace, not push: Back from the Daily (or the Shop after Checkout) leaves
+  // the page instead of stepping through a hash-less copy of it.
+  if (route !== null) window.history.replaceState(window.history.state, "", `#${route}`);
 }
 
 // The host SDK loads before the first render; init() resolves even when the

@@ -57,11 +57,12 @@ export function App() {
     }),
   );
 
-  const { guestMode, enterGuest, exitGuest } = useGuestMode();
-  // Signed in: guest mode is over, so a later sign-out lands on Sign In.
+  const { guestMode, enterGuest, exitGuest, endGuestForAccount } = useGuestMode();
+  // Signed in: guest mode is over. A later sign-out lands on Sign In in the
+  // native app, and back on the guest map on the website.
   useEffect(() => {
-    if (authed && guestMode) exitGuest();
-  }, [authed, guestMode, exitGuest]);
+    if (authed && guestMode) endGuestForAccount();
+  }, [authed, guestMode, endGuestForAccount]);
 
   // NOTE: call useLocation() unconditionally — never behind a short-circuit.
   const location = useLocation();

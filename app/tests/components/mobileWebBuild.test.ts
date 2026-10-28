@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { webStartRoute } from "../../mobile/src/lib/webEntry";
-import { GUEST_MODE_KEY, readGuestMode } from "../../mobile/src/lib/guestMode";
+import { GUEST_MODE_KEY, readGuestMode, writeGuestMode } from "../../mobile/src/lib/guestMode";
 
 describe("webStartRoute", () => {
   it("opens /daily on the Daily Climb", () => {
@@ -41,5 +41,23 @@ describe("guest mode on the website", () => {
     expect(readGuestMode(false)).toBe(false);
     localStorage.setItem(GUEST_MODE_KEY, "1");
     expect(readGuestMode(false)).toBe(true);
+  });
+
+  it("on the website, Sign In is remembered, and signing out of an account comes back as a guest", () => {
+    writeGuestMode("sign-in", true);
+    expect(readGuestMode(true)).toBe(false);
+    writeGuestMode("guest", true);
+    expect(readGuestMode(true)).toBe(true);
+    writeGuestMode("account", true);
+    expect(readGuestMode(true)).toBe(true);
+  });
+
+  it("in the native app, leaving guest mode either way goes back to Sign In", () => {
+    writeGuestMode("guest", false);
+    writeGuestMode("sign-in", false);
+    expect(readGuestMode(false)).toBe(false);
+    writeGuestMode("guest", false);
+    writeGuestMode("account", false);
+    expect(readGuestMode(false)).toBe(false);
   });
 });

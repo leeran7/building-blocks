@@ -10,7 +10,8 @@
  * (see mobile/README) — until then these calls no-op/reject gracefully and the
  * auth gate keeps the player on the Sign In screen (there is no guest play).
  */
-import "@app/lib/firebase";
+import { auth as webAuth } from "@app/lib/firebase";
+import { WEB_BUILD } from "./buildTarget";
 import {
   FirebaseAuthentication,
   type User,
@@ -21,7 +22,12 @@ export type AuthUser = User;
 /** Subscribe to auth state; fires immediately with the current user. */
 export async function onAuthChange(
   cb: (user: AuthUser | null) => void,
+  webBuild = WEB_BUILD,
 ): Promise<() => void> {
+  // In a browser the plugin reads the JS SDK's currentUser, which is null
+  // until Firebase restores the saved session. Wait for that, or a signed-in
+  // visitor briefly gets the guest map (or Sign In) before their account.
+  if (webBuild) await webAuth.authStateReady().catch(() => {});
   const current = await FirebaseAuthentication.getCurrentUser().catch(() => ({
     user: null,
   }));
