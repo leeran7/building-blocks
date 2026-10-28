@@ -117,7 +117,7 @@ export function LevelTutorial({
                 aria-current={state === "now" ? "step" : undefined}
                 className={`flex gap-3 rounded-2xl border px-3.5 py-2.5 transition-colors ${
                   state === "now" ? "border-signal/50 bg-signal/10" : "border-white/10 bg-elevated/50"
-                } ${state === "next" ? "opacity-50" : ""}`}
+                }`}
               >
                 <span
                   aria-hidden
@@ -128,10 +128,15 @@ export function LevelTutorial({
                   {state === "done" ? "✓" : i + 1}
                 </span>
                 <span>
-                  <span className="block font-display text-meta font-black uppercase tracking-wide text-text-primary">
+                  {/* Steps to come read quieter by colour, not opacity, so they keep 4.5:1. */}
+                  <span
+                    className={`block font-display text-meta font-black uppercase tracking-wide ${
+                      state === "next" ? "text-text-secondary" : "text-text-primary"
+                    }`}
+                  >
                     {s.title}
                   </span>
-                  <span className="block text-meta text-text-secondary">{s.body}</span>
+                  <span className={`block text-meta ${state === "next" ? "text-text-muted" : "text-text-secondary"}`}>{s.body}</span>
                 </span>
               </li>
             );

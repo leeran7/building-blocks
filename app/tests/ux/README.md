@@ -13,6 +13,7 @@ through the core flows in `flows.spec.ts`. It is the automated half of the
 | zoom | viewport allows pinch zoom | phone sizes only |
 | overflow | no sideways scroll | all |
 | stretch | no button wider than 720 px | desktop only |
+| landmark | one `<main>`, and the site header above it | web |
 | flow | taps to the goal, dead ends, covered controls, broken promises | phone |
 
 Each surface has a `ready` element that must show before the checks run, and

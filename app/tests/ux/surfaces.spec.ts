@@ -17,6 +17,7 @@ import {
   countByRule,
   focusFindings,
   baselineDiff,
+  landmarkFindings,
   overflowFindings,
   stretchFindings,
   targetFindings,
@@ -59,6 +60,7 @@ for (const surface of surfaces) {
       ...(project === "desktop" ? await stretchFindings(page) : []),
       ...(project === "desktop" ? [] : await zoomFindings(page)),
       ...(project === "desktop" ? await focusFindings(page, 20) : []),
+      ...(surface.kind === "web" ? await landmarkFindings(page) : []),
     ];
 
     const key = baselineKey(project, `${surface.kind}-${surface.id}`);

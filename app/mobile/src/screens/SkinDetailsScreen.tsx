@@ -202,7 +202,7 @@ function SkinDetails({ character }: { character: AvatarEntry }) {
               type="button"
               aria-pressed={pose === p.id}
               onClick={() => setPose(p.id)}
-              className={`min-w-[84px] rounded-full px-3 py-1.5 font-mono text-label font-bold uppercase tracking-label ${
+              className={`min-h-[44px] min-w-[84px] rounded-full px-3 font-mono text-label font-bold uppercase tracking-label ${
                 pose === p.id ? "bg-signal text-void" : "text-text-secondary"
               }`}
             >

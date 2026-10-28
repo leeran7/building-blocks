@@ -53,16 +53,16 @@ function PlayIntro() {
         you; there&rsquo;s no timer beyond that. Use the on-screen controls on touch devices or
         the keyboard on desktop to move, climb, and jump. Your height at the moment the lava
         reaches you becomes your score for that run. Sign in to save your best run permanently to
-        the free leaderboard at <Link href="/climb" className="text-signal hover:underline">
+        the free leaderboard at <Link href="/climb" className="text-signal underline underline-offset-2 hover:decoration-2">
           /climb
         </Link>{" "}
         — you can also play as a guest, though guest runs aren&rsquo;t recorded. Every run can be
         shared as a replay link so someone else can watch exactly how you climbed. The free climb
         is entirely skill-based: no payment, no way to pay for a better rank. Prefer a head-to-head?
         Race another climber in{" "}
-        <Link href="/duel" className="text-signal hover:underline">1v1 duels</Link> — same tower,
+        <Link href="/duel" className="text-signal underline underline-offset-2 hover:decoration-2">1v1 duels</Link> — same tower,
         same rising lava, one winner. See{" "}
-        <Link href="/rules" className="text-signal hover:underline">the rules</Link> for details.
+        <Link href="/rules" className="text-signal underline underline-offset-2 hover:decoration-2">the rules</Link> for details.
       </p>
     </details>
   );

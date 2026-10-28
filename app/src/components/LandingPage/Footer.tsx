@@ -179,7 +179,7 @@ export function Footer({ showCta = true }: { showCta?: boolean }) {
             © {year} Stack
           </p>
           <p
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-disabled"
+            className="font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted"
             aria-hidden="true"
           >
             elev. permanent · ground rising

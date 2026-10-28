@@ -42,11 +42,11 @@ export function AboutDoomstack() {
           </p>
           <p>
             Play the{" "}
-            <Link href="/play" className="text-signal underline-offset-4 hover:underline">
+            <Link href="/play" className="text-signal underline underline-offset-4 hover:decoration-2">
               free solo climb
             </Link>{" "}
             for the global leaderboard, or go head-to-head in a{" "}
-            <Link href="/duel" className="text-signal underline-offset-4 hover:underline">
+            <Link href="/duel" className="text-signal underline underline-offset-4 hover:decoration-2">
               real-time 1v1 duel
             </Link>{" "}
             — you and your opponent race the exact same tower with the same
@@ -56,7 +56,7 @@ export function AboutDoomstack() {
           <p>
             Curious how the burial and season math works? It&apos;s all spelled
             out on the{" "}
-            <Link href="/rules" className="text-signal underline-offset-4 hover:underline">
+            <Link href="/rules" className="text-signal underline underline-offset-4 hover:decoration-2">
               rules page
             </Link>
             . Doomstack is free to play and free to share — grab a challenge link

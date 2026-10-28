@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { motion, useIsPresent } from "motion/react";
 import { duration, ease, spring } from "../lib/motionTokens";
@@ -42,8 +42,11 @@ export function SheetPortal({
   // Closing: the sheet is on its way out, so nothing in it may be pressed
   // (a Play tapped mid-slide would still start the run) or read as modal.
   const present = useIsPresent();
+  const rootRef = useRef<HTMLDivElement>(null);
+  useSheetFocus(rootRef);
   return createPortal(
     <div
+      ref={rootRef}
       className={`fixed inset-0 z-50 flex items-end ${centered ? "justify-center" : ""} ${present ? "" : "pointer-events-none"}`}
       role="presentation"
       inert={!present}
@@ -62,4 +65,65 @@ export function SheetPortal({
     </div>,
     document.body,
   );
+}
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Keyboard focus belongs to the open sheet: it moves into the sheet when it
+ * opens, Tab and Shift+Tab cycle inside it, and it goes back to whatever had
+ * it before when the sheet closes. With a sheet stacked on another (the gem
+ * packs over a level card) only the top open sheet handles Tab; a sheet on its
+ * way out (inert) hands Tab to the one under it. Escape stays with each sheet,
+ * which knows how it closes.
+ */
+const openSheets: HTMLElement[] = [];
+const topSheet = () => [...openSheets].reverse().find((root) => !root.inert);
+
+function useSheetFocus(rootRef: RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // Only the panel's own controls: the scrim is a tabindex=-1 close button.
+    const focusables = () =>
+      [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+        (el) => el.tabIndex >= 0 && !el.closest("[inert]") && el.closest('[role="dialog"]') !== null,
+      );
+    // The panel itself takes focus, not its first control: on a phone,
+    // focusing a field would pop the keyboard over a sheet just opened.
+    const dialog = root.querySelector<HTMLElement>('[role="dialog"]');
+    if (dialog && !root.contains(document.activeElement)) {
+      if (!dialog.hasAttribute("tabindex")) dialog.tabIndex = -1;
+      dialog.focus({ preventScroll: true });
+    }
+    openSheets.push(root);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || topSheet() !== root) return;
+      const list = focusables();
+      if (list.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const first = list[0];
+      const last = list[list.length - 1];
+      const inside = root.contains(document.activeElement);
+      if (e.shiftKey && (!inside || document.activeElement === first)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      openSheets.splice(openSheets.indexOf(root), 1);
+      // Leaving, the sheet is inert, which drops its focus to the body.
+      const active = document.activeElement;
+      const lost = !active || active === document.body || root.contains(active);
+      if (lost && opener?.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, [rootRef]);
 }

@@ -234,11 +234,6 @@ function SignInForm() {
         className="relative overflow-hidden bg-surface rounded-2xl border border-border-strong p-8 w-full max-w-sm shadow-lifted edge-signal"
         aria-labelledby="auth-card-title"
       >
-        {/* Logo — mobile only; desktop shows the brand panel */}
-        <div className="mb-5 md:hidden">
-          <Wordmark className="h-8 w-auto" />
-        </div>
-
         {/* Title */}
         <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
           [ sign in ]
@@ -322,7 +317,7 @@ function SignInForm() {
           <div className="flex justify-end mb-6">
             <Link
               href="/auth/reset-password"
-              className="text-xs text-text-muted underline hover:text-text-primary transition-colors"
+              className="inline-flex min-h-6 items-center text-xs text-text-muted underline hover:text-text-primary transition-colors"
             >
               Forgot password?
             </Link>
@@ -396,7 +391,7 @@ function SignInForm() {
           Don&apos;t have an account?{" "}
           <Link
             href={signupHref}
-            className="text-signal hover:underline"
+            className="text-signal underline underline-offset-2 hover:decoration-2"
           >
             Sign up
           </Link>

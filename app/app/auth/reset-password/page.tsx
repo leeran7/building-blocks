@@ -148,7 +148,7 @@ export default function ResetPasswordPage() {
         <div className="mt-6">
           <Link
             href="/auth/signin"
-            className="text-sm text-text-muted underline hover:text-text-primary transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-focus rounded-xs"
+            className="inline-flex min-h-6 items-center text-sm text-text-muted underline hover:text-text-primary transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-focus rounded-xs"
           >
             ← Back to sign in
           </Link>

@@ -267,7 +267,7 @@ export function EditProfileScreen() {
                             spellCheck={false}
                             aria-label={`${PLATFORM_META[p].label} handle`}
                             aria-invalid={invalid || undefined}
-                            className="min-w-0 flex-1 bg-transparent py-2 font-mono text-meta text-text-primary placeholder:text-text-muted focus:outline-none"
+                            className="min-h-[44px] min-w-0 flex-1 bg-transparent font-mono text-meta text-text-primary placeholder:text-text-muted focus:outline-none"
                           />
                         </span>
                       </label>
@@ -361,7 +361,7 @@ function UsernameHint({
           void tapLight();
           void openExternal(`${API_BASE}/c/${check.username}`);
         }}
-        className={`font-mono ${isSaved ? "text-signal underline underline-offset-2" : "text-text-primary"}`}
+        className={`-my-3 inline-flex min-h-[44px] items-center font-mono ${isSaved ? "text-signal underline underline-offset-2" : "text-text-primary"}`}
       >
         /c/{check.username}
         {isSaved ? " ↗" : ""}

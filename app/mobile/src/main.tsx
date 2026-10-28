@@ -5,6 +5,7 @@ import { TargetRoot } from "@target/root";
 import { targetConfig } from "@target/config";
 import { setVolcanoTileSrc } from "@app/components/Game/climbBackground";
 import volcanoTile from "@app/../public/climb/volcano-tile.jpg";
+import { Capacitor } from "@capacitor/core";
 import { applyBundledClimberSheets } from "./lib/climberSheets";
 // Brand fonts ship inside the bundle (no Google Fonts request), so the native
 // app matches the web type and still renders correctly offline.
@@ -24,6 +25,16 @@ setVolcanoTileSrc(volcanoTile);
 // Same for every character's climber atlases (drawn from "/climb/…" on the
 // web): each <id>-poses-192.png / <id>-climb-192.png is bundled and registered.
 applyBundledClimberSheets();
+
+// Browser builds (web, CrazyGames and the other portals) let players zoom:
+// index.html blocks it for the native app, where the WebView should feel like
+// an app. The game's canvas and touch controls set touch-action: none, so a
+// pinch there still never zooms mid-climb.
+if (!Capacitor.isNativePlatform()) {
+  document
+    .querySelector('meta[name="viewport"]')
+    ?.setAttribute("content", "width=device-width, initial-scale=1.0, viewport-fit=cover");
+}
 
 // The host SDK loads before the first render; init() resolves even when the
 // SDK is blocked, so the game always starts.

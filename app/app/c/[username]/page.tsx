@@ -44,9 +44,11 @@ export default async function CreatorPage({ params }: CreatorPageProps) {
   }
 
   return (
-    <main id="main-content" className="grain topo min-h-screen bg-void">
+    <div className="grain topo min-h-screen bg-void">
       <Navbar contextLabel="Creator" />
-      <CreatorProfile profile={profile} />
-    </main>
+      <main id="main-content">
+        <CreatorProfile profile={profile} />
+      </main>
+    </div>
   );
 }

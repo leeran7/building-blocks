@@ -480,11 +480,11 @@ export function Toggle({ label, description, on, onToggle }: ToggleProps) {
         aria-label={label}
         aria-describedby={descriptionId}
         onClick={onToggle}
-        className="group flex h-11 w-16 shrink-0 items-center justify-center rounded-full focus-visible:outline-none"
+        className="flex h-11 w-16 shrink-0 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
       >
         <span
           aria-hidden
-          className={`relative h-8 w-14 rounded-full transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-signal group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-void ${
+          className={`relative h-8 w-14 rounded-full transition-colors duration-200 ${
             on ? "bg-signal shadow-[0_0_14px_rgba(203,242,77,0.45)]" : "bg-border-strong"
           }`}
         >

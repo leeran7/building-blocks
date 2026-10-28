@@ -41,7 +41,7 @@
   --color-border-focus: #4a4656;
   --color-text-primary: #f4f2ec;
   --color-text-secondary: #a8a4b2;
-  --color-text-muted: #74707e;
+  --color-text-muted: #8e8a98;
   --color-text-disabled: #4a4656;
 
   --color-accent: rgb(var(--accent-rgb, 203 242 77));
@@ -283,7 +283,7 @@
   --color-border: #24222c;
   --color-border-focus: #4a4656;
   --color-text-primary: #f4f2ec;
-  --color-text-muted: #74707e;
+  --color-text-muted: #8e8a98;
 
   --signal-rgb: 203 242 77; /* acid lime — ascent */
   --ember-rgb: 255 90 44; /* ember — rising ground / burial */
@@ -523,13 +523,14 @@ button:focus-visible,
   animation: enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Scroll-driven reveal — sections rise + fade as they enter the viewport.
+/* Scroll-driven reveal — sections rise as they enter the viewport.
    Pure CSS via scroll-linked animations; gated behind @supports so browsers
-   without animation-timeline simply render the content statically (no JS, no
-   hidden-content risk). Suppressed under reduced-motion. */
+   without animation-timeline simply render the content statically. No fade:
+   a section reached by anchor link, find-in-page or a fast fling is never
+   blank or faded. Suppressed under reduced-motion. */
 @keyframes scrollReveal {
-  from { opacity: 0; transform: translateY(32px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { transform: translateY(32px); }
+  to   { transform: translateY(0); }
 }
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {

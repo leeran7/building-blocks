@@ -294,11 +294,6 @@ function SignUpForm() {
         className="relative overflow-hidden bg-surface rounded-2xl border border-border-strong p-8 shadow-lifted edge-signal w-full max-w-sm"
         aria-labelledby="auth-card-title"
       >
-        {/* Logo — mobile only; desktop shows the brand panel */}
-        <div className="mb-5 md:hidden">
-          <Wordmark className="h-8 w-auto" />
-        </div>
-
         {/* Title */}
         <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
           [ sign up ]
@@ -452,18 +447,18 @@ function SignUpForm() {
         {/* Toggle to sign in */}
         <p className="text-sm text-text-muted text-center mt-4">
           Already have an account?{" "}
-          <Link href={signinHref} className="text-signal hover:underline">
+          <Link href={signinHref} className="text-signal underline underline-offset-2 hover:decoration-2">
             Sign in
           </Link>
         </p>
 
         <p className="text-xs text-text-muted text-center mt-4">
           By creating an account, you agree to our{" "}
-          <Link href="/terms" className="text-signal hover:underline">
+          <Link href="/terms" className="text-signal underline underline-offset-2 hover:decoration-2">
             Terms
           </Link>{" "}
           and{" "}
-          <Link href="/privacy" className="text-signal hover:underline">
+          <Link href="/privacy" className="text-signal underline underline-offset-2 hover:decoration-2">
             Privacy Policy
           </Link>
           .

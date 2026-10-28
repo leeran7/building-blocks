@@ -51,29 +51,31 @@ export default async function HomePage() {
   };
 
   return (
-    <main id="main-content" className="grain min-h-screen bg-void">
+    <div className="grain min-h-screen bg-void">
       <JsonLd data={[organizationJsonLd(), websiteJsonLd(), videoGameJsonLd(), faqJsonLd]} />
       <LavaChase />
       <Navbar />
+      <main id="main-content">
 
-      <Hero
-        stats={{ climberCount: climbStats.climberCount, topPeak: climbStats.topPeak }}
-      />
+        <Hero
+          stats={{ climberCount: climbStats.climberCount, topPeak: climbStats.topPeak }}
+        />
 
-      <VelocityMarquee />
+        <VelocityMarquee />
 
-      {/* Mode index sits immediately under the hero: headline → CTA →
-          "choose your climb" is the whole first-screen story. */}
-      <ChooseYourClimb />
+        {/* Mode index sits immediately under the hero: headline → CTA →
+            "choose your climb" is the whole first-screen story. */}
+        <ChooseYourClimb />
 
-      <Statement />
+        <Statement />
 
-      {/* Top-3 free climbers, plus the one link to the paid modes when on. */}
-      <LeaderboardTeaser />
+        {/* Top-3 free climbers, plus the one link to the paid modes when on. */}
+        <LeaderboardTeaser />
 
-      <AboutDoomstack />
+        <AboutDoomstack />
 
-      <Faq />
-    </main>
+        <Faq />
+      </main>
+    </div>
   );
 }

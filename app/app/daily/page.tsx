@@ -85,7 +85,7 @@ function DailyIntro() {
         each calendar day — one seed, so it&rsquo;s a fair, shared challenge.
         Climb as high as you can before the rising lava catches you; your peak
         height ranks on the free leaderboard at{" "}
-        <Link href="/climb" className="text-signal hover:underline">
+        <Link href="/climb" className="text-signal underline underline-offset-2 hover:decoration-2">
           /climb
         </Link>
         . Play it every day to build a streak — miss a day and the streak resets.

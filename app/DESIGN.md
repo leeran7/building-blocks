@@ -22,7 +22,7 @@ signal/ember glows), generous spacing. WCAG 2.1 AA.
 | `border-strong` | `#37343f` | Emphasis borders |
 | `text-primary` | `#f4f2ec` | Headings, key values (warm off-white) |
 | `text-secondary` | `#a8a4b2` | Body copy |
-| `text-muted` | `#74707e` | Labels, captions |
+| `text-muted` | `#8e8a98` | Labels, captions (5.9:1 on void, 5.0:1 on elevated; was #74707e at 4.1:1) |
 | **`signal` / `brand` / `accent`** | **`#cbf24d`** | Ascent · you · #1 · CTAs · active · bars |
 | **`ember`** | **`#ff5a2c`** | Rising ground · burial · danger |
 | `warning` `#ffb020` · `success` `#8fd14f` | | Semantic only |
@@ -70,7 +70,7 @@ All motion is `prefers-reduced-motion` guarded.
 :root {
   --color-void: #0a0a0c;   --color-surface: #121116;   --color-elevated: #1e1c24;
   --color-border: #24222c; --color-border-focus: #4a4656;
-  --color-text-primary: #f4f2ec; --color-text-muted: #74707e;
+  --color-text-primary: #f4f2ec; --color-text-muted: #8e8a98;
   --signal-rgb: 203 242 77;  /* ascent  */
   --ember-rgb:  255 90 44;   /* burial  */
   --accent-rgb: 203 242 77;  /* active accent = signal */

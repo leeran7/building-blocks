@@ -127,121 +127,123 @@ export function DashboardBody({ initialData }: Props) {
   }
 
   return (
-    <main id="main-content" className="grain topo min-h-screen bg-void flex flex-col">
+    <div className="grain topo min-h-screen bg-void flex flex-col">
       <Navbar contextLabel="Dashboard" />
+      <main id="main-content" className="flex flex-1 flex-col">
 
-      {/* Tab band */}
-      <div className="border-b border-border-subtle shrink-0">
-        <div className="max-w-2xl mx-auto w-full px-4 py-2 flex items-center justify-between gap-4">
-          <div
-            className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
-            role="tablist"
-            aria-label="Dashboard sections"
-          >
-            <DashTab label="Duels" active={tab === "duels"} onClick={() => setTab("duels")} />
-            <DashTab label="Climb" active={tab === "climb"} onClick={() => setTab("climb")} />
+        {/* Tab band */}
+        <div className="border-b border-border-subtle shrink-0">
+          <div className="max-w-2xl mx-auto w-full px-4 py-2 flex items-center justify-between gap-4">
+            <div
+              className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
+              role="tablist"
+              aria-label="Dashboard sections"
+            >
+              <DashTab label="Duels" active={tab === "duels"} onClick={() => setTab("duels")} />
+              <DashTab label="Climb" active={tab === "climb"} onClick={() => setTab("climb")} />
+            </div>
+            <Link
+              href="/duel"
+              className="inline-flex items-center justify-center rounded-full px-5 min-h-[40px] bg-signal text-void text-sm font-semibold hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            >
+              Start a duel
+            </Link>
           </div>
+        </div>
+
+        {/* Always-visible secondary entry point — narrow viewports don't get
+            the Navbar's "1v1" link (hidden below `sm`), so this closes that
+            discoverability gap without competing with "Start a duel" above. */}
+        <div className="max-w-2xl mx-auto w-full px-4 pt-3">
           <Link
-            href="/duel"
-            className="inline-flex items-center justify-center rounded-full px-5 min-h-[40px] bg-signal text-void text-sm font-semibold hover:brightness-110 active:scale-[0.98] transition-[filter,transform,scale] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+            href="/duel?mode=challenge"
+            className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary hover:text-signal transition-colors"
           >
-            Start a duel
+            Challenge a friend →
           </Link>
         </div>
-      </div>
 
-      {/* Always-visible secondary entry point — narrow viewports don't get
-          the Navbar's "1v1" link (hidden below `sm`), so this closes that
-          discoverability gap without competing with "Start a duel" above. */}
-      <div className="max-w-2xl mx-auto w-full px-4 pt-3">
-        <Link
-          href="/duel?mode=challenge"
-          className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary hover:text-signal transition-colors"
-        >
-          Challenge a friend →
-        </Link>
-      </div>
+        {/* Content */}
+        <div className="max-w-2xl mx-auto w-full px-4 py-6 flex flex-col gap-5">
+          {fetchState.status === "loading" && (
+            <>
+              <SkeletonCard />
+              <SkeletonCard />
+            </>
+          )}
 
-      {/* Content */}
-      <div className="max-w-2xl mx-auto w-full px-4 py-6 flex flex-col gap-5">
-        {fetchState.status === "loading" && (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
-        )}
-
-        {fetchState.status === "error" && (
-          <div role="alert" className="bg-surface border border-ember/30 rounded-xl p-8 text-center">
-            <p className="text-text-secondary text-sm mb-3">{fetchState.message}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="font-mono text-xs uppercase tracking-[0.12em] text-signal hover:brightness-110 transition"
-            >
-              Refresh
-            </button>
-          </div>
-        )}
-
-        {fetchState.status === "success" && (
-          <>
-            {/* Beta banner / badge — both branches are decided by server-known
-                `betaJoined`, never by the client-only `token`, so neither pops
-                in late and shifts the cards below it. The banner's Join action
-                still needs a token; it disables that one button until the
-                Firebase session resolves. */}
-            {fetchState.data.user.betaJoined ? (
-              <div className="flex items-center gap-2 px-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-signal shrink-0" aria-hidden="true" />
-                <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-                  Signed up for beta
-                </p>
-              </div>
-            ) : (
-              <BetaBanner token={token} />
-            )}
-
-            {/* ── Duels tab ─────────────────────────────── */}
-            {tab === "duels" && (
-              <>
-                {PAID_DUELS_ENABLED_PUBLIC && <WalletCard token={token} />}
-
-                {fetchState.data.duelStats ? (
-                  <DuelRecordCard record={fetchState.data.duelStats} />
-                ) : (
-                  <DuelRecordEmpty />
-                )}
-
-                {(fetchState.data.recentDuels?.length ?? 0) > 0 && (
-                  <DuelReplaysSection
-                    duels={fetchState.data.recentDuels!}
-                    userId={fetchState.data.user.id}
-                  />
-                )}
-              </>
-            )}
-
-            {/* ── Climb tab ─────────────────────────────── */}
-            {tab === "climb" && (
-              <>
-                {fetchState.data.freeClimb ? (
-                  <FreeClimbCard climb={fetchState.data.freeClimb} />
-                ) : (
-                  <FreeClimbEmpty />
-                )}
-
-                <ClimbReplaysSection replays={fetchState.data.replays ?? []} />
-              </>
-            )}
-
-            {/* ── Below-fold: creator page band ── */}
-            <div className="mt-2">
-              <CreatorPageBand username={fetchState.data.user.username} />
+          {fetchState.status === "error" && (
+            <div role="alert" className="bg-surface border border-ember/30 rounded-xl p-8 text-center">
+              <p className="text-text-secondary text-sm mb-3">{fetchState.message}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="font-mono text-xs uppercase tracking-[0.12em] text-signal hover:brightness-110 transition"
+              >
+                Refresh
+              </button>
             </div>
-          </>
-        )}
-      </div>
-    </main>
+          )}
+
+          {fetchState.status === "success" && (
+            <>
+              {/* Beta banner / badge — both branches are decided by server-known
+                  `betaJoined`, never by the client-only `token`, so neither pops
+                  in late and shifts the cards below it. The banner's Join action
+                  still needs a token; it disables that one button until the
+                  Firebase session resolves. */}
+              {fetchState.data.user.betaJoined ? (
+                <div className="flex items-center gap-2 px-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-signal shrink-0" aria-hidden="true" />
+                  <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
+                    Signed up for beta
+                  </p>
+                </div>
+              ) : (
+                <BetaBanner token={token} />
+              )}
+
+              {/* ── Duels tab ─────────────────────────────── */}
+              {tab === "duels" && (
+                <>
+                  {PAID_DUELS_ENABLED_PUBLIC && <WalletCard token={token} />}
+
+                  {fetchState.data.duelStats ? (
+                    <DuelRecordCard record={fetchState.data.duelStats} />
+                  ) : (
+                    <DuelRecordEmpty />
+                  )}
+
+                  {(fetchState.data.recentDuels?.length ?? 0) > 0 && (
+                    <DuelReplaysSection
+                      duels={fetchState.data.recentDuels!}
+                      userId={fetchState.data.user.id}
+                    />
+                  )}
+                </>
+              )}
+
+              {/* ── Climb tab ─────────────────────────────── */}
+              {tab === "climb" && (
+                <>
+                  {fetchState.data.freeClimb ? (
+                    <FreeClimbCard climb={fetchState.data.freeClimb} />
+                  ) : (
+                    <FreeClimbEmpty />
+                  )}
+
+                  <ClimbReplaysSection replays={fetchState.data.replays ?? []} />
+                </>
+              )}
+
+              {/* ── Below-fold: creator page band ── */}
+              <div className="mt-2">
+                <CreatorPageBand username={fetchState.data.user.username} />
+              </div>
+            </>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }
 
