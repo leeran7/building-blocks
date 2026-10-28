@@ -4,7 +4,7 @@ import { PayoutPage } from "../../../src/components/Account/PayoutPage";
 import { buildMetadata } from "../../../src/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Payouts — The Climb",
+  title: "Payouts — Doomstack",
   description: "Tournament prize payouts.",
   path: "/account/payout",
 });

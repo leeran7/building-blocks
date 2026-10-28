@@ -1,5 +1,6 @@
 /**
- * /rules — how Doomstack works: the free climb, chip duels, and tournaments.
+ * /rules — how Doomstack works: levels, the Daily Climb, the free climb, free
+ * 1v1, chip duels, and (once they open) tournaments.
  */
 
 import Link from "next/link";
@@ -7,11 +8,12 @@ import { Navbar } from "../../src/components/Navbar";
 import { buildMetadata } from "../../src/lib/seo";
 import { CREDITS_MIN_TOPUP_CENTS } from "../../src/config/paidDuel";
 import { CHIP_TIERS } from "../../src/db/chips";
+import { TOURNAMENTS_COMING_SOON } from "../../src/config/tournaments";
 
 export const metadata = buildMetadata({
   title: "Doomstack — Rules",
   description:
-    "How Doomstack works: the free skill-based climb, chip duels, and bracket tournaments.",
+    "How Doomstack works: levels, the Daily Climb, the free endless climb, 1v1 races, and chip duels.",
   path: "/rules",
 });
 
@@ -28,9 +30,9 @@ function Well({ children }: { children: React.ReactNode }) {
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-signal font-semibold text-xs uppercase tracking-[0.15em] mb-3">
+    <h2 className="text-signal font-semibold text-xs uppercase tracking-[0.15em] mb-3">
       {children}
-    </h3>
+    </h2>
   );
 }
 
@@ -51,11 +53,33 @@ export default function RulesPage() {
               Rules
             </h1>
             <p className="text-text-secondary mt-2">
-              Doomstack has three modes: a free skill-based climb, ranked chip
-              duels, and bracket tournaments. All are decided entirely by how high
-              you climb — never by how much you spend.
+              Doomstack is a climbing game: get as high as you can before the
+              rising lava catches you. Every mode is decided by how you climb,
+              never by how much you spend.
             </p>
           </header>
+
+          {/* Levels */}
+          <section className="mb-8">
+            <SectionHeading>Levels</SectionHeading>
+            <p className="text-text-secondary text-sm mb-2">
+              In the Doomstack app, each level is a tower with a diamond at the
+              top. Reach it before the lava does to clear the level.
+            </p>
+            <ul className="text-text-secondary text-sm space-y-1.5 list-disc list-inside ml-1">
+              <li>Faster clears earn up to three stars. Stars fill chests with boosters.</li>
+              <li>A failed run costs a life. You have five, and one comes back every 30 minutes.</li>
+            </ul>
+          </section>
+
+          {/* Daily Climb */}
+          <section className="mb-8">
+            <SectionHeading>The Daily Climb</SectionHeading>
+            <p className="text-text-secondary text-sm mb-2">
+              Everyone climbs the same tower each day, and the best heights make
+              the daily board. A new tower starts at midnight UTC.
+            </p>
+          </section>
 
           {/* Free climb */}
           <section className="mb-8">
@@ -70,6 +94,16 @@ export default function RulesPage() {
               <li>Play without an account; sign in to record your peak and appear on the leaderboard.</li>
               <li>Runs are shareable as deterministic replays.</li>
             </ul>
+          </section>
+
+          {/* Free 1v1 */}
+          <section className="mb-8">
+            <SectionHeading>1v1 races</SectionHeading>
+            <p className="text-text-secondary text-sm mb-2">
+              Race a friend or a random opponent up the same tower. The higher
+              peak wins. Free 1v1 races stake nothing and count toward the 1v1
+              leaderboard.
+            </p>
           </section>
 
           {/* Chip duels */}
@@ -101,7 +135,13 @@ export default function RulesPage() {
 
           {/* Tournaments */}
           <section className="mb-8">
-            <SectionHeading>Tournaments</SectionHeading>
+            <SectionHeading>Tournaments{TOURNAMENTS_COMING_SOON ? " (coming soon)" : ""}</SectionHeading>
+            {TOURNAMENTS_COMING_SOON && (
+              <p className="text-text-secondary text-sm mb-2">
+                Tournaments aren&apos;t open yet. When they open, they will work
+                like this.
+              </p>
+            )}
             <p className="text-text-secondary text-sm mb-2">
               Bracket competitions with a paid entry fee and predetermined cash
               prizes. Enter, get seeded into a bracket, and play each round
@@ -140,7 +180,7 @@ export default function RulesPage() {
           <div className="border-t border-border-subtle pt-6">
             <Link
               href="/"
-              className="inline-flex min-h-6 items-center text-text-muted hover:text-text-primary text-sm transition-colors"
+              className="inline-flex min-h-[44px] items-center text-text-muted hover:text-text-primary text-sm transition-colors"
             >
               ← Back to Doomstack
             </Link>

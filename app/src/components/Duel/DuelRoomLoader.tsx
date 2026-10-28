@@ -12,7 +12,8 @@
  */
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import { StatusPage } from "../ui/StatusPage";
+import { DUEL_HREF } from "../navLinks";
 import { useEffect, useState } from "react";
 
 const DuelRoomInner = dynamic(() => import("./DuelRoom").then((m) => m.DuelRoom), {
@@ -27,7 +28,7 @@ const DuelRoomInner = dynamic(() => import("./DuelRoom").then((m) => m.DuelRoom)
 type LoadState =
   | { phase: "loading" }
   | { phase: "room" }
-  | { phase: "error"; message: string };
+  | { phase: "error"; title: string; message: string };
 
 export function DuelRoomLoader({ duelId }: { duelId: string }) {
   const [state, setState] = useState<LoadState>({ phase: "loading" });
@@ -38,18 +39,22 @@ export function DuelRoomLoader({ duelId }: { duelId: string }) {
       try {
         const res = await fetch(`/api/duel/${duelId}`, { cache: "no-store" });
         if (cancelled) return;
+        if (res.status === 404) {
+          setState({ phase: "error", title: "Duel not found", message: "This duel link is old or mistyped. Start a new one from the 1v1 page." });
+          return;
+        }
         if (!res.ok) {
-          setState({ phase: "error", message: "Could not load this duel." });
+          setState({ phase: "error", title: "Couldn't load this duel", message: "Something went wrong on our side. Reload the page to try again." });
           return;
         }
         const meta = (await res.json()) as { status: string };
         if (meta.status === "voided") {
-          setState({ phase: "error", message: "This challenge was cancelled." });
+          setState({ phase: "error", title: "Challenge cancelled", message: "This challenge was cancelled. Start a new one from the 1v1 page." });
           return;
         }
         setState({ phase: "room" });
       } catch {
-        if (!cancelled) setState({ phase: "error", message: "Network error loading the duel." });
+        if (!cancelled) setState({ phase: "error", title: "Couldn't load this duel", message: "Check your connection, then reload the page." });
       }
     })();
     return () => { cancelled = true; };
@@ -65,15 +70,9 @@ export function DuelRoomLoader({ duelId }: { duelId: string }) {
 
   if (state.phase === "error") {
     return (
-      <main id="main-content" className="min-h-screen bg-void flex flex-col items-center justify-center gap-4 px-4 text-center">
-        <p className="text-text-secondary text-sm">{state.message}</p>
-        <Link
-          href="/duel"
-          className="inline-flex items-center justify-center rounded-full px-5 min-h-[44px] border border-border-strong text-text-secondary text-sm hover:border-signal/50 transition-colors"
-        >
-          Back to duels
-        </Link>
-      </main>
+      <StatusPage contextLabel="1v1" eyebrow="1v1" title={state.title} primary={{ label: "Go to 1v1", href: DUEL_HREF }}>
+        <p>{state.message}</p>
+      </StatusPage>
     );
   }
 

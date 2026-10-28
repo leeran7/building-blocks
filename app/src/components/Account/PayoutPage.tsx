@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { Navbar } from "../Navbar";
 import { authedFetch } from "../../lib/authedFetch";
+import { StatusPage } from "../ui/StatusPage";
+import { SIGNIN_HREF } from "../navLinks";
 
 interface PrizeEntry {
   tournamentId: string;
@@ -29,7 +31,7 @@ function statusLabel(payoutStatus: string | null, payoutReady: boolean): string 
 }
 
 export function PayoutPage() {
-  const { user, token } = useAuth();
+  const { user, token, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const [data, setData] = useState<PayoutData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,14 +77,17 @@ export function PayoutPage() {
     }
   }, [token]);
 
-  if (!user) {
+  if (!user && !authLoading) {
     return (
-      <div className="grain topo relative min-h-screen bg-void flex flex-col">
-        <div className="shrink-0"><Navbar contextLabel="Payouts" /></div>
-        <main id="main-content" className="relative flex flex-1 flex-col">
-          <p className="mt-16 text-center text-text-secondary">Sign in to view your payouts.</p>
-        </main>
-      </div>
+      <StatusPage
+        contextLabel="Payouts"
+        eyebrow="Payouts"
+        title="Tournament payouts"
+        primary={{ label: "Sign in", href: `${SIGNIN_HREF}?redirect=${encodeURIComponent("/account/payout")}` }}
+        secondary={{ label: "Go home", href: "/" }}
+      >
+        <p>Sign in to see your prizes and set up where they&apos;re paid.</p>
+      </StatusPage>
     );
   }
 

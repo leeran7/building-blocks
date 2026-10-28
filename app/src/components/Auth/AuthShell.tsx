@@ -57,7 +57,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
           </div>
 
           <p className="relative z-10 font-mono text-[11px] uppercase tracking-[0.14em] text-text-muted">
-            © {new Date().getFullYear()} Stack
+            © {new Date().getFullYear()} Doomstack
           </p>
         </aside>
 

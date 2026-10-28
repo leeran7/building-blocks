@@ -63,7 +63,7 @@ function parseShop(v: unknown): ShopState | null {
 
 export async function fetchShop(): Promise<ShopState> {
   const res = await apiFetch("/api/shop");
-  if (!res.ok) throw await errorOf(res, "Couldn't load the Shop.");
+  if (!res.ok) throw await errorOf(res, "Couldn't load the Shop. Check your connection and try again.");
   const state = parseShop(await res.json().catch(() => null));
   if (!state) throw new ShopError("Couldn't load the Shop. Please update the app.", null);
   return state;

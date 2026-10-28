@@ -43,7 +43,7 @@ for (const surface of surfaces) {
     } else {
       await isolate(page);
       const res = await page.goto(`${WEB_URL}${surface.route}`, { waitUntil: "load" });
-      expect(res?.status(), `${surface.route} did not load`).toBe(200);
+      expect(res?.status(), `${surface.route} did not load`).toBe(surface.status ?? 200);
     }
     await surface.open?.(page);
     await expect(surface.ready(page).first(), `${surface.kind} ${surface.id} did not render`).toBeVisible({ timeout: 20_000 });

@@ -35,7 +35,7 @@ export function ShareRun({ peakY, shareUrl, encoding, gate = null }: ShareRunPro
   const [copied, setCopied] = useState(false);
 
   const shareText = shareUrl
-    ? `I climbed ${formatAltitude(height, 0)} on Stack before the lava caught me. Watch the replay: ${shareUrl}`
+    ? `I climbed ${formatAltitude(height, 0)} on Doomstack before the lava caught me. Watch the replay: ${shareUrl}`
     : null;
 
   const tweetUrl =

@@ -538,8 +538,11 @@ export function AvatarPickerScreen() {
 
           <motion.p variants={riseIn} custom={2} className="-mx-4 mt-1 flex items-center justify-between bg-void/60 px-4 py-2.5 font-mono text-label font-bold uppercase tracking-eyebrow">
             <span className="text-text-primary">Your characters</span>
-            <span className="text-signal">
-              {counts.owned} / {counts.total} unlocked
+            {/* Star characters only: the stick figures are always free, so "0 / 17 unlocked" read as wrong. */}
+            <span className="shrink-0 whitespace-nowrap text-signal">
+              <span aria-hidden="true">★ </span>
+              {counts.owned} / {counts.total}
+              <span className="sr-only"> star characters unlocked</span>
             </span>
           </motion.p>
         </motion.div>

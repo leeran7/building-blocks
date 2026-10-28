@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { climberDisplay } from "@app/lib/handle";
 import { UsernameHandle } from "@app/components/Challenge/UsernameHandle";
 import { apiFetch } from "../../lib/api";
@@ -11,6 +11,11 @@ interface Friend {
 }
 
 export interface FriendsListSectionProps {
+  /**
+   * Reports whether the last load failed. When given, the parent shows one
+   * error for the whole screen and this section renders nothing on failure.
+   */
+  onLoadError?: (failed: boolean) => void;
   /** Bump this to force a refetch (e.g. after a friend request is accepted). */
   refreshKey?: number;
   /** Fired after a challenge is successfully sent, so the parent can refresh
@@ -19,27 +24,40 @@ export interface FriendsListSectionProps {
 }
 
 /** Accepted friends, each with a "Challenge" action that sends an in-app challenge. */
-export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListSectionProps) {
+export function FriendsListSection({ refreshKey, onChallengeSent, onLoadError }: FriendsListSectionProps) {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const onLoadErrorRef = useRef(onLoadError);
+  const requestRef = useRef(0);
+  useEffect(() => {
+    onLoadErrorRef.current = onLoadError;
+  }, [onLoadError]);
   const [challengingId, setChallengingId] = useState<string | null>(null);
   const [challengeSent, setChallengeSent] = useState<Set<string>>(new Set());
   const [challengeErrors, setChallengeErrors] = useState<Set<string>>(new Set());
 
   const fetchFriends = useCallback(async () => {
+    // Only the latest load may report: an older one that fails late must not
+    // bring an error back over a newer success.
+    const request = ++requestRef.current;
     setLoading(true);
     setError(null);
     try {
       const res = await apiFetch("/api/friends");
+      if (request !== requestRef.current) return;
       if (res.ok) {
         const data = (await res.json()) as { friends: Friend[] };
         setFriends(data.friends);
+        onLoadErrorRef.current?.(false);
       } else {
         setError("Could not load friends.");
+        onLoadErrorRef.current?.(true);
       }
     } catch {
+      if (request !== requestRef.current) return;
       setError("Network error loading friends.");
+      onLoadErrorRef.current?.(true);
     }
     setLoading(false);
   }, []);
@@ -81,6 +99,8 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
     [onChallengeSent],
   );
 
+  if (!loading && error && onLoadError) return null;
+
   return (
     <div className="flex flex-col gap-3">
       <h2 className="font-mono text-label uppercase tracking-label text-text-secondary">
@@ -97,7 +117,7 @@ export function FriendsListSection({ refreshKey, onChallengeSent }: FriendsListS
         <div className="flex flex-col items-center gap-2 py-2" role="alert">
           <p className="text-meta leading-5 text-ember">{error}</p>
           <Button variant="ghost" fullWidth={false} onPress={fetchFriends}>
-            Retry
+            Try again
           </Button>
         </div>
       )}

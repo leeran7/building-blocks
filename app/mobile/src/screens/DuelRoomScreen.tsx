@@ -23,6 +23,7 @@ import { formatAltitude } from "@app/lib/units";
 import { shareInvite } from "@app/lib/shareInvite";
 import { avatarIdsByPlayer, parseAvatarId } from "@app/lib/avatars";
 import { AddFriendButton } from "../components/challenge/AddFriendButton";
+import { Button, PushHeader } from "../components/ui";
 
 /** Wall-clock buffer before countdown numerals begin (ms). */
 const COUNTDOWN_BUFFER_MS = 500;
@@ -83,8 +84,11 @@ function DuelRoomInner({ duelId }: { duelId: string }) {
       const metaRes = await apiFetch(`/api/duel/${duelId}`);
       if (!metaRes.ok) {
         if (cancelled) return;
-        const body = (await metaRes.json().catch(() => ({}))) as { error?: string };
-        setErrorMsg(body.error ?? "Duel not found.");
+        setErrorMsg(
+          metaRes.status === 404
+            ? "This duel doesn't exist anymore. Start a new one from Versus on the map."
+            : "Couldn't load this duel. Check your connection and try again.",
+        );
         setPhase("error");
         return;
       }
@@ -195,9 +199,10 @@ function DuelRoomInner({ duelId }: { duelId: string }) {
       }
     }
 
-    init().catch((err) => {
+    init().catch(() => {
       if (!cancelled) {
-        setErrorMsg(err instanceof Error ? err.message : "Unexpected error.");
+        // A raw message ("Failed to fetch") tells a player nothing.
+        setErrorMsg("Couldn't load this duel. Check your connection and try again.");
         setPhase("error");
       }
     });
@@ -221,15 +226,15 @@ function DuelRoomInner({ duelId }: { duelId: string }) {
 
   if (phase === "error") {
     return (
-      <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-void px-6 text-center">
-        <p className="text-base text-ember">{errorMsg}</p>
-        <button
-          onClick={() => { void tapLight(); navigate("/"); }}
-          className="rounded-full border border-border-strong px-6 py-3 text-sm text-text-secondary active:scale-95"
-        >
-          Back to duels
-        </button>
-      </div>
+      <main className="flex h-full flex-col bg-void/75">
+        <PushHeader title="Duel" onBack={() => navigate("/")} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 pb-24 text-center">
+          <p role="alert" className="max-w-xs text-body leading-relaxed text-text-secondary">{errorMsg}</p>
+          <Button fullWidth={false} onPress={() => navigate("/")}>
+            Back to the map
+          </Button>
+        </div>
+      </main>
     );
   }
 

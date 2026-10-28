@@ -444,10 +444,10 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             {/* The overlay covers the HUD and its back control: give it its own. */}
             <BackButton onBack={goBack} className="absolute left-4" style={{ top: safeArea.top + 12 }} />
             <span className="font-mono text-[11px] uppercase tracking-[0.4em] text-signal">
-              {isDaily ? "daily challenge" : "endless climb"}
+              {isDaily ? "daily climb" : "endless climb"}
             </span>
             <h2 className="mt-3 font-display text-5xl font-black uppercase leading-none tracking-tight text-text-primary">
-              {isDaily ? "Daily" : "Climb"}
+              {isDaily ? "Today\u2019s tower" : "Climb"}
             </h2>
             <span className="mt-4 h-px w-14 bg-border-strong" />
             <p className="mt-4 max-w-[280px] text-center text-sm leading-relaxed text-text-secondary">

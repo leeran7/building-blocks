@@ -146,11 +146,18 @@ export async function overflowFindings(page: Page): Promise<Finding[]> {
   return wide > 1 ? [{ check: "overflow", rule: "horizontal-scroll", where: `${wide}px wider than the viewport` }] : [];
 }
 
-/** Buttons stretched wider than `max` px, the phone layout sprawling on a desktop. */
+/**
+ * Buttons stretched wider than `max` px, the phone layout sprawling on a
+ * desktop. A sheet's scrim (an empty button out of the tab order that closes
+ * the sheet when the dimmed page around it is tapped) covers the screen by
+ * design and is not a control anyone sees, so it doesn't count.
+ */
 export async function stretchFindings(page: Page, max = 720): Promise<Finding[]> {
   return page.evaluate((max) => {
+    const isScrim = (el: HTMLElement) =>
+      el.tagName === "BUTTON" && el.getAttribute("tabindex") === "-1" && (el.textContent ?? "").trim() === "";
     return Array.from(document.querySelectorAll<HTMLElement>("button, a[href], [role=button]"))
-      .filter((el) => el.getBoundingClientRect().width > max)
+      .filter((el) => el.getBoundingClientRect().width > max && !isScrim(el))
       .map((el) => ({
         check: "stretch",
         rule: `wider-than-${max}px`,

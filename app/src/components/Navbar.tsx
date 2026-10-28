@@ -23,11 +23,11 @@ interface NavbarProps {
 // with the appended `hidden` at the same specificity and won, leaking the links
 // under the wordmark on phones.
 const GHOST =
-  "items-center justify-center px-3 min-h-[38px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
+  "items-center justify-center whitespace-nowrap px-3 min-h-[44px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
 
 export function Navbar({ contextLabel, contextDot }: NavbarProps) {
   return (
-    <nav className="sticky top-0 z-30 h-14 bg-void/80 backdrop-blur-md border-b border-border-subtle px-4 md:px-6 flex items-center justify-between">
+    <nav className="sticky top-0 z-30 h-14 bg-void/80 backdrop-blur-md border-b border-border-subtle px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2">
       <div className="flex items-center gap-3 min-w-0">
         <Link
           href="/"
@@ -36,14 +36,15 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
         >
           <Wordmark
             decorative
-            className="h-8 w-auto group-hover:scale-105 transition-transform"
+            className="h-6 sm:h-8 w-auto group-hover:scale-105 transition-transform"
           />
         </Link>
         {contextLabel && (
-          // min-w-0 down the chain lets the breadcrumb label truncate instead of
-          // pushing the wordmark into the auth buttons at 375px. The wordmark
-          // stays shrink-0; only this label ellipsizes when space runs out.
-          <div className="flex min-w-0 items-center gap-1.5 font-mono text-xs uppercase tracking-[0.12em] text-text-secondary">
+          // Hidden on phones, where it could only show a few letters beside the
+          // auth buttons; each page's own heading says where you are. From sm
+          // up, min-w-0 down the chain lets it ellipsize instead of pushing the
+          // wordmark into the links.
+          <div className="hidden min-w-0 sm:flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.12em] text-text-secondary">
             <span className="text-text-muted shrink-0" aria-hidden="true">
               /
             </span>

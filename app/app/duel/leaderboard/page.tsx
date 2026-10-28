@@ -38,6 +38,15 @@ export default async function DuelLeaderboardPage() {
   return (
     <DuelStackShell section="leaderboard">
       <div className="py-8 flex flex-col gap-10">
+        <header>
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1.5">
+            multiplayer · standings
+          </p>
+          <h1 className="font-display text-4xl md:text-5xl font-black tracking-tight uppercase text-text-primary leading-none">
+            1v1 leaderboard
+          </h1>
+        </header>
+
         {/* Free 1v1 */}
         <section>
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1">
