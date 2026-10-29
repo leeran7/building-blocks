@@ -36,7 +36,7 @@ import {
 } from "./towers";
 
 /** Height of the deadly band above the floor, in metres. */
-export const SPIKE_HEIGHT_M = 1;
+export const SPIKE_HEIGHT_M = 1.25;
 /** Row width at layout difficulty 0 and 1, before the seeded jitter. */
 export const SPIKE_WIDTH_M = { from: 3, to: 4.5 } as const;
 /** Seeded extra width, [0, this). */

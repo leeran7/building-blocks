@@ -69,9 +69,10 @@ const CRATE_TOP = "#4a4656";
 const CRATE_FACE = "#3a3644";
 const LADDER = "#aaa9ad";
 /** Spikes: steel teeth on a danger-red base, unlike any crate or the lava. */
-const SPIKE_STEEL = "#e4e2ea";
-const SPIKE_SHADE = "#8f8c99";
+const SPIKE_STEEL = "#f4f2ec";
+const SPIKE_SHADE = "#c4213f";
 const SPIKE_DANGER = "#ff3b5c";
+const SPIKE_GLOW = "255, 59, 92";
 /** Climbing pose: hands sit this many climber units above the feet (shoulder 1.85 + 0.4). */
 const CLIMB_HAND_UNITS = 2.25;
 const OPPONENT_COLOR = "#6bb8ff"; // wayfinding blue — opponent in a duel
@@ -1021,7 +1022,7 @@ function drawObstacle(
 }
 
 /** Target tooth width (m); the row gets a whole number of teeth. */
-const SPIKE_TOOTH_M = 0.6;
+const SPIKE_TOOTH_M = 0.8;
 
 function drawSpikes(
   ctx: PaintCtx,
@@ -1043,7 +1044,20 @@ function drawSpikes(
   if (w <= 1) return;
   const teeth = Math.max(2, Math.round((s.x1 - s.x0 - 2 * SPIKE_INSET_M) / SPIKE_TOOTH_M));
   const tw = w / teeth;
-  const baseH = Math.max(1 * ui, pxPerM * 0.08);
+  const baseH = Math.max(1.5 * ui, pxPerM * 0.15);
+  // A faint red haze behind the row so it reads at a glance on a phone. It
+  // fades out well before the tips, so it never looks like part of the teeth.
+  const rx = w / 2 + 2 * tw;
+  const ry = (base - tip) * 3;
+  ctx.save();
+  ctx.translate(x0 + w / 2, base);
+  ctx.scale(1, ry / rx);
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  glow.addColorStop(0, `rgba(${SPIKE_GLOW}, 0.6)`);
+  glow.addColorStop(1, `rgba(${SPIKE_GLOW}, 0)`);
+  ctx.fillStyle = glow;
+  ctx.fillRect(-rx, -rx, 2 * rx, rx);
+  ctx.restore();
   for (let k = 0; k < teeth; k++) {
     const l = x0 + k * tw;
     // Lit left face, shaded right face, so each tooth reads as a point.
