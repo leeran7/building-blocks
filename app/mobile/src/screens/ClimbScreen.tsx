@@ -9,6 +9,7 @@ import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
 import { encodeRunReplay, buildReplayUrl } from "@app/game/runReplay";
 import { hazardPhase } from "@app/game/hazard";
+import { endedOnSpikes } from "@app/game/spikes";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud } from "@app/components/Game/ExpeditionHud";
 import {
@@ -487,6 +488,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
           {finished && (
             <ResultsCard
               peakY={player?.peakY ?? 0}
+              spiked={player !== undefined && endedOnSpikes(state.tower, player)}
               saveInfo={saveInfo}
               dailyResult={isDaily ? dailyResult : null}
               dailySave={isDaily ? dailySave : null}
@@ -648,6 +650,7 @@ function dailyRankLine(save: DailySaveState): string {
 
 function ResultsCard({
   peakY,
+  spiked,
   saveInfo,
   dailyResult,
   dailySave,
@@ -662,6 +665,8 @@ function ResultsCard({
   onSignIn,
 }: {
   peakY: number;
+  /** The run ended on spikes, not in the lava. */
+  spiked: boolean;
   saveInfo: ClimbSaveResult | null;
   dailyResult: DailyRunResult | null;
   /** Daily mode only: the verified save's state; null outside daily mode. */
@@ -718,7 +723,7 @@ function ResultsCard({
         </p>
       ) : (
         <p className="text-center font-mono text-[11px] uppercase tracking-[0.3em] text-ember">
-          caught by the lava
+          {spiked ? "hit the spikes" : "caught by the lava"}
         </p>
       )}
 

@@ -67,12 +67,12 @@ async function refillClient(losses: number) {
   for (let n = 1; n <= 10; n++) {
     const s = await base.startLevel(n);
     if (!s.ok) throw new Error("refused");
-    await base.submitResult(s.ticket.id, { finished: true, level: n, finishedTick: 3 * TICK_HZ, raceTicks: 3 * TICK_HZ, peakFt: s.ticket.goalFt, replayToken: null, outOfTime: false });
+    await base.submitResult(s.ticket.id, { finished: true, level: n, finishedTick: 3 * TICK_HZ, raceTicks: 3 * TICK_HZ, peakFt: s.ticket.goalFt, replayToken: null, outOfTime: false, spiked: false });
   }
   for (let i = 0; i < losses; i++) {
     const s = await base.startLevel(11);
     if (!s.ok) throw new Error("refused");
-    await base.submitResult(s.ticket.id, { level: 11, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false });
+    await base.submitResult(s.ticket.id, { level: 11, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false, spiked: false });
   }
   const buyLives = vi.fn(async (): Promise<BuyLivesResult> => {
     const season = await base.getSeason();

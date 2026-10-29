@@ -178,6 +178,8 @@ export interface LevelRunReport {
   replayToken: string | null;
   /** Lost because the level's clock ran out, not to the lava. */
   outOfTime: boolean;
+  /** Lost on spikes, not to the lava. */
+  spiked: boolean;
 }
 
 /** The server's verdict on a level run. */
@@ -192,6 +194,8 @@ export interface LevelResult {
   timeMs: number | null;
   /** Lost because the level's clock ran out. */
   outOfTime: boolean;
+  /** Lost on spikes. */
+  spiked: boolean;
   pars: LevelNode["pars"];
   goalFt: number;
   peakFt: number;

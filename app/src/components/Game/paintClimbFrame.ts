@@ -3,7 +3,7 @@
  * Draws world + optional HUD; never draws transport chrome (ADR-3).
  */
 
-import { MatchState, Obstacle, PlayerState, TICK_DT, TowerSpec } from "../../game/types";
+import { MatchState, Obstacle, PlayerState, Spike, TICK_DT, TowerSpec } from "../../game/types";
 import {
   platformsNearY,
   laddersNearY,
@@ -16,6 +16,7 @@ import {
   type SummitDiamond,
 } from "../../game/towers";
 import { obstaclesNearY } from "../../game/obstacles";
+import { SPIKE_HEIGHT_M, spikesNearY } from "../../game/spikes";
 import {
   POWER_UP_SPECS,
   GIANT_VISUAL_SCALE,
@@ -67,6 +68,10 @@ const CRATE = "#2a2730";
 const CRATE_TOP = "#4a4656";
 const CRATE_FACE = "#3a3644";
 const LADDER = "#aaa9ad";
+/** Spikes: steel teeth on a danger-red base, unlike any crate or the lava. */
+const SPIKE_STEEL = "#e4e2ea";
+const SPIKE_SHADE = "#8f8c99";
+const SPIKE_DANGER = "#ff3b5c";
 /** Climbing pose: hands sit this many climber units above the feet (shoulder 1.85 + 0.4). */
 const CLIMB_HAND_UNITS = 2.25;
 const OPPONENT_COLOR = "#6bb8ff"; // wayfinding blue — opponent in a duel
@@ -353,6 +358,10 @@ export function paintClimbFrame(
 
   for (const o of obstaclesNearY(tower, yLow, yHigh)) {
     drawObstacle(ctx, o, sx, sy, sizePxPerM, ui, height);
+  }
+
+  for (const s of spikesNearY(tower, yLow, yHigh)) {
+    drawSpikes(ctx, s, sx, sy, sizePxPerM, ui, height);
   }
 
   const diamond = diamondFor(tower);
@@ -1009,6 +1018,56 @@ function drawObstacle(
   ctx.strokeStyle = LADDER;
   ctx.lineWidth = Math.max(1.5, 1.5 * ui);
   ctx.strokeRect(x + 0.5, top + 0.5, w - 1, h - 1);
+}
+
+/** Target tooth width (m); the row gets a whole number of teeth. */
+const SPIKE_TOOTH_M = 1.3;
+/** Shortest a tooth is drawn, in UI px. */
+const SPIKE_MIN_DRAW_PX = 11;
+
+function drawSpikes(
+  ctx: PaintCtx,
+  s: Spike,
+  sx: (x: number) => number,
+  sy: (y: number) => number,
+  pxPerM: number,
+  ui: number,
+  canvasH: number
+) {
+  const base = sy(s.y);
+  // Never shorter than a few px: at the phone's zoom the real band is tiny.
+  const tip = Math.min(sy(s.y + SPIKE_HEIGHT_M), base - SPIKE_MIN_DRAW_PX * ui);
+  if (base < -8 || tip > canvasH + 8) return;
+  const x0 = sx(s.x0);
+  const w = sx(s.x1) - x0;
+  if (w <= 1) return;
+  const teeth = Math.max(2, Math.round((s.x1 - s.x0) / SPIKE_TOOTH_M));
+  const tw = w / teeth;
+  const baseH = Math.max(2 * ui, pxPerM * 0.14);
+  for (let k = 0; k < teeth; k++) {
+    const l = x0 + k * tw;
+    // Lit left face, shaded right face, so each tooth reads as a point.
+    ctx.fillStyle = SPIKE_STEEL;
+    ctx.beginPath();
+    ctx.moveTo(l, base);
+    ctx.lineTo(l + tw / 2, tip);
+    ctx.lineTo(l + tw / 2, base);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = SPIKE_SHADE;
+    ctx.beginPath();
+    ctx.moveTo(l + tw / 2, tip);
+    ctx.lineTo(l + tw, base);
+    ctx.lineTo(l + tw / 2, base);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = SPIKE_DANGER;
+    ctx.beginPath();
+    ctx.arc(l + tw / 2, tip, Math.max(1, 0.9 * ui), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = SPIKE_DANGER;
+  ctx.fillRect(x0, base - baseH, w, baseH);
 }
 
 function roundRect(

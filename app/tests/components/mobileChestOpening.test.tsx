@@ -297,6 +297,7 @@ describe("on the result card", () => {
     previousStars: 0,
     timeMs: 20_000,
     outOfTime: false,
+    spiked: false,
     pars: { twoStarMs: 36_000, threeStarMs: 28_000, oneStarMs: null },
     streak: null,
     atFrontier: false,

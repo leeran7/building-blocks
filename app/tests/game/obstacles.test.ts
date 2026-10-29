@@ -277,7 +277,10 @@ describe("obstacle spawn", () => {
       }
     }
     expect(floors).toBeGreaterThan(0);
-    expect(hills).toBeGreaterThan(floors * 0.14);
+    // Was 0.14 while the layout ramp took 50 floors. Hard floors leave less
+    // room between gaps, so with the 30-floor ramp (2026-10-29) more of these
+    // floors are at full difficulty: measured 79 of 638 (12.4%).
+    expect(hills).toBeGreaterThan(floors * 0.12);
   });
 
   it("obstaclesNearY includes crates whose band intersects the window", () => {

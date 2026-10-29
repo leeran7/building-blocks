@@ -9,12 +9,13 @@
  * peer's ghost snapshot.
  *
  * What this pins (spec-lava-apparency, "Tests" and Revision 2):
- *   - the leash holds: burst paces 0.75–1.0 keep the gap in [35, 115] ft
+ *   - the leash holds: burst paces 0.75–1.0 keep the gap in [30, 115] ft
  *     after 30 s, so the lava neither runs away (the old 250 ft binary kick)
  *     nor catches;
  *   - the beginner floor: pace 0.5 is caught above 550 ft;
  *   - the run still ends: pace 0.45 is caught;
- *   - a mistake has a window: stalls at pace 0.85;
+ *   - a mistake has a window: stalls at pace 0.85 (5 s from any phase, 9 s
+ *     from a stumble, since the 2026-10-29 faster tune; was 8 s and 10 s);
  *   - late creep (R2-2): beginners are untouched, 0.62 is caught sooner, and
  *     0.66 (above every unaided pace) is caught within about 7 minutes.
  */
@@ -40,7 +41,7 @@ const GHOST_SLOT = 99;
  * Gap band (ft) the leash must hold a burst-pace climber inside.
  *
  * BAND_HI (115) is unchanged: the widest gap is set early in the ramp
- * (1.0× peaks at ~111 ft near 30 s), before the creep starts at 125 s.
+ * (1.0× peaks at ~106 ft), before the creep starts at 92 s.
  *
  * BAND_LO moved 40 → 35 with the late creep (R2-2), for a measured reason:
  * the creep lifts the surge speed from 0.91× to 1× by ~395 s, so each late
@@ -49,8 +50,13 @@ const GHOST_SLOT = 99;
  * 53.2), 1.0× to 56.1 (was 62.2). 35 still sits well above the HUD danger
  * band (24 ft), so the assertion keeps its meaning: the lava rides behind a
  * burst-pace climber and never reaches them.
+ *
+ * BAND_LO moved 35 → 30 with the faster tune (2026-10-29: 2 s grace, 90 s
+ * ramp, GAME_SPEED 1.3): the ramp ends sooner, so more of the match runs at
+ * the late surge speed. Measured over 300 s: 0.75× dips to 32.9 ft, 0.85× to
+ * 44.8, 1.0× to 54.0. Still above the 24 ft danger band.
  */
-const BAND_LO = 35;
+const BAND_LO = 30;
 const BAND_HI = 115;
 /**
  * Paces held in the band. 0.70 used to be here; with creep it is exactly the
@@ -182,19 +188,21 @@ describe("curve: the kill threshold still ends slow runs", () => {
 });
 
 describe("stalls at 0.85×: a mistake has a window, standing still does not", () => {
-  it("a 10 s stall that starts as the lava stumbles is survivable", () => {
-    const s = stallPace(10, "stumble");
+  // Measured with the faster tune: 9 s from a stumble and 5 s from any phase
+  // survive, 10 s from any phase is always fatal.
+  it("a 9 s stall that starts as the lava stumbles is survivable", () => {
+    const s = stallPace(9, "stumble");
     const r = runAtPace(s.pace, 150);
     expect(s.stallStartS()).not.toBeNull();
     expect(r.caught).toBe(false);
   });
 
-  it("an 8 s stall is survivable whichever phase it lands in", () => {
+  it("a 5 s stall is survivable whichever phase it lands in", () => {
     let checked = 0;
     const period = DEFAULT_HAZARD_CONFIG.stumblePeriodSeconds;
     for (let start = STALL_AFTER_S; start < STALL_AFTER_S + period; start += 1) {
-      const r = runAtPace(stallPace(8, start).pace, 150);
-      expect(r.caught, `8 s stall starting at ${start}s`).toBe(false);
+      const r = runAtPace(stallPace(5, start).pace, 150);
+      expect(r.caught, `5 s stall starting at ${start}s`).toBe(false);
       checked += 1;
     }
     expect(checked).toBeGreaterThan(0);
@@ -214,7 +222,7 @@ describe("stalls at 0.85×: a mistake has a window, standing still does not", ()
 });
 
 describe("late creep (R2-2) through the real stepMatch", () => {
-  /** Minutes the 0.66× climber must be caught within (spec: 362 s). */
+  /** Minutes the 0.66× climber must be caught within (measured 290 s; 362 s before the 2026-10-29 tune). */
   const CREEP_CATCH_S = 7 * 60;
   /** "Within a few ft": beginner reach barely moves (measured ≤ 1.8 ft). */
   const BEGINNER_TOLERANCE_FT = 5;
@@ -234,8 +242,9 @@ describe("late creep (R2-2) through the real stepMatch", () => {
     const flat = runAtPace(constant(0.62), 600, NO_CREEP);
     expect(creep.caughtAtS).not.toBeNull();
     expect(flat.caughtAtS).not.toBeNull();
-    // Measured 226 s vs 323 s; a full minute sooner is the documented effect.
-    expect(creep.caughtAtS as number).toBeLessThan((flat.caughtAtS as number) - 60);
+    // Measured 168 s vs 217 s (226 s vs 323 s before the 2026-10-29 tune,
+    // whose shorter ramp leaves the creep less time to act).
+    expect(creep.caughtAtS as number).toBeLessThan((flat.caughtAtS as number) - 40);
   });
 
   it("catches a 0.66× climber, above every unaided pace, within about 7 minutes", () => {

@@ -130,7 +130,7 @@ describe("AC-J12 ClimbControlsGuide copy", () => {
     expect(html).toMatch(/tap jump to leap/i);
     expect(html).toMatch(/fuel is short/i);
     expect(html).toMatch(
-      new RegExp(`caps rise at ${JETPACK_MAX_VY} m/s`)
+      new RegExp(`caps rise at ${Math.round(JETPACK_MAX_VY)} m/s`)
     );
     expect(html).toContain(`${JETPACK_FUEL_SECONDS}s fuel`);
     expect(html).toContain(`${POWER_UP_SPECS.jetpack.durationSeconds}s window`);

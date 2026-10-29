@@ -58,7 +58,7 @@ const TIPS = [
   "Crates on a floor block the walk — jump a hurdle, walk a three-crate triangle, or climb a stacked stair to the next floor.",
   "Walk into a glowing orb to trigger its power-up instantly.",
   "Power-ups activate the instant you touch them — time your route to grab one right when you need it.",
-  `Tap jump to leap, then re-hold in the air to burn a jetpack; holding through takeoff caps rise at ${JETPACK_MAX_VY} m/s. Fuel is short, leftover dies with the window.`,
+  `Tap jump to leap, then re-hold in the air to burn a jetpack; holding through takeoff caps rise at ${Math.round(JETPACK_MAX_VY)} m/s. Fuel is short, leftover dies with the window.`,
 ] as const;
 
 export function ClimbControlsGuide({

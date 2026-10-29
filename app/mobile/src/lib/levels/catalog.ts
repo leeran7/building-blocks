@@ -25,6 +25,9 @@ function obstacleTip(season: SeasonSpec, level: number): string | null {
   if (level === season.obstacleIntros.shortTops) {
     return "Short tops: some tall ladders stop below the floor. Look for the gap and arrow at the top, then jump off to get up.";
   }
+  if (level === season.obstacleIntros.spikes) {
+    return "Spikes! Touch them and your run ends. Jump over them.";
+  }
   return null;
 }
 

@@ -17,7 +17,7 @@
  * do not stack into a single column.
  */
 
-import { TowerSpec, Platform, Ladder } from "./types";
+import { TowerSpec, Platform, Ladder, GAME_SPEED } from "./types";
 import {
   GameCategory,
   TrackArchetype,
@@ -26,7 +26,7 @@ import {
 import { createRng, hashSeed } from "./rng";
 import { createSeedCache } from "./seedCache";
 
-/** Physics + layout tuning per archetype. */
+/** Physics + layout tuning per archetype, before GAME_SPEED (see `paced`). */
 interface ArchetypeTuning {
   maxClimbSpeed: number;
   moveSpeed: number;
@@ -37,7 +37,18 @@ interface ArchetypeTuning {
   floorGap: number;
 }
 
-const ARCHETYPE_TUNING: Record<TrackArchetype, ArchetypeTuning> = {
+/** Speeds × GAME_SPEED, gravity × GAME_SPEED²: same jump shapes, faster play. */
+function paced(t: ArchetypeTuning): ArchetypeTuning {
+  return {
+    ...t,
+    maxClimbSpeed: t.maxClimbSpeed * GAME_SPEED,
+    moveSpeed: t.moveSpeed * GAME_SPEED,
+    jumpSpeed: t.jumpSpeed * GAME_SPEED,
+    gravity: t.gravity * GAME_SPEED * GAME_SPEED,
+  };
+}
+
+const BASE_TUNING: Record<TrackArchetype, ArchetypeTuning> = {
   "ladder-climb": {
     maxClimbSpeed: 9, moveSpeed: 14, jumpSpeed: 15, gravity: 40,
     fallDeathBelowPeakM: 90, ladderGrabRadius: 2.2, floorGap: 24,
@@ -56,6 +67,10 @@ const ARCHETYPE_TUNING: Record<TrackArchetype, ArchetypeTuning> = {
   },
 };
 
+const ARCHETYPE_TUNING = Object.fromEntries(
+  Object.entries(BASE_TUNING).map(([k, t]) => [k, paced(t)])
+) as Record<TrackArchetype, ArchetypeTuning>;
+
 /**
  * Fastest vertical values across every archetype. Derived rather than written
  * down so a retune of ARCHETYPE_TUNING cannot silently loosen or invalidate the
@@ -70,7 +85,7 @@ export const FASTEST_ARCHETYPE = {
 
 const WIDTH_M = 100;
 /** Floors over which difficulty ramps from easy → hard (then holds). */
-export const DIFFICULTY_FLOORS = 50;
+export const DIFFICULTY_FLOORS = 30;
 
 /**
  * Layout difficulty (0 easy → 1 hard) that floor i is generated at. The free
@@ -415,7 +430,7 @@ function ladderCountForFloor(tower: TowerSpec, i: number): number {
   const roll = r.next();
   // Single-ladder floors stay common low down (readable opening) and thin out.
   // Higher floors favor 2 ladders to help with wider gaps. Max is 2 (never 3).
-  const oneChance = knob(tower, "oneLadderChance", 0, 1) ?? 0.5 - 0.2 * d; // 50% at floor 0, 30% at floor 50+
+  const oneChance = knob(tower, "oneLadderChance", 0, 1) ?? 0.5 - 0.2 * d; // 50% at floor 0, 30% at floor DIFFICULTY_FLOORS+
   if (roll < oneChance) return 1;
   return 2;
 }

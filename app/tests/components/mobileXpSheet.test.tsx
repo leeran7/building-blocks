@@ -70,6 +70,7 @@ async function clearLevels(client: LevelsClient, upTo: number) {
       peakFt: s.ticket.goalFt,
       replayToken: null,
       outOfTime: false,
+      spiked: false,
     });
   }
 }
@@ -119,8 +120,8 @@ describe("progressionOf", () => {
     expect(p.episode).toEqual({ episode: 1, first: 1, last: 15, levelsLeft: 5, xp: 250 });
     expect(p.tower.map((u) => [u.level, u.kind, u.title])).toEqual([
       [11, "power-up", "Super Jump"],
+      [12, "obstacle", "New obstacle"],
       [14, "power-up", "Slow Lava"],
-      [18, "power-up", "Giant"],
     ]);
     expect(p.stars).toBe(30);
     expect(p.characters).toEqual([

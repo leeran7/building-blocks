@@ -41,8 +41,10 @@ const MIDDAY = new Date("2026-09-26T12:00:00Z");
  * was picked because it climbs well past the first ledge on DAY's tower
  * but not on the previous day's (~2.6 m), so a relabelled replay cannot pass
  * by coincidence. Since #154 (a held climb re-grabs a ladder after landing)
- * it lasts 274 ticks and 38 input segments to 10.33 m on DAY; before, the
- * same inputs died at 227 ticks, 31 segments, 7.61 m. The packed format and
+ * it lasted 274 ticks and 38 input segments to 10.33 m on DAY; before, the
+ * same inputs died at 227 ticks, 31 segments, 7.61 m. Since the faster tune
+ * (2026-10-29: GAME_SPEED 1.3, 2 s lava grace) it lasts 155 ticks and 20
+ * segments to 10.95 m (2.5 m on the previous day). The packed format and
  * the recorder did not change; only stepMatch did.
  */
 function playRun(seed: string, maxTicks = 6000): { inputs: PlayerInput[]; peakY: number } {
@@ -90,7 +92,7 @@ describe("verifyDailyReplay", () => {
       ticks: run.inputs.length,
       finished: false,
       inputHash: dailyInputHash(run.inputs),
-      inputSegments: 38,
+      inputSegments: 20,
     });
   });
 
@@ -349,13 +351,13 @@ describe("claim floor for low-entropy runs (SEC-DC-11)", () => {
     expect(dailyInputHash(a.inputs)).toBe(dailyInputHash(b.inputs));
   });
 
-  it("a real climb (the scripted 10.33 m run) is over the floor and must claim", async () => {
+  it("a real climb (the scripted 10.95 m run) is over the floor and must claim", async () => {
     const run = playRun(SEED);
     const verdict = verifyDailyReplay(await tokenFor(SEED, run.peakY, run.inputs), run.peakY, MIDDAY);
     expect(verdict.ok).toBe(true);
     if (!verdict.ok) return;
     expect(verdict.peakY).toBeGreaterThanOrEqual(DAILY_CLAIM_MIN_PEAK_M);
-    expect(verdict.inputSegments).toBe(38);
+    expect(verdict.inputSegments).toBe(20);
     expect(dailyRunNeedsClaim(verdict.peakY, verdict.inputSegments)).toBe(true);
   });
 

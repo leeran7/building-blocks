@@ -51,13 +51,14 @@ async function clear(client: ReturnType<typeof harness>["client"], level: number
     peakFt: start.ticket.goalFt,
     replayToken: null,
     outOfTime: false,
+    spiked: false,
   });
 }
 
 async function lose(client: ReturnType<typeof harness>["client"], level: number) {
   const start = await client.startLevel(level);
   if (!start.ok) throw new Error(`level ${level} refused: ${start.code}`);
-  return client.submitResult(start.ticket.id, { level, finished: false, finishedTick: null, raceTicks: 300, peakFt: 10, replayToken: "r", outOfTime: false });
+  return client.submitResult(start.ticket.id, { level, finished: false, finishedTick: null, raceTicks: 300, peakFt: 10, replayToken: "r", outOfTime: false, spiked: false });
 }
 
 describe("mock level store", () => {
@@ -104,6 +105,7 @@ describe("mock level store", () => {
       peakFt: start.ticket.goalFt,
       replayToken: null,
       outOfTime: false,
+      spiked: false,
     });
     expect(result.player.lives).toBe(MAX_LIVES);
   });
@@ -180,7 +182,7 @@ describe("mock level store", () => {
     const { client } = harness();
     const start = await client.startLevel(1);
     if (!start.ok) throw new Error("refused");
-    const run = { level: 1, finished: false, finishedTick: null, raceTicks: 90, peakFt: 1, replayToken: null, outOfTime: false };
+    const run = { level: 1, finished: false, finishedTick: null, raceTicks: 90, peakFt: 1, replayToken: null, outOfTime: false, spiked: false };
     await client.submitResult(start.ticket.id, run);
     await expect(client.submitResult(start.ticket.id, run)).rejects.toThrow();
   });

@@ -64,9 +64,9 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
       return h(
         "div",
         null,
-        h("button", { onClick: () => props.onEnd({ level: props.level, finished: true, finishedTick: 30, raceTicks: 30, peakFt: props.goalFt, replayToken: null, outOfTime: false }) }, "stub-clear"),
-        h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt / 2, replayToken: "r", outOfTime: false }) }, "stub-lose"),
-        h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt - 1, replayToken: "r", outOfTime: false }) }, "stub-near"),
+        h("button", { onClick: () => props.onEnd({ level: props.level, finished: true, finishedTick: 30, raceTicks: 30, peakFt: props.goalFt, replayToken: null, outOfTime: false, spiked: false }) }, "stub-clear"),
+        h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt / 2, replayToken: "r", outOfTime: false, spiked: false }) }, "stub-lose"),
+        h("button", { onClick: () => props.onEnd({ level: props.level, finished: false, finishedTick: null, raceTicks: 300, peakFt: props.goalFt - 1, replayToken: "r", outOfTime: false, spiked: false }) }, "stub-near"),
       );
     },
   };
@@ -142,6 +142,7 @@ async function clearLevels(client: LevelsClient, upTo: number) {
       peakFt: s.ticket.goalFt,
       replayToken: null,
       outOfTime: false,
+      spiked: false,
     });
   }
 }
@@ -272,7 +273,7 @@ describe("level map", () => {
       for (let i = 0; i < 5; i++) {
         const s = await base.startLevel(11);
         if (!s.ok) throw new Error("refused");
-        await base.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false });
+        await base.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false, spiked: false });
       }
       const startLevel = vi.fn(base.startLevel);
       await renderMap({ ...base, startLevel });
@@ -308,7 +309,7 @@ describe("level map", () => {
     for (let i = 0; i < 5; i++) {
       const s = await client.startLevel(11);
       if (!s.ok) throw new Error("refused");
-      await client.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false });
+      await client.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false, spiked: false });
     }
     await renderMap(client);
     await click(pin("Level 11, next to play"));
@@ -332,7 +333,7 @@ describe("level map", () => {
       for (let i = 0; i < losses; i++) {
         const s = await base.startLevel(11);
         if (!s.ok) throw new Error("refused");
-        await base.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false });
+        await base.submitResult(s.ticket.id, { level: s.ticket.level, finished: false, finishedTick: null, raceTicks: 200, peakFt: 5, replayToken: null, outOfTime: false, spiked: false });
       }
       const buyLives = vi.fn(async (): Promise<BuyLivesResult> => {
         if (refused) return refused;
@@ -1104,6 +1105,7 @@ describe("level result card", () => {
     previousStars: 0,
     timeMs: 31_000,
     outOfTime: false,
+    spiked: false,
     pars: { twoStarMs: 36_000, threeStarMs: 28_000, oneStarMs: null },
     streak: null,
     atFrontier: false,
@@ -1164,11 +1166,17 @@ describe("level result card", () => {
 
   it("says a run lost to the level's clock ran out of time, with the 1-star time", async () => {
     const clocked = { ...base.pars, oneStarMs: 45_000 };
-    await renderCard({ ...base, pars: clocked, cleared: false, stars: 0, timeMs: null, peakFt: 200, xpGained: 0, outOfTime: true });
+    await renderCard({ ...base, pars: clocked, cleared: false, stars: 0, timeMs: null, peakFt: 200, xpGained: 0, outOfTime: true, spiked: false });
     expect(document.body.textContent).toContain("Out of time");
     expect(document.body.textContent).not.toContain("Caught by the lava");
     await renderCard({ ...base, pars: clocked });
     expect(document.body.textContent).toContain("3★ at 0:28 · 2★ at 0:36 · 1★ at 0:45");
+  });
+
+  it("says a run lost on spikes hit the spikes, not the lava", async () => {
+    await renderCard({ ...base, cleared: false, stars: 0, timeMs: null, peakFt: 200, xpGained: 0, outOfTime: false, spiked: true });
+    expect(document.body.textContent).toContain("Hit the spikes");
+    expect(document.body.textContent).not.toContain("Caught by the lava");
   });
 
   it("offers a paid refill on a loss that leaves no lives", async () => {

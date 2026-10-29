@@ -135,8 +135,8 @@ describe("ClimbScene → usePowerUpFeedback: lava phase", () => {
   // time), so effective time differs from raceSeconds. Fixtures are picked so
   // raw race time and effective hazard time fall in opposite phases.
   it.each([
-    { raceSeconds: 90, hazardSlowSeconds: -8, want: "stumble", raw: "surge" },
-    { raceSeconds: 98, hazardSlowSeconds: -8, want: "surge", raw: "stumble" },
+    { raceSeconds: 87, hazardSlowSeconds: -8, want: "stumble", raw: "surge" },
+    { raceSeconds: 95, hazardSlowSeconds: -8, want: "surge", raw: "stumble" },
   ] as const)(
     "hands over the phase at effective hazard time ($want at raw $raceSeconds s, slow $hazardSlowSeconds s)",
     async ({ raceSeconds, hazardSlowSeconds, want, raw }) => {
@@ -151,11 +151,11 @@ describe("ClimbScene → usePowerUpFeedback: lava phase", () => {
   );
 
   it("follows the phase as it changes between renders (stumble → surge)", async () => {
-    fx.raceSeconds = 90;
+    fx.raceSeconds = 87;
     fx.hazardSlowSeconds = -8;
     await mount();
     expect(lastCall().world?.lavaPhase).toBe("stumble");
-    fx.raceSeconds = 98;
+    fx.raceSeconds = 95;
     await rerender();
     expect(lastCall().world?.lavaPhase).toBe("surge");
   });

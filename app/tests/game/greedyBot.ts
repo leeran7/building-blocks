@@ -5,7 +5,7 @@
  * Moved verbatim from simulation.test.ts so duel tests drive the same bot.
  */
 
-import { isPowerUpActive } from "../../src/game/powerups";
+import { isPowerUpActive, moveSpeedMultiplier } from "../../src/game/powerups";
 import { obstacleAhead, isOnObstacle, obstaclesNearY } from "../../src/game/obstacles";
 import {
   floorIndexAt,
@@ -15,7 +15,19 @@ import {
   platformsNearY,
   summitDiamond,
 } from "../../src/game/towers";
+import { spikesNearY } from "../../src/game/spikes";
 import type { PlayerInput, PlayerState, TowerSpec } from "../../src/game/types";
+
+/** Jump a spike row whose near edge is within 2.5 m ahead (as the route bot does at walking pace). */
+function spikeAhead(tower: TowerSpec, p: PlayerState, dir: -1 | 1, tick: number): boolean {
+  const w = tower.widthM;
+  const lead = Math.max(2.5, 0.2 * tower.moveSpeed * moveSpeedMultiplier(p, tick));
+  return spikesNearY(tower, p.y, p.y).some((s) => {
+    if (Math.abs(s.y - p.y) > 0.05) return false;
+    const edge = dir === 1 ? s.x0 : s.x1;
+    return ((((edge - p.x) * dir) % w) + w) % w <= lead;
+  });
+}
 
 const UP: PlayerInput = { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
 
@@ -86,10 +98,11 @@ export function botInput(p: PlayerState, tower: TowerSpec, tick = 0): PlayerInpu
       Math.abs(pl.y - p.y) <= 0.05
   );
   const crate = obstacleAhead(tower, p.x, p.y, dir);
+  const spikes = p.onGround && spikeAhead(tower, p, dir, tick);
   return {
     moveX: dir,
     jump:
-      (p.onGround && (!ahead || crate)) ||
+      (p.onGround && (!ahead || crate || spikes)) ||
       (!p.onGround && crate && canSuperJump && !p.jumpHeldPrev),
     climbY: 0,
     usePowerUp: false,

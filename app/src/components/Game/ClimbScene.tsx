@@ -32,6 +32,7 @@ import {
   lavaThreatFill,
 } from "./climbCamera";
 import { hazardPhase } from "../../game/hazard";
+import { endedOnSpikes } from "../../game/spikes";
 import { isLavaInProximity } from "./lava";
 import { lavaMusicIntensity } from "./powerUpCues";
 import {
@@ -220,6 +221,7 @@ export function ClimbScene({
   const firedFinishRef = useRef(false);
 
   const player = state.players[0];
+  const spiked = player !== undefined && endedOnSpikes(state.tower, player);
   const phase = state.phase;
   const touchControlsActive =
     touchDevice && !finished && (phase === "countdown" || phase === "climb");
@@ -568,7 +570,7 @@ export function ClimbScene({
         {finished && (
           <Overlay>
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ember">
-              {replaying ? "▲ replay finished" : "▲ caught by the lava"}
+              {replaying ? "▲ replay finished" : spiked ? "▲ hit the spikes" : "▲ caught by the lava"}
             </p>
             <h2 className="font-mono text-6xl font-bold text-signal tabular-nums mt-2 leading-none">
               {(player?.peakY ?? 0).toFixed(0)}
@@ -710,7 +712,7 @@ export function ClimbScene({
 
       <div className="sr-only" role="status" aria-live="polite">
         {finished
-          ? `You were caught by the lava at ${formatAltitudeLabel(
+          ? `${spiked ? "You hit the spikes" : "You were caught by the lava"} at ${formatAltitudeLabel(
               player?.peakY ?? 0,
               0
             )}.`

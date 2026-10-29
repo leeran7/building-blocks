@@ -10,6 +10,16 @@
 export const TICK_HZ = 30;
 export const TICK_DT = 1 / TICK_HZ; // seconds per tick
 
+/**
+ * Game speed: every speed in the engine is multiplied by this and every
+ * acceleration (gravity, jetpack thrust) by its square. Jump heights and
+ * reaches (v² / 2g, v · 2v/g) are unchanged, so every layout stays exactly as
+ * passable; the climber simply covers it this much faster. 1.3 since
+ * 2026-10-29 (Leeran: kids found runs too slow). The rising lava is a fraction
+ * of climb speed, so it speeds up with the climber.
+ */
+export const GAME_SPEED = 1.3;
+
 export type PlayerId = string;
 
 /**
@@ -189,6 +199,17 @@ export interface Obstacle {
 }
 
 /**
+ * A row of floor spikes (spikes.ts). Not solid: feet inside the row's band
+ * end the run. Spans [x0, x1] on the floor surface at height `y`.
+ */
+export interface Spike {
+  floorIndex: number;
+  x0: number;
+  x1: number;
+  y: number;
+}
+
+/**
  * A climbable ladder connecting a lower platform to a higher one. Centered at
  * `x`, spanning feet-heights [y0, y1]. A climber within `grabRadius` of `x` and
  * inside the y-span can attach and climb (King-Kong ladders).
@@ -320,6 +341,12 @@ export interface TowerSpec {
    * (levels, tutorials). Unset on duel towers, which keep plain ladders.
    */
   endlessLadders?: boolean;
+  /**
+   * Level towers only: chance, in [0, 0.6], that a floor (from floor 2) has
+   * a row of spikes. Unset on the free stack, which ramps it with altitude
+   * (SPIKES_ENDLESS in spikes.ts), and on duel towers, which never have any.
+   */
+  spikeChance?: number;
 }
 
 export type MatchPhase =
