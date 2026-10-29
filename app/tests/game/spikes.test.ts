@@ -210,5 +210,6 @@ describe("spikes in the real stepMatch", () => {
       passed += rows(tower).filter((s) => s.y < p.peakY).length;
     }
     expect(passed).toBeGreaterThan(0);
-  });
+    // 5 two-minute bot runs: about 2.5 s locally, past 5 s on a busy CI runner.
+  }, 60_000);
 });
