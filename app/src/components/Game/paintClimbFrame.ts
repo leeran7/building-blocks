@@ -16,7 +16,7 @@ import {
   type SummitDiamond,
 } from "../../game/towers";
 import { obstaclesNearY } from "../../game/obstacles";
-import { SPIKE_HEIGHT_M, spikesNearY } from "../../game/spikes";
+import { SPIKE_HEIGHT_M, SPIKE_INSET_M, spikesNearY } from "../../game/spikes";
 import {
   POWER_UP_SPECS,
   GIANT_VISUAL_SCALE,
@@ -1021,9 +1021,7 @@ function drawObstacle(
 }
 
 /** Target tooth width (m); the row gets a whole number of teeth. */
-const SPIKE_TOOTH_M = 1.3;
-/** Shortest a tooth is drawn, in UI px. */
-const SPIKE_MIN_DRAW_PX = 11;
+const SPIKE_TOOTH_M = 0.6;
 
 function drawSpikes(
   ctx: PaintCtx,
@@ -1035,15 +1033,17 @@ function drawSpikes(
   canvasH: number
 ) {
   const base = sy(s.y);
-  // Never shorter than a few px: at the phone's zoom the real band is tiny.
-  const tip = Math.min(sy(s.y + SPIKE_HEIGHT_M), base - SPIKE_MIN_DRAW_PX * ui);
+  // Drawn exactly over the deadly band (touchesSpikes), never taller or wider,
+  // so feet that brush a drawn tooth always die and a clean hop never looks
+  // like it went through one.
+  const tip = sy(s.y + SPIKE_HEIGHT_M);
   if (base < -8 || tip > canvasH + 8) return;
-  const x0 = sx(s.x0);
-  const w = sx(s.x1) - x0;
+  const x0 = sx(s.x0 + SPIKE_INSET_M);
+  const w = sx(s.x1 - SPIKE_INSET_M) - x0;
   if (w <= 1) return;
-  const teeth = Math.max(2, Math.round((s.x1 - s.x0) / SPIKE_TOOTH_M));
+  const teeth = Math.max(2, Math.round((s.x1 - s.x0 - 2 * SPIKE_INSET_M) / SPIKE_TOOTH_M));
   const tw = w / teeth;
-  const baseH = Math.max(2 * ui, pxPerM * 0.14);
+  const baseH = Math.max(1 * ui, pxPerM * 0.08);
   for (let k = 0; k < teeth; k++) {
     const l = x0 + k * tw;
     // Lit left face, shaded right face, so each tooth reads as a point.
@@ -1060,10 +1060,6 @@ function drawSpikes(
     ctx.lineTo(l + tw, base);
     ctx.lineTo(l + tw / 2, base);
     ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = SPIKE_DANGER;
-    ctx.beginPath();
-    ctx.arc(l + tw / 2, tip, Math.max(1, 0.9 * ui), 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.fillStyle = SPIKE_DANGER;
