@@ -37,18 +37,17 @@ function todaysTower(now: Date): DailyInfo | null {
 export default function DailyPage() {
   const now = new Date();
   return (
-    <FreeStackShell section="daily" title="Daily Climb">
+    <FreeStackShell section="daily" title="Daily Climb" tools={<DailyNotes />}>
       <DailyClimbClient initialDaily={todaysTower(now)} servedAt={now.getTime()} />
       <KeepClimbing />
-      <DailyIntro />
     </FreeStackShell>
   );
 }
 
 /**
  * Where to go until the next tower. This is the canonical home for both asks
- * on this page — the About prose below links to the leaderboard only, so
- * neither destination is pitched twice (app/DESIGN.md).
+ * on this page — the About prose (in the tab band's About dialog) links to
+ * the leaderboard only, so neither destination is pitched twice (app/DESIGN.md).
  */
 function KeepClimbing() {
   return (
@@ -85,10 +84,10 @@ function KeepClimbing() {
 }
 
 /**
- * Collapsed by default (same pattern as /play) so it sits below the canvas
- * instead of competing with it — server-rendered, unique crawlable copy.
+ * Opens from the tab band (GameNotes, same as /play) so it never competes
+ * with the canvas — server-rendered, unique crawlable copy.
  */
-function DailyIntro() {
+function DailyNotes() {
   return (
     <GameNotes aboutTitle="About the Daily Climb">
       <p className="text-sm leading-relaxed text-text-secondary">
@@ -102,7 +101,7 @@ function DailyIntro() {
         . Play it every day to build a streak — miss a day and the streak resets.
         The daily tower rolls over at midnight UTC. Prefer an endless run
         on a fresh random tower each time, or a head-to-head race? Both are one
-        tap away in &ldquo;Keep climbing until it resets&rdquo; above.
+        tap away in &ldquo;Keep climbing until it resets&rdquo; on this page.
       </p>
     </GameNotes>
   );

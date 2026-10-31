@@ -14,9 +14,13 @@ import {
   type PowerUpSpec,
 } from "../../game/powerups";
 import { PowerUpTypeIcon } from "./PowerUpTypeIcon";
-import { Disclosure } from "../ui/Disclosure";
 
-type Variant = "card" | "compact" | "overlay" | "hint";
+/**
+ * card: the full guide in its own bordered section.
+ * plain: the same full guide with no frame, for a container that brings its
+ * own (the Controls & power-ups dialog in the stack tab band).
+ */
+type Variant = "card" | "plain" | "compact" | "overlay" | "hint";
 
 const KEYBOARD_CONTROLS = [
   {
@@ -69,18 +73,7 @@ const TIPS = [
   `Tap jump to leap, then re-hold in the air to burn a jetpack; holding through takeoff caps rise at ${Math.round(JETPACK_MAX_VY)} m/s. Fuel is short, leftover dies with the window.`,
 ] as const;
 
-export function ClimbControlsGuide({
-  variant = "card",
-  collapsible = false,
-}: {
-  variant?: Variant;
-  /**
-   * Render the card inside a `<details>` that starts closed, so a screen that
-   * already shows the concise overlay controls at the moment of play keeps the
-   * full power-up/tips detail available without a second expanded controls block.
-   */
-  collapsible?: boolean;
-}) {
+export function ClimbControlsGuide({ variant = "card" }: { variant?: Variant }) {
   const touch = useCoarsePointer();
   const [scheme] = useControlScheme();
   const touchControls = TOUCH_CONTROLS[scheme];
@@ -245,9 +238,7 @@ export function ClimbControlsGuide({
     </>
   );
 
-  if (collapsible) {
-    return <Disclosure title="Controls &amp; power-ups">{body}</Disclosure>;
-  }
+  if (variant === "plain") return body;
 
   return (
     <section

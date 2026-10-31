@@ -15,10 +15,13 @@ import { FREE_CLIMB_HREF, DAILY_HREF } from "./navLinks";
 export function FreeStackShell({
   section,
   title,
+  tools,
   children,
 }: {
   section: FreeStackSection;
   title: string;
+  /** Buttons at the right end of the tab band (the game sections' GameNotes). */
+  tools?: ReactNode;
   children: ReactNode;
 }) {
   // Both Play and Daily render the full-bleed ClimbScene stage, so they share
@@ -59,7 +62,7 @@ export function FreeStackShell({
         {/* One container width for the band across every section, so the tabs
             don't shift horizontally when switching Leaderboard / Play / Daily. */}
         <div className="relative z-10 border-b border-border-subtle shrink-0">
-          <div className="max-w-5xl mx-auto w-full px-4 py-2">
+          <div className="max-w-5xl mx-auto w-full px-4 py-2 flex items-center justify-between gap-1 sm:gap-2">
             {/* The band stays put while the page under it changes, so it gets
                 no entrance animation and one shared view-transition name: a tab
                 switch crossfades the pill in place (and glides it over to the
@@ -73,6 +76,9 @@ export function FreeStackShell({
               <NavTab href={FREE_CLIMB_HREF} label="Play" active={section === "play"} />
               <NavTab href={DAILY_HREF} label="Daily" active={section === "daily"} />
             </StackTabs>
+            {/* Same 44px height as the tabs, so the band is the same height on
+                every section whether or not it has tools. */}
+            {tools}
           </div>
         </div>
 
@@ -80,7 +86,9 @@ export function FreeStackShell({
           // Do NOT put climb-reveal (transform animation) on this wrapper —
           // ClimbScene is `fixed inset-0` on touch, and a transformed ancestor
           // becomes its containing block, breaking mobile fullscreen layout.
-          <div className="relative z-10 w-full flex-1 px-2 pt-2 pb-[max(0px,env(safe-area-inset-bottom))]">
+          // With a mouse the page scrolls past the stage, so pb-20 lifts the
+          // last block clear of the ground glow at the page edge.
+          <div className="relative z-10 w-full flex-1 px-2 pt-2 pb-[max(0px,env(safe-area-inset-bottom))] pointer-fine:pb-20">
             <h1 className="sr-only">{title}</h1>
             {children}
           </div>
