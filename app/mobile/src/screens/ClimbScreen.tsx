@@ -7,6 +7,7 @@ import { useBackOr } from "../lib/navigation";
 
 import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
+import { countdownNumeral } from "@app/game/simulation";
 import { encodeRunReplay, buildReplayUrl } from "@app/game/runReplay";
 import { hazardPhase } from "@app/game/hazard";
 import { endedOnSpikes } from "@app/game/spikes";
@@ -186,7 +187,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
 
   // Countdown tick — one light haptic per 3·2·1 so the launch has a heartbeat.
   const countdownValue =
-    phase === "countdown" ? Math.max(1, 3 - Math.floor(state.tick / 30)) : null;
+    phase === "countdown" ? countdownNumeral(state.tick) : null;
   useEffect(() => {
     if (countdownValue != null) void tapLight();
   }, [countdownValue]);

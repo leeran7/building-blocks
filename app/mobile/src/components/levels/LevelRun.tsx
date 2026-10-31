@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
-import { levelTimeLimitTicks } from "@app/game/simulation";
+import { countdownNumeral, levelTimeLimitTicks } from "@app/game/simulation";
 import { endedOnSpikes } from "@app/game/spikes";
 import { encodeRunReplay } from "@app/game/runReplay";
 import { hazardPhase } from "@app/game/hazard";
@@ -111,7 +111,7 @@ export function LevelRun({
   const player = running ? state.players[0] : undefined;
   const touchActive = running && (phase === "countdown" || phase === "climb");
 
-  const countdownValue = phase === "countdown" ? Math.max(1, 3 - Math.floor(state.tick / 30)) : null;
+  const countdownValue = phase === "countdown" ? countdownNumeral(state.tick) : null;
   useEffect(() => {
     if (countdownValue != null) void tapLight();
   }, [countdownValue]);

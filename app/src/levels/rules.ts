@@ -8,7 +8,7 @@
  */
 
 import { TICK_HZ } from "../game/types";
-import { COUNTDOWN_TICKS } from "../game/simulation";
+import { COUNTDOWN_MS } from "../game/simulation";
 
 // ── Lives (§5b) ──────────────────────────────────────────────────────────────
 
@@ -31,9 +31,6 @@ export const EARLY_RESTART_TICKS = 3 * TICK_HZ;
  * ticket locally before claiming a bad start.
  */
 export const BAD_START_SLACK_MS = 5_000;
-
-/** Countdown before GO (COUNTDOWN_TICKS at TICK_HZ). */
-const COUNTDOWN_MS = (COUNTDOWN_TICKS * 1000) / TICK_HZ;
 
 /** Longest a ticket can have been open and still end in a bad start. */
 export const BAD_START_WINDOW_MS = COUNTDOWN_MS + (EARLY_RESTART_TICKS * 1000) / TICK_HZ + BAD_START_SLACK_MS;

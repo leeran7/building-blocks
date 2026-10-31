@@ -45,9 +45,10 @@ import { botInput } from "./greedyBot";
 vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 
 // ── Pinned values (DAILY_SIM_VERSION 5: the faster tune of 2026-10-29,
-// GAME_SPEED 1.3, 2 s lava grace, 90 s ramp, 30-floor layout ramp, 2 s
-// countdown, and floor spikes on the free stack; category towers and duels
-// move with the speed, grace and countdown) ──
+// GAME_SPEED 1.3, 2 s lava grace, 90 s ramp, 30-floor layout ramp, and
+// floor spikes on the free stack; category towers and duels move with the
+// speed and grace. The countdown's length is not in these pins: the tick
+// resets at GO and nothing moves before it) ──
 const PIN_FREE_GEOMETRY = "eb1a402d814e9c6ad49d4825a139b3d0456857085ab85ce384441799ffe2cf38";
 const PIN_CATEGORY_GEOMETRY = "d75d91f74d90faf735db06518023cda0ca74925c34bc89df3370e107113fa42b";
 const PIN_SOLO_OUTCOME = { peakY: 654.8899436745048, finishedTick: 2663, ticks: 2663 };

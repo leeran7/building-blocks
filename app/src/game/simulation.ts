@@ -33,6 +33,7 @@ import {
   Platform,
   Ladder,
   TICK_DT,
+  TICK_HZ,
   NO_INPUT,
 } from "./types";
 import {
@@ -137,7 +138,26 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
  * the countdown; the tick counter resets to 0 at the countdown→climb boundary,
  * so climb-tick 0 is the first scored tick (also where re-sim reads inputLog[0]).
  */
-export const COUNTDOWN_TICKS = 60;
+export const COUNTDOWN_TICKS = 90;
+
+/** Time from countdown start to GO, ms (COUNTDOWN_TICKS at TICK_HZ). */
+export const COUNTDOWN_MS = (COUNTDOWN_TICKS * 1000) / TICK_HZ;
+
+/**
+ * The 3-2-1 numeral to show `tick` ticks into the countdown. The three beats
+ * split COUNTDOWN_TICKS evenly, so every numeral shows however long the
+ * countdown is (a fixed 30 ticks a beat dropped the "1" while it was 60).
+ */
+export function countdownNumeral(tick: number): 1 | 2 | 3 {
+  const beat = Math.floor((Math.max(0, tick) * 3) / COUNTDOWN_TICKS);
+  return beat <= 0 ? 3 : beat === 1 ? 2 : 1;
+}
+
+/** The numeral `elapsedMs` of wall-clock into the countdown (duels), or 0 at GO. */
+export function countdownNumeralAtMs(elapsedMs: number): 0 | 1 | 2 | 3 {
+  if (elapsedMs >= COUNTDOWN_MS) return 0;
+  return countdownNumeral((elapsedMs * TICK_HZ) / 1000);
+}
 
 /** Create an initial match state in the countdown phase. */
 export function createMatch(params: {
@@ -508,7 +528,7 @@ export function stepMatch(
   // Only countdown and climb advance the sim; lobby/finished/results are inert.
   if (state.phase !== "countdown" && state.phase !== "climb") return state;
 
-  // Countdown: a fixed 3-2-1 (90 ticks) before "GO"; inputs are locked.
+  // Countdown: a fixed 3-2-1 (COUNTDOWN_TICKS) before "GO"; inputs are locked.
   if (state.phase === "countdown") {
     state.tick += 1;
     if (state.tick >= COUNTDOWN_TICKS) {
