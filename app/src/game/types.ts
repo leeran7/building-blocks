@@ -155,6 +155,16 @@ export interface PlayerState {
    */
   jumpHeldPrev: boolean;
   /**
+   * Last tick the feet were on the ground, for the late-jump grace
+   * (simulation.ts COYOTE_TICKS). Null after a jump or on a ladder.
+   */
+  groundedTick: number | null;
+  /**
+   * Tick of a jump press made in the air that nothing used yet, so it can fire
+   * on landing (simulation.ts JUMP_BUFFER_TICKS). Null once spent.
+   */
+  jumpPressTick: number | null;
+  /**
    * Jetpack thrust applied this tick. Presentation-only (canvas flame); the
    * simulation never reads it back.
    */
