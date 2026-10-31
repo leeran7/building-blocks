@@ -77,3 +77,15 @@ describe("DashboardBody server-populated first paint", () => {
     expect(html).toBe("");
   });
 });
+
+describe("DashboardBody tab band width", () => {
+  it("pins its tab band to the stack pages' width, so the pills don't jump on the way out", async () => {
+    const { DUEL_STACK_WIDTH } = await import("../../src/components/Duel/DuelStackShell");
+    useAuthMock.mockReturnValue({ user: { uid: "u1" }, token: "tok", loading: false });
+    const html = renderToStaticMarkup(createElement(DashboardBody, { initialData: FULL_DATA }));
+    // The element that directly wraps the dashboard's tablist.
+    const band = html.match(/<div class="([^"]*)"><div class="[^"]*" role="tablist" aria-label="Dashboard sections"/)?.[1];
+    expect(band?.split(" ")).toContain(DUEL_STACK_WIDTH);
+    expect(band?.split(" ")).not.toContain("max-w-2xl");
+  });
+});
