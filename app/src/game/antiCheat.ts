@@ -19,12 +19,19 @@ import {
   jetpackFuelRemaining,
   superJumpChargesRemaining,
 } from "./powerups";
+import { inCoyoteWindow } from "./jumpGrace";
 
 /** Result of validating a single player's input for one tick. */
 export interface InputValidation {
   input: PlayerInput;
   rejected: boolean;
   reason?: string;
+  /**
+   * The jump button as sent, even when `input.jump` was neutralized. The sim
+   * edge-detects presses on it and holds an air press for landing (the jump
+   * buffer), which only ever launches from the ground.
+   */
+  jumpPressed: boolean;
 }
 
 /**
@@ -43,7 +50,7 @@ export function validateInput(
   tick = 0
 ): InputValidation {
   if (typeof raw !== "object" || raw === null) {
-    return { input: NO_INPUT, rejected: true, reason: "malformed input" };
+    return { input: NO_INPUT, rejected: true, reason: "malformed input", jumpPressed: false };
   }
   const r = raw as Record<string, unknown>;
 
@@ -58,10 +65,13 @@ export function validateInput(
   // Jump is only legal from the ground — an air-jump is the classic spoof.
   // Super-jump allows air jumps up to its per-activation charge budget (see
   // SUPER_JUMP_AIR_JUMPS); a live jetpack with fuel lets the player hold jump
-  // to thrust. Both are the allowance those pickups buy, no more.
+  // to thrust. Both are the allowance those pickups buy, no more. The late-jump
+  // grace (inCoyoteWindow) is a ground jump a few ticks after walking off an
+  // edge; the sim applies the same window.
   const mayAirJump =
     superJumpChargesRemaining(player, tick) > 0 ||
-    jetpackFuelRemaining(player, tick) > 0;
+    jetpackFuelRemaining(player, tick) > 0 ||
+    inCoyoteWindow(player, tick);
   if (jump && !player.onGround && !player.onLadder && !mayAirJump) {
     rejected = true;
     reason = reason ?? "jump while airborne";
@@ -70,10 +80,11 @@ export function validateInput(
       input: { moveX, jump: false, climbY, usePowerUp },
       rejected: true,
       reason,
+      jumpPressed: true,
     };
   }
 
-  return { input: { moveX, jump, climbY, usePowerUp }, rejected, reason };
+  return { input: { moveX, jump, climbY, usePowerUp }, rejected, reason, jumpPressed: jump };
 }
 
 function clampAxis(v: unknown): -1 | 0 | 1 {
