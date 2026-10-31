@@ -8,7 +8,8 @@
  *
  * - ModeRows: the rows themselves, used by both navbar dropdowns.
  * - GuestMenu: the signed-out dropdown, built like the signed-in AccountMenu
- *   (same trigger shape, same panel): the modes, then Sign in and Get started.
+ *   (same panel): a round hamburger button that folds into an X while open,
+ *   then the modes, then Sign in and Get started.
  *   Phones only; from `sm` up the navbar shows the links and the auth buttons.
  */
 
@@ -110,16 +111,29 @@ export function GuestMenu({ activeMode }: { activeMode: GameMode | null }) {
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         aria-label="Menu"
-        className="inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-surface/60 pl-1 pr-2 min-h-[44px] hover:border-signal/50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal"
+        className={
+          "inline-flex h-11 w-11 items-center justify-center rounded-full border transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal " +
+          (open
+            ? "border-signal/60 bg-signal/10 text-signal"
+            : "border-border-strong bg-surface/60 text-text-primary hover:border-signal/50")
+        }
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-elevated text-text-primary">
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <path d="M4 7h16M4 12h16M4 17h16" />
-          </svg>
-        </span>
-        <span aria-hidden="true" className="text-text-muted text-xs">
-          ▾
-        </span>
+        {/* Three bars that fold into an X while the menu is open. */}
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <path
+            d={open ? "M6 6l12 12" : "M4 7h16"}
+            className="transition-[d] duration-200 motion-reduce:transition-none"
+          />
+          <path
+            d={open ? "M12 12h0" : "M4 12h16"}
+            className="transition-[d,opacity] duration-200 motion-reduce:transition-none"
+            opacity={open ? 0 : 1}
+          />
+          <path
+            d={open ? "M18 6L6 18" : "M4 17h16"}
+            className="transition-[d] duration-200 motion-reduce:transition-none"
+          />
+        </svg>
       </button>
 
       {open && (
