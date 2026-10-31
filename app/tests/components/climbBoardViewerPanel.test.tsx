@@ -25,6 +25,7 @@ import type { ClimberRank } from "../../src/db/climb";
 // re-renders (as the real hook does once resolved) or ClimbBoard's
 // useEffect([user, token, authLoading]) re-fires every render and loops.
 const AUTH_STATE = { user: { uid: "u1" }, token: "tok", loading: false };
+const FIRST_USER = AUTH_STATE.user;
 vi.mock("../../src/contexts/AuthContext", () => ({
   useAuth: () => AUTH_STATE,
 }));
@@ -62,6 +63,25 @@ function mount() {
   };
 }
 
+/**
+ * What the panel shows: its text minus aria-hidden subtrees. A signed-in panel
+ * keeps an invisible, aria-hidden copy of the record's layout (all dashes)
+ * under a message, so it never changes height when the read lands.
+ */
+function visibleText(container: HTMLElement): string {
+  const copy = container.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll('[aria-hidden="true"]').forEach((el) => el.remove());
+  return copy.textContent ?? "";
+}
+
+/** Every value in the hidden placeholder record is a dash: nothing leaked. */
+function expectDashedPlaceholder(container: HTMLElement) {
+  const hidden = container.querySelector('section[aria-label="Your best climb"] [aria-hidden="true"].invisible');
+  expect(hidden).not.toBeNull();
+  const values = [...hidden!.querySelectorAll("dd")].map((dd) => dd.textContent);
+  expect(values).toEqual(["—", "—"]);
+}
+
 /** The rendered standings <ol> markup, independent of the viewer panel. */
 function standingsHtml(container: HTMLElement): string {
   const ol = container.querySelector('ol[aria-label="Skill climb leaderboard"]');
@@ -77,6 +97,7 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  AUTH_STATE.user = FIRST_USER;
   vi.restoreAllMocks();
 });
 
@@ -90,7 +111,8 @@ describe("ClimbBoard viewer panel — CTA-only fallback", () => {
     const html = view.container.innerHTML;
     expect(html).toContain("Your standing couldn’t be loaded right now.");
     // No peak-height / rank readout from a successful fetch leaked in.
-    expect(html).not.toMatch(/Your rank/);
+    expect(visibleText(view.container)).not.toMatch(/Your rank/);
+    expectDashedPlaceholder(view.container);
     const withNon200 = standingsHtml(view.container);
 
     view.unmount();
@@ -105,7 +127,8 @@ describe("ClimbBoard viewer panel — CTA-only fallback", () => {
 
     const html2 = view2.container.innerHTML;
     expect(html2).toContain("Your standing couldn’t be loaded right now.");
-    expect(html2).not.toMatch(/Your rank/);
+    expect(visibleText(view2.container)).not.toMatch(/Your rank/);
+    expectDashedPlaceholder(view2.container);
     const withRejection = standingsHtml(view2.container);
 
     view2.unmount();
@@ -129,9 +152,57 @@ describe("ClimbBoard viewer panel — CTA-only fallback", () => {
     await view.settle();
 
     const html = view.container.innerHTML;
-    expect(html).toContain("Your rank");
+    expect(visibleText(view.container)).toContain("Your rank");
+    expect(visibleText(view.container)).toContain("#1");
     expect(html).not.toContain("Your standing couldn’t be loaded right now.");
 
     view.unmount();
+  });
+});
+
+describe("ClimbBoard viewer panel — no height change when the standing lands", () => {
+  function deferredFetch() {
+    let answer: (r: Response) => void = () => {};
+    globalThis.fetch = vi.fn(() => new Promise<Response>((ok) => { answer = ok; })) as unknown as typeof fetch;
+    return (body: unknown) =>
+      answer(new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } }));
+  }
+  const panel = (c: HTMLElement) => c.querySelector('section[aria-label="Your best climb"]')!;
+
+  it("holds the record's layout with dashes while a signed-in read is in flight", async () => {
+    AUTH_STATE.user = { uid: "fresh-1" };
+    const respond = deferredFetch();
+    const view = mount();
+
+    const pending = panel(view.container);
+    expect(pending.querySelector("[aria-busy=true]")).not.toBeNull();
+    expect(pending.textContent).toContain("Your rank");
+    expect(pending.textContent).toContain("—");
+    const shape = [...pending.querySelectorAll("p, dl, dt, dd")].map((el) => el.tagName).join(",");
+
+    await act(async () => respond({ user: { id: "fresh-1" }, freeClimb: { peakY: 640, rank: 7, totalClimbers: 40 } }));
+    await view.settle();
+    const ready = panel(view.container);
+    expect(ready.textContent).toContain("#7");
+    expect(ready.querySelector("[aria-busy=true]")).toBeNull();
+    // Same elements in the same order: the numbers fill in, nothing is added.
+    expect([...ready.querySelectorAll("p, dl, dt, dd")].map((el) => el.tagName).join(",")).toBe(shape);
+    view.unmount();
+  });
+
+  it("paints the last standing at once when the board is opened again", async () => {
+    AUTH_STATE.user = { uid: "fresh-2" };
+    const first = deferredFetch();
+    const view = mount();
+    await act(async () => first({ user: { id: "fresh-2" }, freeClimb: { peakY: 512, rank: 3, totalClimbers: 9 } }));
+    await view.settle();
+    view.unmount();
+
+    deferredFetch(); // the refresh never answers in this test
+    const again = mount();
+    const shown = panel(again.container);
+    expect(shown.textContent).toContain("#3");
+    expect(shown.querySelector("[aria-busy=true]")).toBeNull();
+    again.unmount();
   });
 });

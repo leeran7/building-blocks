@@ -85,7 +85,7 @@ export function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   if (loading) {
     return (
       <div className="grain topo relative min-h-screen bg-void flex flex-col">
-        <div className="shrink-0"><Navbar contextLabel="Tournament" /></div>
+        <div className="sticky top-0 z-30 shrink-0"><Navbar contextLabel="Tournament" /></div>
         <main id="main-content" className="relative flex flex-1 flex-col">
           <p className="mt-16 text-center text-text-secondary">Loading...</p>
         </main>
@@ -96,7 +96,7 @@ export function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   if (!tournament) {
     return (
       <div className="grain topo relative min-h-screen bg-void flex flex-col">
-        <div className="shrink-0"><Navbar contextLabel="Tournament" /></div>
+        <div className="sticky top-0 z-30 shrink-0"><Navbar contextLabel="Tournament" /></div>
         <main id="main-content" className="relative flex flex-1 flex-col">
           <p className="mt-16 text-center text-text-secondary">Tournament not found.</p>
         </main>
@@ -120,7 +120,7 @@ export function TournamentDetail({ tournamentId }: { tournamentId: string }) {
 
   return (
     <div className="grain topo relative min-h-screen bg-void flex flex-col">
-      <div className="shrink-0"><Navbar contextLabel="Tournament" /></div>
+      <div className="sticky top-0 z-30 shrink-0"><Navbar contextLabel="Tournament" /></div>
       <main id="main-content" className="relative flex flex-1 flex-col">
 
         <div className="mx-auto w-full max-w-2xl px-4 py-8">

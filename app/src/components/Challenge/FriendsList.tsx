@@ -5,12 +5,15 @@
  * to each. Fetches from GET /api/friends on mount.
  *
  * States: loading, empty, populated, error (network), per-row challenge
- * sent/error feedback.
+ * sent/error feedback. The loading row is the empty row's height, and a
+ * revisit paints the last list at once (sessionCache) and refreshes behind
+ * it, so the section doesn't change height when the read lands.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
+import { readSessionCache, writeSessionCache } from "../../lib/sessionCache";
 import { climberDisplay } from "../../lib/handle";
 import { Button } from "../ui/Button";
 import { Spinner } from "../ui/Spinner";
@@ -28,10 +31,16 @@ interface FriendsListProps {
   refreshKey?: number;
 }
 
+const FRIENDS_KEY = "friends";
+
 export function FriendsList({ onChallenge, disabled, refreshKey }: FriendsListProps) {
-  const { token } = useAuth();
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user, token } = useAuth();
+  const uid = user?.uid ?? null;
+  const [cached] = useState(() => readSessionCache<Friend[]>(uid, FRIENDS_KEY));
+  const [friends, setFriends] = useState<Friend[]>(cached ?? []);
+  // Only the first read (or a retry) shows the loading row: a refresh after
+  // accepting a request keeps the current list up.
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
   const [challengingId, setChallengingId] = useState<string | null>(null);
   const [challengeSent, setChallengeSent] = useState<Set<string>>(new Set());
@@ -39,13 +48,13 @@ export function FriendsList({ onChallenge, disabled, refreshKey }: FriendsListPr
 
   const fetchFriends = useCallback(async () => {
     if (!token) return;
-    setLoading(true);
     setError(null);
     try {
       const res = await authedFetch("/api/friends", token);
       if (res.ok) {
         const data = (await res.json()) as { friends: Friend[] };
         setFriends(data.friends);
+        writeSessionCache(uid, FRIENDS_KEY, data.friends);
       } else {
         setError("Could not load friends.");
       }
@@ -53,7 +62,7 @@ export function FriendsList({ onChallenge, disabled, refreshKey }: FriendsListPr
       setError("Network error loading friends.");
     }
     setLoading(false);
-  }, [token]);
+  }, [token, uid]);
 
   useEffect(() => {
     fetchFriends();
@@ -92,7 +101,15 @@ export function FriendsList({ onChallenge, disabled, refreshKey }: FriendsListPr
     return (
       <div className="flex flex-col gap-2" role="alert">
         <p className="text-ember text-sm">{error}</p>
-        <Button variant="ghost" size="sm" onClick={fetchFriends} className="w-fit">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setLoading(true);
+            fetchFriends();
+          }}
+          className="w-fit"
+        >
           Retry
         </Button>
       </div>

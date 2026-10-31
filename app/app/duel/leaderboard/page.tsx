@@ -7,7 +7,9 @@
 
 import type { Metadata } from "next";
 import { DuelStackShell } from "../../../src/components/Duel/DuelStackShell";
-import { FreeDuelLeaderboard, ChipDuelLeaderboard } from "../../../src/components/Duel/DuelLeaderboard";
+import { ChipDuelLeaderboard } from "../../../src/components/Duel/DuelLeaderboard";
+import { DuelBoard } from "../../../src/components/Duel/DuelBoard";
+import { BoardIntro } from "../../../src/components/Leaderboard/BoardChrome";
 import { topDuelStats } from "../../../src/db/duel";
 import { chipLeaderboard } from "../../../src/db/chips";
 import { PAID_DUELS_ENABLED } from "../../../src/config/paidDuel";
@@ -37,51 +39,38 @@ export default async function DuelLeaderboardPage() {
 
   return (
     <DuelStackShell section="leaderboard">
-      <div className="py-8 flex flex-col gap-10">
-        <header>
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1.5">
-            multiplayer · standings
-          </p>
-          <h1 className="font-display text-4xl md:text-5xl font-black tracking-tight uppercase text-text-primary leading-none">
-            1v1 leaderboard
-          </h1>
-        </header>
+      {/* Same frame as /climb (BoardIntro + DuelBoard on BoardChrome), so the
+          Solo | 1v1 switch between them only swaps the words and the rows.
+          py-6 matches FreeStackShell's leaderboard padding. */}
+      <div className="climb-reveal py-6">
+        <BoardIntro eyebrow="1v1 · head to head" title="1v1 leaderboard">
+          One leaderboard for 1v1 duels. Race a rival up the same tower before
+          the lava catches you — every match you win moves you up the board.
+        </BoardIntro>
 
-        {/* Free 1v1 */}
-        <section>
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted mb-1">
-            [ all matches ]
-          </p>
-          <h2 className="font-display text-2xl font-bold text-text-primary mb-5">
-            Free 1v1
-          </h2>
-          <FreeDuelLeaderboard
-            entries={freeEntries ?? []}
-            unavailable={freeEntries === null}
-          />
-        </section>
-
-        {/* Chip duels — only rendered when paid features are on */}
-        {PAID_DUELS_ENABLED && (
-          <section>
-            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal mb-1">
-              [ ranked chips ]
-            </p>
-            <h2 className="font-display text-2xl font-bold text-text-primary mb-5">
-              Chip Duels
-            </h2>
-            <ChipDuelLeaderboard
-              entries={(chipEntries ?? []).map((e) => ({
-                userId: e.userId,
-                displayName: e.displayName,
-                chipWins: e.chipWins,
-                chipLosses: e.chipLosses,
-                netChips: e.totalChipsWon,
-              }))}
-              unavailable={chipEntries === null}
-            />
-          </section>
-        )}
+        <DuelBoard entries={freeEntries ?? []} unavailable={freeEntries === null}>
+          {/* Chip duels — only rendered when paid features are on */}
+          {PAID_DUELS_ENABLED && (
+            <section className="mt-10">
+              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-signal mb-1">
+                [ ranked chips ]
+              </p>
+              <h2 className="font-display text-2xl font-bold text-text-primary mb-5">
+                Chip Duels
+              </h2>
+              <ChipDuelLeaderboard
+                entries={(chipEntries ?? []).map((e) => ({
+                  userId: e.userId,
+                  displayName: e.displayName,
+                  chipWins: e.chipWins,
+                  chipLosses: e.chipLosses,
+                  netChips: e.totalChipsWon,
+                }))}
+                unavailable={chipEntries === null}
+              />
+            </section>
+          )}
+        </DuelBoard>
       </div>
     </DuelStackShell>
   );

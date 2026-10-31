@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useState, type RefObject } from "react";
 
 /** Locked play-area aspect ratio — see the note on useCanvasSize. */
 const ASPECT = 360 / 640;
@@ -67,7 +67,9 @@ export function useCanvasSize(
     );
   }, [wrapperRef, maxWidth, fill]);
 
-  useEffect(() => {
+  // Layout effect, so the first paint (and the view transition's snapshot of a
+  // freshly switched page) already has the measured size, not BASE_SIZE.
+  useLayoutEffect(() => {
     measure();
 
     const el = wrapperRef.current;

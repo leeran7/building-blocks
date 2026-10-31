@@ -2,11 +2,10 @@
  * DuelHome smoke render.
  *
  * No prior test rendered DuelHome at all (see software-engineer handoff
- * 2026-09-20T14:52:00Z). /duel cannot be acceptance-checked by fetching the
- * route's server HTML: app/duel/page.tsx wraps DuelHome in <Suspense> and
- * DuelHome calls useSearchParams, so Next bails the whole route to
- * client-only rendering and a curl of "/duel" returns no page content —
- * that is pre-existing behaviour, not a regression to chase here. This test
+ * 2026-09-20T14:52:00Z). /duel was not acceptance-checkable from the route's
+ * server HTML while app/duel/page.tsx wrapped DuelHome in <Suspense> (the
+ * useSearchParams bailout left a curl of "/duel" with no page content; the
+ * boundary is gone now, but the route still depends on auth). This test
  * instead renders the DuelHome *component* directly (via React, with
  * AuthContext and next/navigation mocked) so a future change that breaks
  * its React tree — the thing that actually determines what ships to the

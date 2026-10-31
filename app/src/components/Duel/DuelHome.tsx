@@ -35,6 +35,7 @@ import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 import { formatChipCents } from "../../config/chipPackages";
 import { useRankedEligibility } from "../../hooks/useRankedEligibility";
 import { useWalletBalance } from "../../hooks/useWalletBalance";
+import { useDuelStats } from "../../hooks/useDuelStats";
 import { authedFetch } from "../../lib/authedFetch";
 import { CHIP_DUELS_HREF } from "../navLinks";
 import { Spinner } from "../ui/Spinner";
@@ -47,11 +48,6 @@ import { FriendRequests } from "../Challenge/FriendRequests";
 
 // ─────────────────────────────── Types ────────────────────────────────────
 
-interface DuelStats {
-  wins: number;
-  losses: number;
-  current_streak: number;
-}
 
 /**
  * Which tier of 1v1 the player is looking at. Free shows both entries (quick
@@ -106,7 +102,9 @@ export function DuelHome({ initialGeoAllowed }: DuelHomeProps) {
 
   const [createState, setCreateState] = useState<CreateState>({ status: "idle" });
   const [queueState, setQueueState] = useState<QueueState>({ status: "idle" });
-  const [stats, setStats] = useState<DuelStats | null>(null);
+  // undefined: the read is in flight, so the record strip holds its shape
+  // with dashes; null: nothing to show (the read failed).
+  const stats = useDuelStats();
   const [tier, setTier] = useState<DuelTier>(initialTier);
   const { allowed: geoAllowed } = useRankedEligibility(
     PAID_DUELS_ENABLED_PUBLIC,
@@ -129,17 +127,6 @@ export function DuelHome({ initialGeoAllowed }: DuelHomeProps) {
     }
     prevCreateStatus.current = createState.status;
   }, [createState.status]);
-
-  // Fetch W-L stats on mount when signed in
-  useEffect(() => {
-    if (!user || !token) return;
-    authedFetch("/api/duel/stats", token)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: DuelStats | null) => {
-        if (data) setStats(data);
-      })
-      .catch(() => {});
-  }, [user, token]);
 
   // Stop polling on unmount
   useEffect(() => {
@@ -663,15 +650,21 @@ export function DuelHome({ initialGeoAllowed }: DuelHomeProps) {
         {/* Your record — the closing line of the page. No leaderboard link:
             the tab band above already points at /duel/leaderboard, and
             DESIGN.md forbids the same ask twice on one screen. */}
-        {stats && (
-          <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-border-subtle pt-5">
+        {/* Stacked on a phone and one row from sm up, never wrapped: a
+            wrap that depended on the numbers' width changed the strip's
+            height when the record landed. */}
+        {!signedOut && stats !== null && (
+          <div
+            className="mt-2 flex flex-col gap-3 border-t border-border-subtle pt-5 sm:flex-row sm:items-center sm:gap-6"
+            aria-busy={stats === undefined || undefined}
+          >
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
               Your free 1v1 record
             </p>
             <div className="flex items-center gap-5 font-mono tabular-nums">
-              <RecordStat value={stats.wins} label="W" tone="signal" />
-              <RecordStat value={stats.losses} label="L" tone="muted" />
-              {stats.current_streak !== 0 && (
+              <RecordStat value={stats?.wins ?? "—"} label="W" tone="signal" />
+              <RecordStat value={stats?.losses ?? "—"} label="L" tone="muted" />
+              {stats && stats.current_streak !== 0 && (
                 <RecordStat
                   value={
                     stats.current_streak > 0
