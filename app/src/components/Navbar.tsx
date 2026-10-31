@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { Wordmark } from "./Brand/Wordmark";
 import { NavbarAuth } from "./NavbarAuth";
-import { FREE_CLIMB_HREF, DUEL_HREF, DAILY_HREF } from "./navLinks";
+import { FREE_CLIMB_HREF, DUEL_HREF, DAILY_HREF, modeForContext, type GameMode } from "./navLinks";
 
 interface NavbarProps {
   /** Optional breadcrumb shown after the wordmark (e.g. "Dashboard", "Tech stack"). */
@@ -23,9 +23,25 @@ interface NavbarProps {
 // with the appended `hidden` at the same specificity and won, leaking the links
 // under the wordmark on phones.
 const GHOST =
-  "items-center justify-center whitespace-nowrap px-3 min-h-[44px] min-w-[44px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
+  "items-center justify-center whitespace-nowrap px-3 min-h-[44px] min-w-[44px] font-mono text-xs uppercase tracking-[0.14em] transition-colors";
+
+// Colour is chosen per link, never both: two text-* utilities on one element
+// resolve by stylesheet order, not class order.
+const MODE_IDLE = "text-text-muted hover:text-text-primary";
+const MODE_ACTIVE = "text-signal underline decoration-2 underline-offset-8";
+
+/** The mode links, in navbar order. */
+const MODES: { mode: GameMode; href: string; label: string }[] = [
+  { mode: "1v1", href: DUEL_HREF, label: "1v1" },
+  { mode: "daily", href: DAILY_HREF, label: "Daily" },
+  { mode: "endless", href: FREE_CLIMB_HREF, label: "Endless" },
+];
 
 export function Navbar({ contextLabel, contextDot }: NavbarProps) {
+  // The page's own mode is marked (signal text + underline), so the navbar
+  // says which mode you are in and the stack band under it only has to say
+  // Leaderboard or Play.
+  const active = modeForContext(contextLabel);
   return (
     <nav className="sticky top-0 z-30 h-14 bg-void/80 backdrop-blur-md border-b border-border-subtle px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2">
       <div className="flex items-center gap-3 min-w-0">
@@ -61,15 +77,16 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
-        <Link href={DUEL_HREF} className={`${GHOST} hidden sm:inline-flex`}>
-          1v1
-        </Link>
-        <Link href={DAILY_HREF} className={`${GHOST} hidden sm:inline-flex`}>
-          Daily
-        </Link>
-        <Link href={FREE_CLIMB_HREF} className={`${GHOST} hidden sm:inline-flex`}>
-          Endless
-        </Link>
+        {MODES.map(({ mode, href, label }) => (
+          <Link
+            key={mode}
+            href={href}
+            aria-current={mode === active ? "true" : undefined}
+            className={`${GHOST} hidden sm:inline-flex ${mode === active ? MODE_ACTIVE : MODE_IDLE}`}
+          >
+            {label}
+          </Link>
+        ))}
         <NavbarAuth />
       </div>
     </nav>

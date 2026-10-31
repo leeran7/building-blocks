@@ -1,16 +1,43 @@
 /**
- * FreeStackShell — shared frame for the standalone free climb stack
- * (/climb leaderboard, /play, /daily).
+ * FreeStackShell — shared frame for the two solo stacks: Endless (/climb,
+ * /play) and Daily Climb (/daily/leaderboard, /daily).
  *
- * The site Navbar and a tab-only header band (Leaderboard / Play / Daily)
- * render on every section. On a touch screen the game sections drop the Navbar
- * so it never paints over ClimbScene's `fixed inset-0` fullscreen HUD.
+ * The site Navbar marks the mode (Endless or Daily), and the band under it
+ * has the same two tabs on every stack, 1v1 included: Leaderboard | Play.
+ * On a touch screen the game sections drop the Navbar so it never paints over
+ * ClimbScene's `fixed inset-0` fullscreen HUD.
  */
 
 import { ViewTransition, type ReactNode } from "react";
 import { Navbar } from "./Navbar";
 import { NavTab } from "./ui/NavTab";
-import { FREE_CLIMB_HREF, DAILY_HREF } from "./navLinks";
+import {
+  DAILY_HREF,
+  DAILY_LEADERBOARD_HREF,
+  ENDLESS_LEADERBOARD_HREF,
+  FREE_CLIMB_HREF,
+} from "./navLinks";
+
+/** Each solo stack's two tabs, in the order the 1v1 band uses. */
+const STACKS = {
+  endless: {
+    navLabel: "Endless",
+    tabsLabel: "Endless sections",
+    leaderboard: { href: ENDLESS_LEADERBOARD_HREF, section: "leaderboard" },
+    play: { href: FREE_CLIMB_HREF, section: "play" },
+  },
+  daily: {
+    navLabel: "Daily Climb",
+    tabsLabel: "Daily Climb sections",
+    leaderboard: { href: DAILY_LEADERBOARD_HREF, section: "daily-leaderboard" },
+    play: { href: DAILY_HREF, section: "daily" },
+  },
+} as const;
+
+/** The stack a section belongs to. */
+export function stackOf(section: FreeStackSection): keyof typeof STACKS {
+  return section === "daily" || section === "daily-leaderboard" ? "daily" : "endless";
+}
 
 export function FreeStackShell({
   section,
@@ -27,6 +54,7 @@ export function FreeStackShell({
   // Both Play and Daily render the full-bleed ClimbScene stage, so they share
   // the navbar-hidden / flex-1 game layout; Leaderboard keeps the scrolling panel.
   const gameSection = section === "play" || section === "daily";
+  const stack = STACKS[stackOf(section)];
 
   return (
     <div
@@ -55,26 +83,25 @@ export function FreeStackShell({
             : "sticky top-0 z-30 shrink-0"
         }
       >
-        <Navbar contextLabel={section === "daily" ? "Daily Climb" : "Endless"} />
+        <Navbar contextLabel={stack.navLabel} />
       </div>
 
       <main id="main-content" className="relative flex flex-1 flex-col">
         {/* One container width for the band across every section, so the tabs
-            don't shift horizontally when switching Leaderboard / Play / Daily. */}
+            don't shift horizontally when switching Leaderboard / Play or between stacks. */}
         <div className="relative z-10 border-b border-border-subtle shrink-0">
           <div className="max-w-5xl mx-auto w-full px-4 py-2 flex items-center justify-between gap-1 sm:gap-2">
             {/* The band stays put while the page under it changes, so it gets
                 no entrance animation and one shared view-transition name: a tab
                 switch crossfades the pill in place (and glides it over to the
                 1v1 band, which uses the same name) instead of re-entering. */}
-            <StackTabs label="Endless and Daily Climb sections">
+            <StackTabs label={stack.tabsLabel}>
               <NavTab
-                href="/climb"
+                href={stack.leaderboard.href}
                 label="Leaderboard"
-                active={section === "leaderboard"}
+                active={section === stack.leaderboard.section}
               />
-              <NavTab href={FREE_CLIMB_HREF} label="Play" active={section === "play"} />
-              <NavTab href={DAILY_HREF} label="Daily" active={section === "daily"} />
+              <NavTab href={stack.play.href} label="Play" active={section === stack.play.section} />
             </StackTabs>
             {/* Same 44px height as the tabs, so the band is the same height on
                 every section whether or not it has tools. */}
@@ -102,7 +129,7 @@ export function FreeStackShell({
   );
 }
 
-export type FreeStackSection = "leaderboard" | "play" | "daily";
+export type FreeStackSection = "leaderboard" | "play" | "daily" | "daily-leaderboard";
 
 /**
  * The pill tablist both stack shells share. `stack-tabs` is its

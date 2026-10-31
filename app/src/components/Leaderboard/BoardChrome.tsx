@@ -1,7 +1,8 @@
 /**
- * The frame both leaderboards share: /climb (Solo) and /duel/leaderboard (1v1).
+ * The frame every leaderboard shares: /climb (Endless), /daily/leaderboard
+ * (Daily) and /duel/leaderboard (1v1).
  *
- * The Solo | 1v1 switch crosses between the two pages, so everything around
+ * The Endless | Daily | 1v1 switch crosses between the pages, so everything around
  * the rows is the same component on both: the intro block, the switch, the
  * board column with the standing panel beside it. Switching then only swaps
  * the words and the rows; the switch itself, the panel and the top of the
@@ -11,7 +12,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CLIMB_PANEL_INTRO_TITLE_CLASS } from "../../design/climbFeelTokens";
-import { DUEL_LEADERBOARD_HREF } from "../navLinks";
+import { DAILY_LEADERBOARD_HREF, DUEL_LEADERBOARD_HREF, ENDLESS_LEADERBOARD_HREF } from "../navLinks";
 
 /**
  * Eyebrow, title and one description paragraph. Keep the two pages'
@@ -48,13 +49,14 @@ export function BoardIntro({
   );
 }
 
-export type BoardScope = "solo" | "1v1";
+export type BoardScope = "solo" | "daily" | "1v1";
 
 /** Which board you are looking at; each is its own page. */
 export function BoardScopeNav({ current }: { current: BoardScope }) {
   return (
     <nav aria-label="Leaderboards" className="flex flex-wrap gap-2">
-      <ScopeLink href="/climb" label="Endless" current={current === "solo"} />
+      <ScopeLink href={ENDLESS_LEADERBOARD_HREF} label="Endless" current={current === "solo"} />
+      <ScopeLink href={DAILY_LEADERBOARD_HREF} label="Daily" current={current === "daily"} />
       <ScopeLink href={DUEL_LEADERBOARD_HREF} label="1v1" current={current === "1v1"} />
     </nav>
   );

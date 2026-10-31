@@ -35,6 +35,8 @@ vi.mock("../../src/contexts/AuthContext", () => ({ useAuth: () => AUTH }));
 import { ClimbBoard } from "../../src/components/Climb/ClimbBoard";
 import { DuelBoard } from "../../src/components/Duel/DuelBoard";
 import { parseDuelStats } from "../../src/hooks/useDuelStats";
+import { DailyBoard, parseDailyStanding } from "../../src/components/Daily/DailyBoard";
+import type { DailyClimberRank } from "../../src/db/dailyClimb";
 
 const CLIMBERS: ClimberRank[] = [
   { rank: 1, userId: "u1", handle: "apex", username: null, peakY: 900, wins: 2, avatarId: null },
@@ -45,6 +47,13 @@ const DUELISTS: DuelStatsRow[] = [
   { userId: "u2", displayName: "Golden Heron", wins: 27, losses: 2, winPct: 93.1 },
   { userId: "me", displayName: "Lenny Jenkins", wins: 24, losses: 4, winPct: 85.7 },
 ];
+
+const DAY = "2026-10-31";
+const DAILY: DailyClimberRank[] = [
+  { rank: 1, userId: "u1", handle: "apex", username: null, peakY: 410, attempts: 3, avatarId: null },
+  { rank: 2, userId: "me", handle: "mine", username: null, peakY: 260, attempts: 1, avatarId: null },
+];
+const DAILY_ROUTE = "/api/climb/daily/leaderboard";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -138,10 +147,11 @@ describe("Solo and 1v1 boards share one frame", () => {
     // The switch: same links in the same order, only the current one moves.
     const soloLinks = [...scopeNav(solo.container)!.querySelectorAll("a")];
     const duelLinks = [...scopeNav(duel.container)!.querySelectorAll("a")];
-    expect(soloLinks.map((a) => a.getAttribute("href"))).toEqual(["/climb", "/duel/leaderboard"]);
-    expect(duelLinks.map((a) => a.getAttribute("href"))).toEqual(["/climb", "/duel/leaderboard"]);
-    expect(soloLinks.map((a) => a.getAttribute("aria-current"))).toEqual(["page", null]);
-    expect(duelLinks.map((a) => a.getAttribute("aria-current"))).toEqual([null, "page"]);
+    const SWITCH = ["/climb", "/daily/leaderboard", "/duel/leaderboard"];
+    expect(soloLinks.map((a) => a.getAttribute("href"))).toEqual(SWITCH);
+    expect(duelLinks.map((a) => a.getAttribute("href"))).toEqual(SWITCH);
+    expect(soloLinks.map((a) => a.getAttribute("aria-current"))).toEqual(["page", null, null]);
+    expect(duelLinks.map((a) => a.getAttribute("aria-current"))).toEqual([null, null, "page"]);
 
     expect(skeleton(searchRow(duel.container))).toBe(skeleton(searchRow(solo.container)));
     // The board column under the switch: same grid, panel first.
@@ -263,5 +273,115 @@ describe("parseDuelStats", () => {
     expect(parseDuelStats({ wins: 1.5, losses: 1, current_streak: 0 })).toBeNull();
     expect(parseDuelStats("3-1")).toBeNull();
     expect(parseDuelStats({ error: "boom" })).toBeNull();
+  });
+});
+
+describe("Daily board (/daily/leaderboard) on the same frame", () => {
+  it("draws the same switch, search row and panel skeleton as the Endless board", async () => {
+    fakeApi({
+      "/api/dashboard": { user: { id: "me" }, freeClimb: { peakY: 700, rank: 2, totalClimbers: 2 } },
+      [DAILY_ROUTE]: { day: DAY, totalClimbers: 2, climbers: DAILY, me: { rank: 2, peakY: 260, attempts: 1 } },
+    });
+    const solo = mount(createElement(ClimbBoard, { climbers: CLIMBERS }));
+    const daily = mount(createElement(DailyBoard, { day: DAY, climbers: DAILY }));
+    await settle();
+
+    const links = [...scopeNav(daily.container)!.querySelectorAll("a")];
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/climb", "/daily/leaderboard", "/duel/leaderboard"]);
+    expect(links.map((a) => a.getAttribute("aria-current"))).toEqual([null, "page", null]);
+    expect(skeleton(searchRow(daily.container))).toBe(skeleton(searchRow(solo.container)));
+    expect(skeleton(panelOf(daily.container))).toBe(skeleton(panelOf(solo.container)));
+
+    solo.unmount();
+    daily.unmount();
+  });
+
+  it("asks the daily route for this day and shows the viewer's standing and row", async () => {
+    const api = fakeApi({ [DAILY_ROUTE]: null });
+    const view = mount(createElement(DailyBoard, { day: DAY, climbers: DAILY }));
+    const asked = (fetch as unknown as { mock: { calls: [string][] } }).mock.calls.map((c) => c[0]);
+    expect(asked).toEqual([`${DAILY_ROUTE}?day=${DAY}`]);
+    expect(panelOf(view.container)!.querySelector("[aria-busy=true]")).not.toBeNull();
+
+    await act(async () =>
+      api.answer(DAILY_ROUTE, { day: DAY, totalClimbers: 2, climbers: DAILY, me: { rank: 2, peakY: 260, attempts: 1 } })
+    );
+    await settle();
+    const panel = panelOf(view.container)!;
+    expect(visibleText(panel)).toContain("260");
+    expect(visibleText(panel)).toContain("#2");
+    expect(view.container.querySelector("#your-climb-row")?.textContent).toContain("mine");
+    expect(panel.querySelector('a[href="/daily"]')?.textContent).toMatch(/climb today.s tower/i);
+    view.unmount();
+  });
+
+  it("says so when the viewer has no run today, and marks no row", async () => {
+    fakeApi({ [DAILY_ROUTE]: { day: DAY, totalClimbers: 2, climbers: DAILY, me: null } });
+    const view = mount(createElement(DailyBoard, { day: DAY, climbers: DAILY }));
+    await settle();
+    expect(visibleText(panelOf(view.container)!)).toMatch(/no climb on today.s tower yet/i);
+    expect(view.container.querySelector("#your-climb-row")).toBeNull();
+    view.unmount();
+  });
+
+  it("shows a hidden rank for a viewer who opted out of leaderboards", async () => {
+    fakeApi({ [DAILY_ROUTE]: { day: DAY, totalClimbers: 1, climbers: [DAILY[0]], me: { rank: null, peakY: 120, attempts: 2 } } });
+    const view = mount(createElement(DailyBoard, { day: DAY, climbers: [DAILY[0]] }));
+    await settle();
+    const panel = panelOf(view.container)!;
+    expect(visibleText(panel)).toContain("120");
+    expect(visibleText(panel)).toContain("Hidden");
+    // No rank to pin, so no "Your standing" row under the board.
+    expect(view.container.textContent).not.toContain("Your standing");
+    view.unmount();
+  });
+
+  it("treats a failed or malformed read as unavailable, keeping the rows", async () => {
+    fakeApi({ [DAILY_ROUTE]: { day: DAY, totalClimbers: 2, climbers: DAILY, me: { rank: "2", peakY: 260, attempts: 1 } } });
+    const view = mount(createElement(DailyBoard, { day: DAY, climbers: DAILY }));
+    await settle();
+    expect(visibleText(panelOf(view.container)!)).toContain("couldn’t be loaded");
+    expect(view.container.querySelectorAll('ol[aria-label="Today\'s Daily Climb leaderboard"] > li')).toHaveLength(2);
+    view.unmount();
+  });
+
+  it("asks a signed-out visitor to sign in and back to the daily board", () => {
+    AUTH.user = null;
+    AUTH.token = null;
+    fakeApi({});
+    const view = mount(createElement(DailyBoard, { day: DAY, climbers: DAILY }));
+    const panel = panelOf(view.container)!;
+    expect(panel.querySelector('a[href^="/auth/signin"]')?.getAttribute("href")).toBe(
+      "/auth/signin?redirect=%2Fdaily%2Fleaderboard"
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    view.unmount();
+  });
+});
+
+describe("parseDailyStanding", () => {
+  it("reads a standing, an opted-out standing and no run", () => {
+    expect(parseDailyStanding({ totalClimbers: 4, me: { rank: 3, peakY: 50, attempts: 2 } })).toEqual({
+      me: { rank: 3, peakY: 50, attempts: 2 },
+      totalClimbers: 4,
+    });
+    expect(parseDailyStanding({ totalClimbers: 4, me: { rank: null, peakY: 50, attempts: 2 } })?.me?.rank).toBeNull();
+    expect(parseDailyStanding({ totalClimbers: 4, me: null })).toEqual({ me: null, totalClimbers: 4 });
+  });
+
+  it("rejects anything that is not a board response", () => {
+    for (const bad of [
+      undefined,
+      null,
+      "x",
+      { me: null },
+      { totalClimbers: "4", me: null },
+      { totalClimbers: 4 },
+      { totalClimbers: 4, me: { rank: "3", peakY: 50, attempts: 2 } },
+      { totalClimbers: 4, me: { rank: 3, peakY: NaN, attempts: 2 } },
+      { totalClimbers: 4, me: { rank: 3, peakY: 50 } },
+    ]) {
+      expect(parseDailyStanding(bad)).toBeUndefined();
+    }
   });
 });

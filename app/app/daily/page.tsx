@@ -2,8 +2,8 @@
  * Daily Climb page — /daily
  *
  * The same procedurally-generated tower for every player each calendar day.
- * Reuses the free climb engine with a per-day seed lock; scores feed the single
- * /climb leaderboard. A local streak (localStorage) gives a reason to return.
+ * Reuses the free climb engine with a per-day seed lock; scores feed today's
+ * board (/daily/leaderboard) and the all-time /climb board. A local streak (localStorage) gives a reason to return.
  */
 
 import type { Metadata } from "next";
@@ -16,6 +16,7 @@ import {
   DailyTodayPanel,
   DailyTodayProvider,
 } from "../../src/components/Game/DailyToday";
+import { DailyAbout } from "../../src/components/Daily/DailyAbout";
 import { buildMetadata } from "../../src/lib/seo";
 import { nextUtcResetAt, utcDayKey } from "../../src/lib/dailyDay";
 import { dailySeedConfigured, dailySeedFor } from "../../src/lib/dailySeedServer";
@@ -104,19 +105,7 @@ function DailyNotes() {
         ),
       }}
     >
-      <p className="text-sm leading-relaxed text-text-secondary">
-        The Daily Climb gives every player the same procedurally generated tower
-        each calendar day — one seed, so it&rsquo;s a fair, shared challenge.
-        Climb as high as you can before the rising lava catches you; your peak
-        height ranks on the free leaderboard at{" "}
-        <Link href="/climb" className="text-signal underline underline-offset-2 hover:decoration-2">
-          /climb
-        </Link>
-        . Play it every day to build a streak — miss a day and the streak resets.
-        The daily tower rolls over at midnight UTC. Prefer an endless run
-        on a fresh random tower each time, or a head-to-head race? Both are one
-        tap away under &ldquo;Today&rsquo;s tower&rdquo; at the top of this page.
-      </p>
+      <DailyAbout />
     </GameNotes>
   );
 }
