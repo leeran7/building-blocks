@@ -156,7 +156,8 @@ export type PaintClimbFrameOptions = {
   myId?: string;
   /**
    * Display names keyed by player id — drawn as nameplates above each climber.
-   * Falls back to "Guest" for ids not present.
+   * Opponents missing here read "Guest"; the local climber missing here (solo
+   * runs) draws no nameplate at all.
    */
   playerNames?: Record<string, string>;
   /**
@@ -536,9 +537,15 @@ export function paintClimbFrame(
       drawJumpChevron(ctx, pxScreen, pFeetY - (2.4 * pS + 12 * ui) + bob, 7 * ui, ACCENT, 3 * ui);
     }
 
-    const nameLabel = (opts.playerNames ? opts.playerNames[p.id] : null) ?? "Guest";
+    const knownName = opts.playerNames && Object.hasOwn(opts.playerNames, p.id)
+      ? opts.playerNames[p.id]
+      : null;
+    const nameLabel = knownName ?? "Guest";
     const inLobby = state.phase === "lobby" || state.phase === "countdown";
-    if (!isLocal || inLobby) {
+    // Your own tag only shows in a duel's lobby/countdown, where it tells you
+    // which climber is you. Solo runs pass no names, so they never draw it
+    // (it used to fall back to "Guest" behind every solo intro).
+    if (isLocal ? inLobby && knownName !== null : true) {
       const nameColor = isLocal ? ACCENT : OPPONENT_COLOR;
       ctx.font = _fontFloor;
       ctx.textAlign = "center";
