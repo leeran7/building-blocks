@@ -39,7 +39,7 @@ export default async function FreeClimbPage() {
       section="leaderboard"
       title="Global leaderboard"
       tools={
-        <GameNotes aboutTitle="About Endless">
+        <GameNotes stack="Endless" aboutTitle="About Endless">
           <ClimbAbout />
         </GameNotes>
       }

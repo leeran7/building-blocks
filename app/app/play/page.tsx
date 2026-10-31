@@ -40,7 +40,7 @@ export default async function FreePlayPage({
  */
 function PlayNotes() {
   return (
-    <GameNotes aboutTitle="About this game">
+    <GameNotes stack="Endless" aboutTitle="About this game">
       <p className="text-sm leading-relaxed text-text-secondary">
         This is Endless, Doomstack&rsquo;s solo mode — an endless, procedurally generated tower of
         ladders, platforms, and rising lava. Climb as high as you can before the lava catches

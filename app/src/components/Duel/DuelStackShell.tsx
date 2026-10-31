@@ -59,7 +59,7 @@ export function DuelStackShell({
             />
             <NavTab href={DUEL_HREF} label="Play" active={section === "play"} />
           </StackTabs>
-          <GameNotes aboutTitle="About 1v1">
+          <GameNotes stack="1v1" aboutTitle="About 1v1">
             <DuelAbout />
           </GameNotes>
         </div>

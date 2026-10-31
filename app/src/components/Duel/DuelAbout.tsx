@@ -5,7 +5,10 @@
  */
 
 import Link from "next/link";
-import { PAID_DUELS_ENABLED } from "../../config/paidDuel";
+// The public mirror, not PAID_DUELS_ENABLED: DuelStackShell also renders
+// inside client components (DuelHome, ChipDuelLobby), where the server-only
+// flag reads false and the text would not match the server's (hydration error).
+import { PAID_DUELS_ENABLED_PUBLIC } from "../../config/paidDuel";
 
 const LINK = "text-signal underline underline-offset-2 hover:decoration-2";
 
@@ -19,7 +22,7 @@ export function DuelAbout() {
         1v1 leaderboard
       </Link>
       .
-      {PAID_DUELS_ENABLED ? (
+      {PAID_DUELS_ENABLED_PUBLIC ? (
         <>
           {" "}
           Chip duels are ranked: both players climb the same seed and the higher peak wins the

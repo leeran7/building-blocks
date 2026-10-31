@@ -20,10 +20,13 @@ import { ClimbControlsGuide } from "./ClimbControlsGuide";
 const CONTROLS = "Controls & power-ups";
 
 export function GameNotes({
+  stack,
   aboutTitle,
   today,
   children,
 }: {
+  /** Names the narrow Info dialog: "Endless", "Daily Climb", "1v1". */
+  stack: string;
   aboutTitle: string;
   /** Daily only: the Today's tower button's words and its dialog body. */
   today?: { text: ReactNode; content: ReactNode };
@@ -47,7 +50,7 @@ export function GameNotes({
       <div className="md:hidden">
         <InfoDialog
           label={today ? "Today's tower, controls and about" : "Controls and about"}
-          title={today ? "Daily Climb" : "Endless"}
+          title={stack}
           icon={<AboutIcon />}
           text="Info"
         >

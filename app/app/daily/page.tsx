@@ -93,6 +93,7 @@ function KeepClimbing() {
 function DailyNotes() {
   return (
     <GameNotes
+      stack="Daily Climb"
       aboutTitle="About the Daily Climb"
       today={{
         text: <DailyTodayLabel />,

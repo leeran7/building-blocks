@@ -45,6 +45,7 @@ beforeEach(() => {
   act(() => {
     root.render(
       createElement(GameNotes, {
+        stack: "Endless",
         aboutTitle: "About this game",
         children: createElement("p", { id: "about-copy" }, "This is Endless, the solo mode."),
       }),
@@ -129,6 +130,7 @@ describe("Daily's Today's tower button", () => {
     act(() => {
       root.render(
         createElement(GameNotes, {
+        stack: "Endless",
           aboutTitle: "About the Daily Climb",
           today: {
             text: "Today's tower 3h 52m",
