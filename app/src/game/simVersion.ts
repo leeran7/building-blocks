@@ -11,7 +11,7 @@
  * that leaves the golden hashes untouched (a level-only field such as
  * tower.goalM or tower.difficulty) does not bump it. Client-safe: no imports.
  */
-export const DAILY_SIM_VERSION = 4;
+export const DAILY_SIM_VERSION = 5;
 
 /**
  * Engine revision for Level System runs (level tickets and
@@ -20,4 +20,4 @@ export const DAILY_SIM_VERSION = 4;
  * as any edit that changes a level tower's output: its geometry, the finish,
  * the level power-up rules or the level lava.
  */
-export const LEVEL_SIM_VERSION = 4;
+export const LEVEL_SIM_VERSION = 5;

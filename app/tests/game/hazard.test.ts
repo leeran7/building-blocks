@@ -244,7 +244,7 @@ describe("kill threshold: the documented late-game mean", () => {
 
   it("the measured rise over a cycle after the cap is 0.70×", () => {
     const period = CFG.stumblePeriodSeconds;
-    const t = 450; // past the ~395 s cap
+    const t = 450; // past the ~362 s cap
     const avg =
       (hazardHeightAt(t + period, CLIMB, CFG) - hazardHeightAt(t, CLIMB, CFG)) /
       period;
@@ -329,10 +329,10 @@ describe("late creep (R2-2): envelope ramp → creep → cap", () => {
     expect(checked).toBeGreaterThan(0);
   });
 
-  it("reaches the 1× cap about 6.5 minutes in, then holds there", () => {
+  it("reaches the 1× cap about 6 minutes in, then holds there", () => {
     expect(CFG.creepPerMinute).toBe(SPEC_CREEP_PER_MIN);
-    expect(hazardSpeedFracAt(surgeAt(380), CFG)).toBeLessThan(1);
-    const late = [surgeAt(400), surgeAt(900), surgeAt(3600)];
+    expect(hazardSpeedFracAt(surgeAt(350), CFG)).toBeLessThan(1);
+    const late = [surgeAt(370), surgeAt(900), surgeAt(3600)];
     for (const t of late) expect(hazardSpeedFracAt(t, CFG)).toBe(1);
   });
 
@@ -356,7 +356,11 @@ describe("late creep (R2-2): envelope ramp → creep → cap", () => {
 
   // Captured from hazard.ts at d6f2429, the last commit before creep existed
   // (hazardHeightAt at 9 m/s and hazardSpeedFracAt, default tune). creep 0
-  // must reproduce the old curve bit for bit, or stored replays shift.
+  // must reproduce the old curve bit for bit, or stored replays shift. That
+  // tune opened with a 5 s grace and a 120 s ramp (2 s / 90 s since
+  // 2026-10-29), so the tables pin those two values: they check the curve's
+  // math, not today's defaults.
+  const OLD_TUNE = { ...CFG, graceSeconds: 5, rampSeconds: 120 };
   const OLD_HEIGHT: ReadonlyArray<readonly [number, number]> = [
     [0, -9], [4.99, -9], [5, -9], [5.5, -7.10540625],
     [17.25, 32.522479687499995], [60, 184.70557499999998],
@@ -372,7 +376,7 @@ describe("late creep (R2-2): envelope ramp → creep → cap", () => {
   ];
 
   it("creep 0 equals the pre-creep curve exactly", () => {
-    const flat = { ...CFG, creepPerMinute: 0 };
+    const flat = { ...OLD_TUNE, creepPerMinute: 0 };
     for (const [t, h] of OLD_HEIGHT) expect(hazardHeightAt(t, CLIMB, flat), `t=${t}`).toBe(h);
     for (const [t, f] of OLD_FRAC) expect(hazardSpeedFracAt(t, flat), `t=${t}`).toBe(f);
   });
@@ -380,8 +384,8 @@ describe("late creep (R2-2): envelope ramp → creep → cap", () => {
   it("creep 0 equals the pre-creep curve exactly with no stumble and over the cap", () => {
     // Also captured at d6f2429: the smooth branch, and endSpeedFrac > 1
     // (clamped to the cap) with a non-unit speedScale.
-    const smooth = { ...CFG, creepPerMinute: 0, stumblePeriodSeconds: 0, stumbleDurationSeconds: 0 };
-    const hot = { ...CFG, creepPerMinute: 0, endSpeedFrac: 1.3, speedScale: 1.5 };
+    const smooth = { ...OLD_TUNE, creepPerMinute: 0, stumblePeriodSeconds: 0, stumbleDurationSeconds: 0 };
+    const hot = { ...OLD_TUNE, creepPerMinute: 0, endSpeedFrac: 1.3, speedScale: 1.5 };
     const smoothOld: ReadonlyArray<readonly [number, number]> = [
       [5.5, -7.315916666666666], [60, 225.20833333333331], [125, 629.4],
       [133.3, 689.8240000000001], [600, 4087.3999999999996],
@@ -460,13 +464,13 @@ describe("late creep (R2-2): envelope ramp → creep → cap", () => {
   });
 
   it("the shipped tune's closed form matches a numerical integral through the ramp end and the cap", () => {
-    // The default curve players get: ramp ends at 125 s, the creep reaches
-    // the cap at 395 s. Its stumble edges, ramp end and cap all sit on the
+    // The default curve players get: ramp ends at 92 s, the creep reaches
+    // the cap at 362 s. Its stumble edges, ramp end and cap all sit on the
     // 1 ms grid, so the midpoint rule is exact up to float summation.
     const capAtS = RAMP_END + ((1 - CFG.endSpeedFrac) / CFG.creepPerMinute) * 60;
-    expect(capAtS).toBeCloseTo(395, 9);
+    expect(capAtS).toBeCloseTo(362, 9);
     const dt = 1e-3;
-    const checkpoints = [60.5, 124.9, 125.4, 300.2, 394.6, 395.3, 450];
+    const checkpoints = [45.5, 91.9, 92.4, 200.2, 361.6, 362.3, 420];
     const idx = new Set(checkpoints.map((t) => Math.round(t / dt)));
     const last = Math.max(...idx);
     let area = 0;

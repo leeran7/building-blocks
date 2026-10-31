@@ -51,8 +51,8 @@ describe("difficultyAt", () => {
   it("ramps with altitude on the free stack and holds at 1", () => {
     const free = buildFreeTower();
     expect(difficultyAt(free, 0)).toBe(0);
-    expect(difficultyAt(free, 25)).toBe(0.5);
-    expect(difficultyAt(free, 50)).toBe(1);
+    expect(difficultyAt(free, 15)).toBe(0.5);
+    expect(difficultyAt(free, 30)).toBe(1);
     expect(difficultyAt(free, 400)).toBe(1);
   });
 

@@ -87,7 +87,7 @@ describe("tutorialTopicsFor", () => {
     expect(tutorialTopicsFor(hangingLadders + 1, null)).toEqual([]);
     expect(tutorialTopicsFor(shortTops + 1, null)).toEqual([]);
     // The season's own intro levels win over the default.
-    expect(tutorialTopicsFor(5, null, { hangingLadders: 5, shortTops: 6 })).toEqual(["hanging-ladders"]);
+    expect(tutorialTopicsFor(5, null, { hangingLadders: 5, shortTops: 6, spikes: 7 })).toEqual(["hanging-ladders"]);
   });
 
   it("plays each season 1 power-up demo on the level that introduces it", () => {

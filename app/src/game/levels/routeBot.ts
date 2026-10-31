@@ -11,6 +11,9 @@
  *   (the greedy bot fell into gaps that way and climbed back forever);
  * - it keeps its walk direction while airborne.
  *
+ * Spike rows (spikes.ts) are jumped like a gap: take off a little before the
+ * row, and never steer a landing onto one.
+ *
  * Level towers add three moves: on the summit floor it runs to the diamond
  * that ends the level, a hanging ladder (its bottom above the floor)
  * takes a jump to grab, and at a short top (the ladder stops below the next
@@ -33,6 +36,7 @@ import {
   platformsNearY,
   summitDiamond,
 } from "../towers";
+import { spikesNearY } from "../spikes";
 import type { Ladder, PlayerInput, PlayerState, TowerSpec } from "../types";
 
 const UP: PlayerInput = { moveX: 0, jump: false, climbY: 1, usePowerUp: false };
@@ -133,11 +137,12 @@ export function createRouteBot(): RouteBot {
         Math.abs(pl.y - p.y) <= 0.05
     );
     const crate = obstacleAhead(tower, p.x, p.y, dir);
-    if (p.onGround && !ahead) gapJump = true;
+    const spikes = p.onGround && spikeAhead(tower, p, dir, tick);
+    if (p.onGround && (!ahead || spikes)) gapJump = true;
     return {
       moveX: dir,
       jump:
-        (p.onGround && (!ahead || crate)) ||
+        (p.onGround && (!ahead || crate || spikes)) ||
         (!p.onGround && crate && canSuperJump && !p.jumpHeldPrev),
       climbY: 0,
       usePowerUp: false,
@@ -162,10 +167,34 @@ function airSteer(tower: TowerSpec, p: PlayerState, dir: -1 | 1, tick: number): 
   const w = tower.widthM;
   const landX = (((p.x + dir * speed * tLand) % w) + w) % w;
   const MARGIN = 0.4;
+  const rows = spikesNearY(tower, floorY, floorY);
   const onPiece = (x: number) =>
-    pieces.some((pl) => x >= pl.x0 + MARGIN && x <= pl.x1 - MARGIN);
+    pieces.some((pl) => x >= pl.x0 + MARGIN && x <= pl.x1 - MARGIN) &&
+    !rows.some((s) => s.y === floorY && x >= s.x0 - MARGIN && x <= s.x1 + MARGIN);
   if (onPiece(landX)) return dir;
   return onPiece(p.x) ? 0 : dir;
+}
+
+/**
+ * How far before a spike row the bot takes off: at least 2.5 m, and 0.2 s of
+ * travel at its current speed (a sprint covers more ground while the jump
+ * is still rising through the spikes' band).
+ */
+function spikeTakeoffM(tower: TowerSpec, p: PlayerState, tick: number): number {
+  return Math.max(2.5, 0.2 * tower.moveSpeed * moveSpeedMultiplier(p, tick));
+}
+
+/** Whether a spike row on this floor starts within take-off range ahead. */
+function spikeAhead(tower: TowerSpec, p: PlayerState, dir: -1 | 1, tick: number): boolean {
+  const w = tower.widthM;
+  const lead = spikeTakeoffM(tower, p, tick);
+  for (const s of spikesNearY(tower, p.y, p.y)) {
+    if (Math.abs(s.y - p.y) > 0.05) continue;
+    const edge = dir === 1 ? s.x0 : s.x1;
+    const ahead = ((((edge - p.x) * dir) % w) + w) % w;
+    if (ahead <= lead) return true;
+  }
+  return false;
 }
 
 /** Nearest ladder on the platform piece the bot stands on, else on the floor. */

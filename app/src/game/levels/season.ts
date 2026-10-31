@@ -42,7 +42,7 @@ export interface SeasonSpec {
   /** Power-up types in unlock order; a type spawns from its level on. */
   powerUpUnlocks: ReadonlyArray<{ level: number; type: PowerUpType }>;
   /** First-sight level of each new obstacle. */
-  obstacleIntros: { hangingLadders: number; shortTops: number };
+  obstacleIntros: { hangingLadders: number; shortTops: number; spikes: number };
 }
 
 /**
@@ -74,7 +74,7 @@ export const SEASON_1: SeasonSpec = {
   lava: { start: 0, end: DIAL_END, shape: 0.6 },
   layout: { start: 0.1, end: DIAL_END, shape: 0.4 },
   powerUpUnlocks: DEFAULT_POWER_UP_UNLOCKS,
-  obstacleIntros: { hangingLadders: 9, shortTops: 21 },
+  obstacleIntros: { hangingLadders: 9, shortTops: 21, spikes: 12 },
 };
 
 /**

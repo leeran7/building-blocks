@@ -30,7 +30,7 @@ import {
  * Bump when a formula here changes what a level is. Stamped on every manifest
  * so a manifest built from older formulas is refused.
  */
-export const LEVEL_SPEC_VERSION = 4;
+export const LEVEL_SPEC_VERSION = 5;
 
 export interface LevelLayout {
   /** Gap width as a fraction of running-jump reach: 34% → 75%. */
@@ -47,6 +47,8 @@ export interface LevelLayout {
   shortTopFt: number;
   /** Share of tall ladders with a short top: 0 before the intro, 50% there, all from L40. */
   shortTopShare: number;
+  /** Chance a floor rolls a spike row: 0 before the intro, 40% there, 60% at dL = 1. */
+  spikeChance: number;
 }
 
 export interface LevelSpec {
@@ -64,7 +66,7 @@ export interface LevelSpec {
   goalFt: number;
   /**
    * How close the lava runs to the route bot's own catch point: the level's
-   * lava mean over the lowest lava mean that catches the bot. 0.55 → 0.95.
+   * lava mean over the lowest lava mean that catches the bot (`tightnessFor`).
    */
   tightness: number;
   layout: LevelLayout;
@@ -121,6 +123,9 @@ const SHORT_TOP_FT = {
   to: MAX_LADDER_TOP_GAP_FRAC * jumpRiseFt(LADDER_JUMP_SPEED_FRAC * FREE_TOWER.jumpSpeed),
 } as const;
 
+/** Spike rows roll on 40% of floors on their intro level, 60% at dL = 1. */
+const SPIKE_CHANCE = { from: 0.4, to: 0.6 } as const;
+
 export function levelSeed(season: SeasonSpec, level: number, rev: number): string {
   return `${season.seedSalt}:level:${level}:${rev}`;
 }
@@ -130,9 +135,17 @@ export function goalFtFor(lavaDial: number): number {
   return 24 * (3 + 42 * lavaDial);
 }
 
-/** 0.55 at d = 0 → 0.95 at d = 1 (§3 "lava ratio"). */
-export function tightnessFor(lavaDial: number): number {
-  return 0.55 + 0.4 * lavaDial;
+/** Levels 1-3 teach the climb, so their lava keeps the gentle ratio. */
+export const TUTORIAL_LAVA_LEVELS = 3;
+
+/**
+ * Lava ratio (§3): 0.55 + 0.4·d on the tutorial levels, then 0.75 → 0.95
+ * (0.75 + 0.2·d). Was 0.55 → 0.95 everywhere until Leeran asked for a
+ * harder game (2026-10-29); the jump at level 4 keeps it rising.
+ */
+export function tightnessFor(lavaDial: number, level: number): number {
+  if (level <= TUTORIAL_LAVA_LEVELS) return 0.55 + 0.4 * lavaDial;
+  return 0.75 + 0.2 * lavaDial;
 }
 
 /** Hanging ladders reach their full share on this level. */
@@ -200,7 +213,7 @@ export function levelSpec(season: SeasonSpec, level: number, rev = 0): LevelSpec
     lavaDial: d,
     layoutDial: dL,
     goalFt: goalFtFor(d),
-    tightness: tightnessFor(d),
+    tightness: tightnessFor(d, level),
     layout: {
       gapFrac: Math.min(MAX_GAP_REACH_FRAC, 0.34 + 0.41 * dL),
       minWalkFt: 8 + 32 * dL,
@@ -209,6 +222,7 @@ export function levelSpec(season: SeasonSpec, level: number, rev = 0): LevelSpec
       hangingLadderShare: hangingShare(level, season.obstacleIntros.hangingLadders),
       shortTopFt: introKnob(season, level, season.obstacleIntros.shortTops, SHORT_TOP_FT),
       shortTopShare: shortTopShare(level, season.obstacleIntros.shortTops),
+      spikeChance: introKnob(season, level, season.obstacleIntros.spikes, SPIKE_CHANCE),
     },
     powerUpChance:
       level <= NO_POWER_UP_LEVELS
@@ -240,6 +254,7 @@ export function levelTower(spec: LevelSpec): TowerSpec {
     hangingLadderShare: spec.layout.hangingLadderShare,
     ladderTopGapM: spec.layout.shortTopFt,
     shortTopShare: spec.layout.shortTopShare,
+    spikeChance: spec.layout.spikeChance,
     powerUpDurationScale: spec.powerUpDurationScale,
   };
   if (spec.introPowerUp !== null) tower.introPowerUp = spec.introPowerUp;

@@ -3,7 +3,7 @@
  * Draws world + optional HUD; never draws transport chrome (ADR-3).
  */
 
-import { MatchState, Obstacle, PlayerState, TICK_DT, TowerSpec } from "../../game/types";
+import { MatchState, Obstacle, PlayerState, Spike, TICK_DT, TowerSpec } from "../../game/types";
 import {
   platformsNearY,
   laddersNearY,
@@ -16,6 +16,7 @@ import {
   type SummitDiamond,
 } from "../../game/towers";
 import { obstaclesNearY } from "../../game/obstacles";
+import { SPIKE_HEIGHT_M, SPIKE_INSET_M, spikesNearY } from "../../game/spikes";
 import {
   POWER_UP_SPECS,
   GIANT_VISUAL_SCALE,
@@ -67,6 +68,11 @@ const CRATE = "#2a2730";
 const CRATE_TOP = "#4a4656";
 const CRATE_FACE = "#3a3644";
 const LADDER = "#aaa9ad";
+/** Spikes: steel teeth on a danger-red base, unlike any crate or the lava. */
+const SPIKE_STEEL = "#f4f2ec";
+const SPIKE_SHADE = "#c4213f";
+const SPIKE_DANGER = "#ff3b5c";
+const SPIKE_GLOW = "255, 59, 92";
 /** Climbing pose: hands sit this many climber units above the feet (shoulder 1.85 + 0.4). */
 const CLIMB_HAND_UNITS = 2.25;
 const OPPONENT_COLOR = "#6bb8ff"; // wayfinding blue — opponent in a duel
@@ -353,6 +359,10 @@ export function paintClimbFrame(
 
   for (const o of obstaclesNearY(tower, yLow, yHigh)) {
     drawObstacle(ctx, o, sx, sy, sizePxPerM, ui, height);
+  }
+
+  for (const s of spikesNearY(tower, yLow, yHigh)) {
+    drawSpikes(ctx, s, sx, sy, sizePxPerM, ui, height);
   }
 
   const diamond = diamondFor(tower);
@@ -1009,6 +1019,65 @@ function drawObstacle(
   ctx.strokeStyle = LADDER;
   ctx.lineWidth = Math.max(1.5, 1.5 * ui);
   ctx.strokeRect(x + 0.5, top + 0.5, w - 1, h - 1);
+}
+
+/** Target tooth width (m); the row gets a whole number of teeth. */
+const SPIKE_TOOTH_M = 0.8;
+
+function drawSpikes(
+  ctx: PaintCtx,
+  s: Spike,
+  sx: (x: number) => number,
+  sy: (y: number) => number,
+  pxPerM: number,
+  ui: number,
+  canvasH: number
+) {
+  const base = sy(s.y);
+  // Drawn exactly over the deadly band (touchesSpikes), never taller or wider,
+  // so feet that brush a drawn tooth always die and a clean hop never looks
+  // like it went through one.
+  const tip = sy(s.y + SPIKE_HEIGHT_M);
+  if (base < -8 || tip > canvasH + 8) return;
+  const x0 = sx(s.x0 + SPIKE_INSET_M);
+  const w = sx(s.x1 - SPIKE_INSET_M) - x0;
+  if (w <= 1) return;
+  const teeth = Math.max(2, Math.round((s.x1 - s.x0 - 2 * SPIKE_INSET_M) / SPIKE_TOOTH_M));
+  const tw = w / teeth;
+  const baseH = Math.max(1.5 * ui, pxPerM * 0.15);
+  // A faint red haze behind the row so it reads at a glance on a phone. It
+  // fades out well before the tips, so it never looks like part of the teeth.
+  const rx = w / 2 + 2 * tw;
+  const ry = (base - tip) * 3;
+  ctx.save();
+  ctx.translate(x0 + w / 2, base);
+  ctx.scale(1, ry / rx);
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  glow.addColorStop(0, `rgba(${SPIKE_GLOW}, 0.6)`);
+  glow.addColorStop(1, `rgba(${SPIKE_GLOW}, 0)`);
+  ctx.fillStyle = glow;
+  ctx.fillRect(-rx, -rx, 2 * rx, rx);
+  ctx.restore();
+  for (let k = 0; k < teeth; k++) {
+    const l = x0 + k * tw;
+    // Lit left face, shaded right face, so each tooth reads as a point.
+    ctx.fillStyle = SPIKE_STEEL;
+    ctx.beginPath();
+    ctx.moveTo(l, base);
+    ctx.lineTo(l + tw / 2, tip);
+    ctx.lineTo(l + tw / 2, base);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = SPIKE_SHADE;
+    ctx.beginPath();
+    ctx.moveTo(l + tw / 2, tip);
+    ctx.lineTo(l + tw, base);
+    ctx.lineTo(l + tw / 2, base);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = SPIKE_DANGER;
+  ctx.fillRect(x0, base - baseH, w, baseH);
 }
 
 function roundRect(

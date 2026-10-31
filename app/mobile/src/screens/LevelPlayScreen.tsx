@@ -314,6 +314,7 @@ export function LevelPlayScreen() {
             goalFt={goalFt}
             peakFt={stage.report.peakFt}
             outOfTime={stage.report.outOfTime}
+            spiked={stage.report.spiked}
             nearMiss={stage.report.finished ? null : nearMiss(stage.report.peakFt)}
             timeMs={stage.report.finishedTick !== null ? Math.round((stage.report.finishedTick / TICK_HZ) * 1000) : null}
             onRetry={() => void retry()}

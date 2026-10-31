@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
 import { hazardPhase } from "@app/game/hazard";
+import { endedOnSpikes } from "@app/game/spikes";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud } from "@app/components/Game/ExpeditionHud";
 import { TouchControls, touchControlsInset } from "@app/components/Game/TouchControls";
@@ -255,6 +256,7 @@ export function PortalRun({ platform, ads, best, onBest, audioAllowed, hostPause
         {finished && (
           <Results
             result={result}
+            spiked={player !== undefined && endedOnSpikes(state.tower, player)}
             best={best}
             armed={resultsArmed && !breakBusy}
             onPlayAgain={() => void handlePlayAgain()}
@@ -381,11 +383,14 @@ function PausedCard({ touch, hostPaused, onResume }: { touch: boolean; hostPause
 
 function Results({
   result,
+  spiked,
   best,
   armed,
   onPlayAgain,
 }: {
   result: RunResult | null;
+  /** The run ended on spikes, not in the lava. */
+  spiked: boolean;
   best: number | null;
   armed: boolean;
   onPlayAgain: () => void;
@@ -404,7 +409,9 @@ function Results({
           ★ New best
         </p>
       ) : (
-        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-ember">caught by the lava</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-ember">
+          {spiked ? "hit the spikes" : "caught by the lava"}
+        </p>
       )}
       <p aria-live="polite" className="mt-3 font-mono text-6xl font-bold leading-none tabular-nums text-signal">
         {peak.toLocaleString("en-US")}

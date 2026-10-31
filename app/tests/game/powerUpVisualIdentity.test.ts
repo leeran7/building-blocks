@@ -138,7 +138,7 @@ describe("AC-6 jetpack/slow-lava suffixes and thrust copy", () => {
     expect(html).toMatch(/tap Space to leap/i);
     expect(html).toMatch(/re-hold in the air/i);
     expect(html).toMatch(/fuel is short/i);
-    expect(html).toContain(`caps rise at ${JETPACK_MAX_VY} m/s`);
+    expect(html).toContain(`caps rise at ${Math.round(JETPACK_MAX_VY)} m/s`);
   });
 });
 

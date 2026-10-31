@@ -84,19 +84,19 @@ describe("lives", () => {
   });
 
   it("a bad start must end within 3 s of GO and be submitted promptly", () => {
-    expect(isBadStart(60, T0, new Date(T0.getTime() + 10_000))).toBe(true);
+    expect(isBadStart(60, T0, new Date(T0.getTime() + 9_000))).toBe(true);
     expect(isBadStart(90, T0, new Date(T0.getTime() + 10_000))).toBe(false);
     expect(isBadStart(-1, T0, T0)).toBe(false);
     // A ticket played locally for minutes, then submitted as a short log.
     expect(isBadStart(60, T0, at(5))).toBe(false);
-    expect(isBadStart(60, T0, new Date(T0.getTime() + 3_000 + 2_000 + 5_000))).toBe(true);
-    expect(isBadStart(60, T0, new Date(T0.getTime() + 3_000 + 2_000 + 5_001))).toBe(false);
+    expect(isBadStart(60, T0, new Date(T0.getTime() + 2_000 + 2_000 + 5_000))).toBe(true);
+    expect(isBadStart(60, T0, new Date(T0.getTime() + 2_000 + 2_000 + 5_001))).toBe(false);
     expect(isBadStart(89, T0, T0)).toBe(true);
   });
 
   it("a restart closes the old ticket as a bad start only within the window", () => {
-    expect(isQuickRestart(T0, new Date(T0.getTime() + 11_000))).toBe(true);
-    expect(isQuickRestart(T0, new Date(T0.getTime() + 11_001))).toBe(false);
+    expect(isQuickRestart(T0, new Date(T0.getTime() + 10_000))).toBe(true);
+    expect(isQuickRestart(T0, new Date(T0.getTime() + 10_001))).toBe(false);
   });
 
   it("LIFE_REFILL_MS is 30 minutes", () => {
@@ -147,10 +147,10 @@ describe("reported runs", () => {
     expect(parseReportedRun(raw)).toBeNull();
   });
 
-  it("a run must fit the time since its ticket (3 s countdown + run, 5 s slack)", () => {
-    // 300 ticks = 10 s of play + 3 s countdown = 13 s; 8 s + 5 s slack fits.
-    expect(runFitsWallClock(300, T0, new Date(T0.getTime() + 8_000))).toBe(true);
-    expect(runFitsWallClock(300, T0, new Date(T0.getTime() + 7_999))).toBe(false);
+  it("a run must fit the time since its ticket (2 s countdown + run, 5 s slack)", () => {
+    // 300 ticks = 10 s of play + 2 s countdown = 12 s; 7 s + 5 s slack fits.
+    expect(runFitsWallClock(300, T0, new Date(T0.getTime() + 7_000))).toBe(true);
+    expect(runFitsWallClock(300, T0, new Date(T0.getTime() + 6_999))).toBe(false);
     expect(runFitsWallClock(MAX_RUN_TICKS, T0, at(1))).toBe(false);
   });
 });

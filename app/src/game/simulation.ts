@@ -19,7 +19,7 @@
  *   1. advance race-clock + hazard height
  *   2. integrate each climbing player's 2D motion from their input
  *   3. FLAG FINISH is evaluated BEFORE elimination (AC-4)
- *   4. death-line elimination for players who did not finish
+ *   4. spike and death-line elimination for players who did not finish
  *   5. resolve match end + deterministic winner (AC-2, AC-3)
  */
 
@@ -79,6 +79,7 @@ import {
   validateStartPowerUp,
 } from "./powerups";
 import { isOnObstacle, resolveObstacleMotion } from "./obstacles";
+import { touchesSpikes } from "./spikes";
 import {
   isHeightDeltaLegal,
   legalClimbSpeedMult,
@@ -136,7 +137,7 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
  * the countdown; the tick counter resets to 0 at the countdown→climb boundary,
  * so climb-tick 0 is the first scored tick (also where re-sim reads inputLog[0]).
  */
-export const COUNTDOWN_TICKS = 90;
+export const COUNTDOWN_TICKS = 60;
 
 /** Create an initial match state in the countdown phase. */
 export function createMatch(params: {
@@ -634,6 +635,15 @@ export function stepMatch(
     //     still counts.
     const limit = levelTimeLimitTicks(state.tower);
     if (limit !== null && state.tick >= limit) {
+      p.status = "eliminated";
+      p.finishedTick = state.tick;
+      continue;
+    }
+
+    // 4c. SPIKES — feet inside a spike row end the run. After the finish, so
+    //     a diamond touched on the same tick still counts. Never on a ladder:
+    //     spike rows keep clear of every ladder anyway (spikes.ts).
+    if (!p.onLadder && touchesSpikes(state.tower, p.x, p.y)) {
       p.status = "eliminated";
       p.finishedTick = state.tick;
       continue;
