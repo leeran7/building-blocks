@@ -34,6 +34,7 @@ vi.mock("../../src/components/Game/ClimbScene", () => ({
 vi.mock("../../src/components/Game/ClimbControlsGuide", () => ({ ClimbControlsGuide: () => null }));
 
 import { DailyClimbClient } from "../../src/components/Game/DailyClimbClient";
+import { DailyTodayPanel, DailyTodayProvider } from "../../src/components/Game/DailyToday";
 
 const OLD = { day: "2026-09-26", seed: "daily1-OldOldOldOldOldOldOldO", resetsAt: "2026-09-27T00:00:00.000Z" };
 const NEW = { day: "2026-09-27", seed: "daily1-NewNewNewNewNewNewNewN", resetsAt: "2026-09-28T00:00:00.000Z" };
@@ -55,14 +56,17 @@ async function mount() {
   document.body.appendChild(container);
   await act(async () => {
     root = createRoot(container!);
-    root.render(createElement(DailyClimbClient));
+    // As on /daily: the stage publishes, the tab band's Today's tower panel shows.
+    root.render(
+      createElement(DailyTodayProvider, null, createElement(DailyClimbClient), createElement(DailyTodayPanel)),
+    );
   });
   await settle();
 }
 
 const last = () => scene.props[scene.props.length - 1];
 const resultExtraText = () => container!.querySelector('[data-testid="result-extra"]')?.textContent ?? "";
-/** The "Next tower in" value in the page header. */
+/** The "Next tower in" value in the Today's tower panel. */
 const nextTowerIn = () => {
   const label = [...container!.querySelectorAll("p")].find((p) => p.textContent === "Next tower in");
   return label?.nextElementSibling?.textContent ?? null;

@@ -11,9 +11,9 @@
  * POST /api/climb/daily/result, which re-simulates the replay for the daily
  * board and raises the all-time record with the verified height.
  *
- * Composition: the stage first (same place and size as /play), then a strip
- * with the date · title · next-tower countdown, then — once a run finishes — a
- * result panel with the height readout, then the week streak strip. Share
+ * Composition: the stage only (same place and size as /play). The date,
+ * next-tower countdown, the result once a run finishes, and the week streak
+ * strip go to the tab band's "Today's tower" dialog (DailyToday.tsx). Share
  * and replay controls deliberately stay inside ClimbScene's result overlay
  * (shared with /play and replays) and are not duplicated here.
  */
@@ -23,10 +23,10 @@ import { ClimbScene } from "./ClimbScene";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { buildFreeTower } from "../../game/freeStack";
-import { ALTITUDE_UNIT } from "../../lib/units";
 import Link from "next/link";
 import { DAILY_INFO_PATH, isDailyInfoStale, parseDailyInfo, type DailyInfo } from "../../lib/dailyInfo";
 import { DAILY_SIM_VERSION } from "../../game/simVersion";
+import { usePublishDailyToday } from "./DailyToday";
 import {
   dailySummary,
   dailyWeek,
@@ -230,9 +230,8 @@ export function DailyClimbClient({
 
 /**
  * Holds the stage's place until today's seed arrives: the same box ClimbScene
- * will draw (measured by the same hook, from the same spot), so the streak strip
- * and controls below don't jump up and then get shoved down when the tower
- * lands. On touch it takes the screen like the stage does.
+ * will draw (measured by the same hook, from the same spot), so the page
+ * doesn't jump up and then get shoved down when the tower lands. On touch it takes the screen like the stage does.
  */
 function StagePlaceholder({ children }: { children: React.ReactNode }) {
   const boxRef = useRef<HTMLDivElement>(null);
@@ -291,6 +290,12 @@ function DailyOffline({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+/**
+ * The stage only. The date, countdown, streak and result are published to the
+ * page's DailyTodayProvider and shown from the tab band's "Today's tower"
+ * button (DailyToday.tsx), so nothing under the stage moves between runs and
+ * Play ↔ Daily switch between two pages of the same shape.
+ */
 function DailyShell({
   today,
   reset,
@@ -306,163 +311,8 @@ function DailyShell({
   result: DailyRunResult | null;
   children: React.ReactNode;
 }) {
-  return (
-    <div className="flex flex-col items-center gap-5">
-      {/* The stage comes first, like on /play: anything above it would shrink
-          the height-fitted canvas and move it, so switching Play ↔ Daily
-          would resize the tower. The date and countdown sit just below. */}
-      {children}
-
-      <DailyHeader today={today} reset={reset} />
-
-      <div className="flex w-full max-w-4xl flex-col gap-3">
-        {result ? <DailyResult result={result} /> : null}
-
-        <StreakStrip streak={streak} week={week} justClimbed={result !== null} />
-      </div>
-    </div>
-  );
-}
-
-/** Date · title · next-tower countdown, under the stage. */
-function DailyHeader({ today, reset }: { today: string; reset: string }) {
-  return (
-    <header className="flex w-full max-w-4xl flex-wrap items-end justify-between gap-3">
-      <div>
-        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
-          {today ? `${today} · daily climb` : "daily climb"}
-        </p>
-        <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-text-primary mt-1">
-          Today&rsquo;s tower
-        </h2>
-      </div>
-      <div className="rounded-xl border border-border-subtle bg-surface px-4 py-2 text-right">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">
-          Next tower in
-        </p>
-        <p className="font-mono text-lg font-bold tabular-nums text-text-primary">
-          {reset || "—"}
-        </p>
-      </div>
-    </header>
-  );
-}
-
-/** Post-run readout. No share / replay controls — the overlay already owns those. */
-function DailyResult({ result }: { result: DailyRunResult }) {
-  return (
-    <section
-      aria-label="Today's result"
-      data-climb-chrome
-      data-entrance="live"
-      className="climb-reveal relative overflow-hidden rounded-2xl border border-signal/30 bg-surface p-6 shadow-signal"
-    >
-      <div className="pointer-events-none absolute inset-0 survey-grid opacity-40" aria-hidden="true" />
-
-      <p className="relative font-mono text-[11px] uppercase tracking-[0.2em] text-signal">
-        ✓ today complete
-      </p>
-      <h3 className="relative font-display text-3xl md:text-4xl font-bold tracking-tight text-text-primary mt-2">
-        You climbed today&rsquo;s tower.
-      </h3>
-
-      <div className="relative mt-5 flex flex-wrap items-end gap-x-10 gap-y-4">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">
-            Your height today
-          </p>
-          <p className="font-mono text-5xl font-bold tabular-nums leading-none text-text-primary mt-1">
-            {result.todayBest.toFixed(0)}
-            <span className="ml-1 text-xl font-normal text-text-secondary">
-              {ALTITUDE_UNIT}
-            </span>
-          </p>
-        </div>
-        {result.isDayBest && (
-          <p className="rounded-full border border-signal/40 bg-signal/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-signal">
-            today&rsquo;s best
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-/** The week's climbed days. Derived entirely from what's already stored. */
-function StreakStrip({
-  streak,
-  week,
-  justClimbed,
-}: {
-  streak: number;
-  week: DailyWeekDay[];
-  justClimbed: boolean;
-}) {
-  // The week is read from this device after mount. Until then the strip keeps
-  // its full size (seven empty days, text hidden) so nothing below it moves
-  // when the days fill in.
-  if (week.length === 0) {
-    return (
-      <section
-        aria-hidden="true"
-        className="invisible flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border border-border-subtle bg-surface px-4 py-3"
-      >
-        <p className="font-display text-lg font-bold uppercase tracking-tight">No streak yet</p>
-        <ul className="flex gap-1.5">
-          {Array.from({ length: 7 }, (_, i) => (
-            <li key={i} className="h-9 w-9 rounded-lg border" />
-          ))}
-        </ul>
-        <p className="text-xs sm:ml-auto">Climb today to keep the streak alive.</p>
-      </section>
-    );
-  }
-
-  return (
-    <section
-      aria-label="Your daily streak"
-      className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border border-border-subtle bg-surface px-4 py-3"
-    >
-      <p className="font-display text-lg font-bold uppercase tracking-tight text-text-primary">
-        {streak > 0 ? `${streak}-day streak` : "No streak yet"}
-      </p>
-
-      <ul className="flex gap-1.5">
-        {week.map((day) => (
-          <li key={day.key}>
-            <span
-              className={
-                "flex h-9 w-9 items-center justify-center rounded-lg border font-mono text-xs font-bold " +
-                (day.played
-                  ? "border-signal/50 bg-signal/10 text-signal"
-                  : day.isToday
-                    ? "border-signal/40 text-text-secondary"
-                    : day.isFuture
-                      ? "border-border-subtle text-text-muted opacity-50"
-                      : "border-border-subtle text-text-muted")
-              }
-            >
-              <span aria-hidden="true">{day.played ? "✓" : day.label}</span>
-              <span className="sr-only">
-                {day.weekday}
-                {day.played
-                  ? " — climbed"
-                  : day.isFuture
-                    ? " — not yet"
-                    : " — missed"}
-              </span>
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <p className="text-xs text-text-muted sm:ml-auto">
-        {justClimbed
-          ? "Today's climb counted. Come back for the next tower."
-          : "Climb today to keep the streak alive."}
-      </p>
-    </section>
-  );
+  usePublishDailyToday({ today, reset, streak, week, result });
+  return <div className="flex flex-col items-center">{children}</div>;
 }
 
 // ──────────────────────────────── Helpers ──────────────────────────────────

@@ -14,6 +14,8 @@ import { Navbar } from "../Navbar";
 import { NavTab } from "../ui/NavTab";
 import { StackTabs } from "../FreeStackShell";
 import { DUEL_HREF, DUEL_LEADERBOARD_HREF } from "../navLinks";
+import { GameNotes } from "../Game/GameNotes";
+import { DuelAbout } from "./DuelAbout";
 
 /**
  * `chips` is a neutral section: /duel/chips lives inside the duel stack chrome
@@ -42,9 +44,12 @@ export function DuelStackShell({
     <div className="grain topo min-h-screen bg-void text-text-primary">
       <Navbar contextLabel="1v1" />
 
-      {/* Tab band — pinned to DUEL_STACK_WIDTH so it never shifts between routes. */}
+      {/* Tab band — pinned to DUEL_STACK_WIDTH so it never shifts between routes.
+          Same layout as FreeStackShell's: tabs left, Controls / About right. */}
       <div className="border-b border-border-subtle">
-        <div className={`${DUEL_STACK_WIDTH} mx-auto w-full px-4 py-2`}>
+        <div
+          className={`${DUEL_STACK_WIDTH} mx-auto w-full px-4 py-2 flex items-center justify-between gap-1 sm:gap-2`}
+        >
           <StackTabs label="1v1 sections">
             {/* Order matches the free-climb shell: Leaderboard, then Play. */}
             <NavTab
@@ -54,6 +59,9 @@ export function DuelStackShell({
             />
             <NavTab href={DUEL_HREF} label="Play" active={section === "play"} />
           </StackTabs>
+          <GameNotes aboutTitle="About 1v1">
+            <DuelAbout />
+          </GameNotes>
         </div>
       </div>
 

@@ -8,7 +8,10 @@
  *  - each band button opens its own dialog, and only that one;
  *  - the close button, and a click on the backdrop, close it; a click inside
  *    the content does not;
- *  - FreeStackShell draws the tools in the tab band, beside the tabs.
+ *  - Daily's "Today's tower" button opens its own dialog;
+ *  - FreeStackShell draws the tools in the tab band, beside the tabs, and the
+ *    1v1 band carries the same Controls / About buttons (Leeran: keep /climb,
+ *    /duel/leaderboard etc. in sync).
  *
  * @vitest-environment happy-dom
  */
@@ -27,6 +30,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { FreeStackShell } from "../../src/components/FreeStackShell";
+import { DuelStackShell } from "../../src/components/Duel/DuelStackShell";
 import { GameNotes } from "../../src/components/Game/GameNotes";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
@@ -55,7 +59,7 @@ afterEach(() => {
 
 const button = (label: string) =>
   [...host.querySelectorAll<HTMLButtonElement>("button[aria-haspopup=dialog]")].find(
-    (b) => b.getAttribute("aria-label") === label,
+    (b) => b.getAttribute("title") === label,
   )!;
 const openDialogs = () => [...host.querySelectorAll("dialog")].filter((d) => d.open);
 const titleOf = (d: Element) =>
@@ -117,5 +121,44 @@ describe("FreeStackShell tools", () => {
     // Same row: the tablist's band container is the tool's parent.
     expect(tool.parentElement!.contains(tablist)).toBe(true);
     expect(tool.parentElement!.contains(doc.getElementById("stage"))).toBe(false);
+  });
+});
+
+describe("Daily's Today's tower button", () => {
+  it("opens a dialog with the panel the page hands it", () => {
+    act(() => {
+      root.render(
+        createElement(GameNotes, {
+          aboutTitle: "About the Daily Climb",
+          today: {
+            text: "Today's tower 3h 52m",
+            content: createElement("p", { id: "today-panel" }, "Next tower in"),
+          },
+          children: createElement("p", null, "about"),
+        }),
+      );
+    });
+    expect(button("Today's tower").textContent).toContain("3h 52m");
+    act(() => button("Today's tower").click());
+    expect(openDialogs().map(titleOf)).toEqual(["Today's tower"]);
+    expect(openDialogs()[0].querySelector("#today-panel")).not.toBeNull();
+  });
+});
+
+describe("1v1 band", () => {
+  it("has the same Controls and About buttons as the Endless / Daily band", () => {
+    const html = renderToStaticMarkup(
+      createElement(DuelStackShell, { section: "leaderboard", children: createElement("div", { id: "board" }) }),
+    );
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const tablist = doc.querySelector("[role=tablist]")!;
+    const titles = [...doc.querySelectorAll("button[aria-haspopup=dialog]")].map((b) => b.getAttribute("title"));
+    expect(titles).toEqual(expect.arrayContaining(["Controls & power-ups", "About 1v1"]));
+    const controls = [...doc.querySelectorAll("button[aria-haspopup=dialog]")].find(
+      (b) => b.getAttribute("title") === "About 1v1",
+    )!;
+    // In the band, not in the page body.
+    expect(controls.closest("main")).toBeNull();
+    expect(tablist.closest("main")).toBeNull();
   });
 });

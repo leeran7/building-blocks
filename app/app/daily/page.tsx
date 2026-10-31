@@ -11,6 +11,11 @@ import Link from "next/link";
 import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { DailyClimbClient } from "../../src/components/Game/DailyClimbClient";
 import { GameNotes } from "../../src/components/Game/GameNotes";
+import {
+  DailyTodayLabel,
+  DailyTodayPanel,
+  DailyTodayProvider,
+} from "../../src/components/Game/DailyToday";
 import { buildMetadata } from "../../src/lib/seo";
 import { nextUtcResetAt, utcDayKey } from "../../src/lib/dailyDay";
 import { dailySeedConfigured, dailySeedFor } from "../../src/lib/dailySeedServer";
@@ -37,30 +42,28 @@ function todaysTower(now: Date): DailyInfo | null {
 export default function DailyPage() {
   const now = new Date();
   return (
-    <FreeStackShell section="daily" title="Daily Climb" tools={<DailyNotes />}>
-      <DailyClimbClient initialDaily={todaysTower(now)} servedAt={now.getTime()} />
-      <KeepClimbing />
-    </FreeStackShell>
+    // The provider spans the band and the stage: DailyClimbClient publishes
+    // the streak and countdown, the band's Today's tower button shows them.
+    <DailyTodayProvider>
+      <FreeStackShell section="daily" title="Daily Climb" tools={<DailyNotes />}>
+        <DailyClimbClient initialDaily={todaysTower(now)} servedAt={now.getTime()} />
+      </FreeStackShell>
+    </DailyTodayProvider>
   );
 }
 
 /**
- * Where to go until the next tower. This is the canonical home for both asks
- * on this page — the About prose (in the tab band's About dialog) links to
- * the leaderboard only, so neither destination is pitched twice (app/DESIGN.md).
+ * Where to go until the next tower, at the foot of the Today's tower dialog.
+ * This is the canonical home for both asks on this page — the About prose
+ * links to the leaderboard only, so neither destination is pitched twice
+ * (app/DESIGN.md). No id: the dialog renders twice (wide and narrow band).
  */
 function KeepClimbing() {
   return (
-    <section
-      aria-labelledby="keep-climbing"
-      className="mx-auto mt-8 w-full max-w-4xl border-t border-border-subtle pt-6"
-    >
-      <h2
-        id="keep-climbing"
-        className="font-display text-2xl md:text-3xl font-bold tracking-tight text-text-primary"
-      >
+    <section className="w-full border-t border-border-subtle pt-4">
+      <h3 className="font-display text-xl font-bold tracking-tight text-text-primary">
         Keep climbing until it resets.
-      </h2>
+      </h3>
       <p className="mt-2 max-w-lg text-sm text-text-secondary">
         Today&rsquo;s tower is one seed for everyone. Practice on a fresh random
         tower, or put a friend on the same rise.
@@ -89,7 +92,17 @@ function KeepClimbing() {
  */
 function DailyNotes() {
   return (
-    <GameNotes aboutTitle="About the Daily Climb">
+    <GameNotes
+      aboutTitle="About the Daily Climb"
+      today={{
+        text: <DailyTodayLabel />,
+        content: (
+          <DailyTodayPanel>
+            <KeepClimbing />
+          </DailyTodayPanel>
+        ),
+      }}
+    >
       <p className="text-sm leading-relaxed text-text-secondary">
         The Daily Climb gives every player the same procedurally generated tower
         each calendar day — one seed, so it&rsquo;s a fair, shared challenge.
@@ -101,7 +114,7 @@ function DailyNotes() {
         . Play it every day to build a streak — miss a day and the streak resets.
         The daily tower rolls over at midnight UTC. Prefer an endless run
         on a fresh random tower each time, or a head-to-head race? Both are one
-        tap away in &ldquo;Keep climbing until it resets&rdquo; on this page.
+        tap away under &ldquo;Today&rsquo;s tower&rdquo; at the top of this page.
       </p>
     </GameNotes>
   );

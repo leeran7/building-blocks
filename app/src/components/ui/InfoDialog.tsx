@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * InfoDialog — a round icon button that opens its content in a modal.
+ * InfoDialog — a pill button (icon + visible label) that opens its content in
+ * a modal.
  *
  * Built on the native <dialog> + showModal(): the browser puts it in the top
  * layer (above the game stage and the sticky navbar), traps focus, closes on
@@ -11,8 +12,9 @@
  *
  * Centered card on wider screens; a bottom sheet on phones. Clicking the
  * backdrop closes it. The button is the same 44px height as a NavTab, so it
- * never changes the height of the tab band it sits in (it narrows to 36px
- * under 360px wide so the band still fits a 320px window).
+ * never changes the height of the tab band it sits in. Under 400px wide its
+ * text collapses to the icon (kept for screen readers), and under 340px the
+ * icon button narrows to 36px, so the band still fits a 320px window.
  */
 
 import { useId, useRef, type ReactNode } from "react";
@@ -21,13 +23,16 @@ export function InfoDialog({
   label,
   title,
   icon,
+  text,
   children,
 }: {
-  /** Accessible name and tooltip for the trigger button. */
+  /** Tooltip for the trigger, and its accessible name (prefixed to `text`). */
   label: string;
   /** Heading shown at the top of the dialog. */
   title: string;
   icon: ReactNode;
+  /** What the button says. Defaults to `label`. */
+  text?: ReactNode;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -37,15 +42,15 @@ export function InfoDialog({
     <>
       <button
         type="button"
-        aria-label={label}
         title={label}
         aria-haspopup="dialog"
         onClick={() => ref.current?.showModal()}
-        className="inline-flex h-11 w-11 max-[359px]:w-9 shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface text-text-secondary transition-colors hover:border-signal/50 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        className="inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-border-strong bg-surface px-4 text-sm font-semibold text-text-secondary transition-colors hover:border-signal/50 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void max-[399px]:w-11 max-[399px]:px-0 max-[339px]:w-9"
       >
-        <span className="inline-flex h-5 w-5" aria-hidden="true">
+        <span className="inline-flex h-5 w-5 shrink-0" aria-hidden="true">
           {icon}
         </span>
+        <span className="max-[399px]:sr-only">{text ?? label}</span>
       </button>
 
       <dialog
@@ -126,6 +131,25 @@ export function AboutIcon() {
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5" />
       <circle cx="12" cy="7.75" r="0.6" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Calendar page, for the Daily Climb's Today's tower dialog. */
+export function TodayIcon() {
+  return (
+    <svg
+      className="h-full w-full"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+      <circle cx="12" cy="15" r="1" fill="currentColor" />
     </svg>
   );
 }

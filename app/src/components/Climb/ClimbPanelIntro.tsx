@@ -3,12 +3,10 @@
  * Title, CTA, meta, and compact controls used to sit in the tab band and made
  * the hairline jump when switching to /play. It is the shared BoardIntro, the
  * same block /duel/leaderboard opens with, so the Solo | 1v1 switch under it
- * stays put; the controls guide moved into "About the free climb".
+ * stays put. Controls and the About copy open from the tab band (GameNotes).
  */
 
 import Link from "next/link";
-import { ClimbControlsGuide } from "../Game/ClimbControlsGuide";
-import { Disclosure } from "../ui/Disclosure";
 import { BoardIntro } from "../Leaderboard/BoardChrome";
 
 export function ClimbPanelIntro({ title }: { title: string }) {
@@ -21,30 +19,25 @@ export function ClimbPanelIntro({ title }: { title: string }) {
 }
 
 /**
- * Fuller description of the free climb, collapsed by default (same pattern as
- * the landing FAQ's <details>/<summary>) so it doesn't compete with the
- * leaderboard for attention — content is in the DOM either way, so this is
- * unique crawlable copy, not client-only or hidden-from-users text.
+ * Fuller description of the free climb, opened from the tab band's About
+ * button (GameNotes) so it doesn't compete with the leaderboard — it is in the
+ * DOM either way, so this is unique crawlable copy, not client-only text.
+ * The controls guide is the band's Controls button, as on /play and /daily.
  */
 export function ClimbAbout() {
   return (
-    <Disclosure title="About Endless" className="mt-6">
-      <p className="text-sm leading-relaxed text-text-secondary">
-        Endless is Doomstack&rsquo;s skill-based mode: one global leaderboard, no payment
-        required. Climb an endless procedurally generated stack — ladders, platforms, and rising
-        lava — and try to reach the highest point before the lava catches you. Your best peak
-        height is saved as your all-time rank. You can play without an account. Sign in to save
-        your peak height permanently and appear on this leaderboard — guests can still play and
-        see their run&rsquo;s height, it just won&rsquo;t be recorded. Runs are shareable as
-        replays, so you can send a specific climb to a friend and let them watch exactly how you
-        reached your peak. Want more? Try{" "}
-        <Link href="/duel" className="text-signal underline underline-offset-2 hover:decoration-2">1v1 duels</Link> — play free,
-        stake chips in ranked matches, or enter tournaments for cash prizes. See{" "}
-        <Link href="/rules" className="text-signal underline underline-offset-2 hover:decoration-2">the rules</Link> for details.
-      </p>
-      <div className="mt-4">
-        <ClimbControlsGuide variant="compact" />
-      </div>
-    </Disclosure>
+    <p className="text-sm leading-relaxed text-text-secondary">
+      Endless is Doomstack&rsquo;s skill-based mode: one global leaderboard, no payment
+      required. Climb an endless procedurally generated stack — ladders, platforms, and rising
+      lava — and try to reach the highest point before the lava catches you. Your best peak
+      height is saved as your all-time rank. You can play without an account. Sign in to save
+      your peak height permanently and appear on this leaderboard — guests can still play and
+      see their run&rsquo;s height, it just won&rsquo;t be recorded. Runs are shareable as
+      replays, so you can send a specific climb to a friend and let them watch exactly how you
+      reached your peak. Want more? Try{" "}
+      <Link href="/duel" className="text-signal underline underline-offset-2 hover:decoration-2">1v1 duels</Link> — play free,
+      stake chips in ranked matches, or enter tournaments for cash prizes. See{" "}
+      <Link href="/rules" className="text-signal underline underline-offset-2 hover:decoration-2">the rules</Link> for details.
+    </p>
   );
 }
