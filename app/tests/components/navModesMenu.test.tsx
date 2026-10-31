@@ -7,7 +7,7 @@
  * house the same links".
  *
  * Mounts the real Navbar, signed out and signed in, and drives its dropdown:
- * both menus list the modes to play, then their leaderboards, phone-only.
+ * both menus list the modes to play, then one Leaderboard link, phone-only.
  *
  * @vitest-environment happy-dom
  */
@@ -62,15 +62,14 @@ const modes = () => host.querySelector('[role="group"][aria-label="Game modes"]'
 const modeLinks = () =>
   [...(modes()?.querySelectorAll("a") ?? [])].map((a) => [a.textContent, a.getAttribute("href")]);
 
-// Play group, then the Leaderboards group (Leeran chose this over a
-// Leaderboard button beside each mode).
-const EVERY_MODE = [
+// The three modes, then ONE Leaderboard link to the current mode's board
+// (every board has the Endless | Daily | 1v1 switch; Leeran: "a single link
+// & let them choose from the page itself").
+const rows = (board: string) => [
   ["1v1", "/duel"],
   ["Daily", "/daily"],
   ["Endless", "/play"],
-  ["1v1", "/duel/leaderboard"],
-  ["Daily", "/daily/leaderboard"],
-  ["Endless", "/climb"],
+  ["Leaderboard", board],
 ];
 
 describe("signed-out phone menu", () => {
@@ -81,10 +80,9 @@ describe("signed-out phone menu", () => {
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
 
     act(() => trigger.click());
-    expect(modeLinks()).toEqual(EVERY_MODE);
+    expect(modeLinks()).toEqual(rows("/climb"));
     const current = [...modes()!.querySelectorAll("a")].map((a) => a.getAttribute("aria-current"));
-    expect(current).toEqual([null, null, "true", null, null, null]);
-    expect([...modes()!.querySelectorAll("p")].map((p) => p.textContent)).toEqual(["Play", "Leaderboards"]);
+    expect(current).toEqual([null, null, "true", null]);
 
     const menu = host.querySelector('nav[aria-label="Menu"]')!;
     expect([...menu.querySelectorAll("a")].slice(-2).map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
@@ -112,6 +110,18 @@ describe("signed-out phone menu", () => {
     expect(document.activeElement).toBe(guestTrigger());
   });
 
+  it("points the one Leaderboard link at the current mode's board, Endless off the mode pages", () => {
+    mount("Daily Climb");
+    act(() => guestTrigger()!.click());
+    expect(modeLinks().at(-1)).toEqual(["Leaderboard", "/daily/leaderboard"]);
+    act(() => root.unmount());
+    host.remove();
+
+    mount("Rules");
+    act(() => guestTrigger()!.click());
+    expect(modeLinks().at(-1)).toEqual(["Leaderboard", "/climb"]);
+  });
+
   it("keeps the wide-screen Sign in link hidden on phones only, and Get started everywhere", () => {
     mount();
     const outside = [...host.querySelectorAll("a")].filter((a) => !a.closest('nav[aria-label="Menu"]'));
@@ -130,7 +140,7 @@ describe("signed-in account menu", () => {
     expect(guestTrigger()).toBeNull();
 
     act(() => accountTrigger()!.click());
-    expect(modeLinks()).toEqual(EVERY_MODE);
+    expect(modeLinks()).toEqual(rows("/duel/leaderboard"));
     expect(modes()!.closest(".sm\\:hidden")).not.toBeNull();
     expect(modes()!.querySelector('a[aria-current="true"]')?.textContent).toBe("1v1");
   });

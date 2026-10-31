@@ -24,10 +24,12 @@ const ITEM_BASE =
 const ITEM_MUTED = `${ITEM_BASE} text-text-secondary hover:text-text-primary`;
 
 /**
- * Two short groups: Play (1v1, Daily, Endless), then Leaderboards (the same
- * three). Leeran didn't want a Leaderboard button beside each mode name.
+ * The three modes to play, then one Leaderboard link. It opens the current
+ * mode's board (Endless off the mode pages); every board carries the
+ * Endless | Daily | 1v1 switch, so one link is enough (Leeran).
  */
 export function ModeRows({ active, onPick }: { active: GameMode | null; onPick: () => void }) {
+  const board = (GAME_MODES.find((m) => m.mode === active) ?? GAME_MODES.find((m) => m.mode === "endless"))!.board;
   return (
     <div role="group" aria-label="Game modes">
       <GroupHeading>Play</GroupHeading>
@@ -43,18 +45,9 @@ export function ModeRows({ active, onPick }: { active: GameMode | null; onPick: 
         </Link>
       ))}
       <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
-      <GroupHeading>Leaderboards</GroupHeading>
-      {GAME_MODES.map(({ mode, board, label }) => (
-        <Link
-          key={mode}
-          href={board}
-          aria-label={`${label} leaderboard`}
-          onClick={onPick}
-          className={mode === active ? `${ITEM_BASE} text-signal` : ITEM_MUTED}
-        >
-          {label}
-        </Link>
-      ))}
+      <Link href={board} onClick={onPick} className={`${ITEM_BASE} font-semibold text-text-primary`}>
+        Leaderboard
+      </Link>
     </div>
   );
 }
