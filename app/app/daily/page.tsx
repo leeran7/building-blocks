@@ -12,6 +12,9 @@ import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { DailyClimbClient } from "../../src/components/Game/DailyClimbClient";
 import { Chevron } from "../../src/components/Chevron";
 import { buildMetadata } from "../../src/lib/seo";
+import { nextUtcResetAt, utcDayKey } from "../../src/lib/dailyDay";
+import { dailySeedConfigured, dailySeedFor } from "../../src/lib/dailySeedServer";
+import type { DailyInfo } from "../../src/lib/dailyInfo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Daily Climb — Doomstack",
@@ -20,10 +23,22 @@ export const metadata: Metadata = buildMetadata({
   path: "/daily",
 });
 
+// Today's tower is read per request (same answer as GET /api/climb/daily), so
+// the stage paints with the page instead of after a client fetch.
+export const dynamic = "force-dynamic";
+
+/** The live tower by the server clock, or null when the daily is not configured. */
+function todaysTower(now: Date): DailyInfo | null {
+  if (!dailySeedConfigured()) return null;
+  const day = utcDayKey(now);
+  return { day, seed: dailySeedFor(day), resetsAt: nextUtcResetAt(now).toISOString() };
+}
+
 export default function DailyPage() {
+  const now = new Date();
   return (
     <FreeStackShell section="daily" title="Daily Climb">
-      <DailyClimbClient />
+      <DailyClimbClient initialDaily={todaysTower(now)} servedAt={now.getTime()} />
       <KeepClimbing />
       <DailyIntro />
     </FreeStackShell>

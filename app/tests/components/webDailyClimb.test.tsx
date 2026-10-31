@@ -179,3 +179,19 @@ describe("web Daily Climb loading keeps the stage's place", () => {
     expect(box?.querySelector('[role="alert"]')).not.toBeNull();
   });
 });
+
+describe("web Daily Climb with the server's tower in the page", () => {
+  it("paints the stage on the first render and skips the client fetch", async () => {
+    const initialDaily = { day: SERVER_DAY, seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z" };
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    await act(async () => {
+      root = createRoot(container!);
+      root.render(createElement(DailyClimbClient, { initialDaily, servedAt: Date.parse("2026-09-26T12:00:00Z") }));
+    });
+    await settle();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect($('[data-testid="daily-stage-placeholder"]')).toBeNull();
+    expect(scene.props[0]?.seed).toBe(SERVER_SEED);
+  });
+});

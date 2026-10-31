@@ -42,8 +42,16 @@ export function FreeStackShell({
           `relative z-10`, which caps that z below the navbar's sticky z-30, so
           the navbar would paint over the HUD ("HEIGHT" / "LAVA CLEARANCE").
           With a mouse the game stays in the page, so the header stays too.
-          pointer-coarse matches useCoarsePointer, which picks the touch layout. */}
-      <div className={gameSection ? "shrink-0 pointer-coarse:hidden" : "shrink-0"}>
+          pointer-coarse matches useCoarsePointer, which picks the touch layout.
+          The wrapper is what sticks (the navbar's own sticky only spans this
+          wrapper), so the header stays pinned here like on every other page. */}
+      <div
+        className={
+          gameSection
+            ? "sticky top-0 z-30 shrink-0 pointer-coarse:hidden"
+            : "sticky top-0 z-30 shrink-0"
+        }
+      >
         <Navbar contextLabel="Free climb" />
       </div>
 

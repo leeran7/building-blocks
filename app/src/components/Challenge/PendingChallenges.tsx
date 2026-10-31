@@ -2,16 +2,21 @@
 
 /**
  * PendingChallenges — shows incoming and outgoing challenge invitations.
+ *
+ * Renders nothing while empty, and nothing during the first read either: a
+ * loading row that showed and then vanished made the page jump on every
+ * visit. A revisit paints the last list at once (sessionCache) and refreshes
+ * behind it.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
+import { readSessionCache, writeSessionCache } from "../../lib/sessionCache";
 import { climberDisplay } from "../../lib/handle";
 import { Button } from "../ui/Button";
 import { UsernameHandle } from "./UsernameHandle";
-import { Spinner } from "../ui/Spinner";
 
 interface ChallengeItem {
   id: string;
@@ -44,18 +49,22 @@ export interface PendingChallengesProps {
   refreshKey?: number;
 }
 
+const CHALLENGES_KEY = "pending-challenges";
+
 export function PendingChallenges({ refreshKey }: PendingChallengesProps = {}) {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
+  const uid = user?.uid ?? null;
   const router = useRouter();
-  const [challenges, setChallenges] = useState<ChallengeItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [cached] = useState(() => readSessionCache<ChallengeItem[]>(uid, CHALLENGES_KEY));
+  const [challenges, setChallenges] = useState<ChallengeItem[]>(cached ?? []);
+  // Only the first read is "loading": a refresh keeps the current list up.
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
   const [actioning, setActioning] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
   const fetchChallenges = useCallback(async () => {
     if (!token) return;
-    setLoading(true);
     setError(null);
     try {
       const res = await authedFetch("/api/challenge", token);
@@ -75,6 +84,12 @@ export function PendingChallenges({ refreshKey }: PendingChallengesProps = {}) {
     fetchChallenges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchChallenges, refreshKey]);
+
+  // Declining and cancelling edit the list in place; keep the cached copy in
+  // step so a revisit doesn't paint rows that are gone.
+  useEffect(() => {
+    if (!loading && !error) writeSessionCache(uid, CHALLENGES_KEY, challenges);
+  }, [uid, loading, error, challenges]);
 
   const clearActionError = useCallback((id: string) => {
     setActionErrors((prev) => {
@@ -152,13 +167,7 @@ export function PendingChallenges({ refreshKey }: PendingChallengesProps = {}) {
     [token, clearActionError]
   );
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-text-muted text-sm py-2">
-        <Spinner /> Loading challenges…
-      </div>
-    );
-  }
+  if (loading) return null;
 
   if (error) {
     return (

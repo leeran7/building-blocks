@@ -11,11 +11,11 @@
  * POST /api/climb/daily/result, which re-simulates the replay for the daily
  * board and raises the all-time record with the verified height.
  *
- * Composition (mockup 3): a header strip (date · title · next-tower countdown)
- * above the stage, then — once a run finishes — a result panel with the height
- * readout, then the week streak strip. Share and replay controls deliberately
- * stay inside ClimbScene's result overlay (shared with /play and replays) and
- * are not duplicated here.
+ * Composition: the stage first (same place and size as /play), then a strip
+ * with the date · title · next-tower countdown, then — once a run finishes — a
+ * result panel with the height readout, then the week streak strip. Share
+ * and replay controls deliberately stay inside ClimbScene's result overlay
+ * (shared with /play and replays) and are not duplicated here.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -57,14 +57,27 @@ async function fetchServerDaily(): Promise<DailyInfo | null> {
   }
 }
 
-export function DailyClimbClient() {
+export function DailyClimbClient({
+  initialDaily = null,
+  servedAt = 0,
+}: {
+  /**
+   * Today's tower as the /daily server render saw it, so the stage paints on
+   * the first frame instead of after a fetch. Still only from the server
+   * (dailySeedFor), so SEC-DC-3 holds; a stale one (a cached page from before
+   * the reset) is caught by the same check as a stale fetch.
+   */
+  initialDaily?: DailyInfo | null;
+  /** Server clock (ms) when `initialDaily` was read: its "requested at". */
+  servedAt?: number;
+}) {
   const tower = buildFreeTower();
-  const [daily, setDaily] = useState<DailyInfo | null>(null);
+  const [daily, setDaily] = useState<DailyInfo | null>(initialDaily);
   const [dailyFailed, setDailyFailed] = useState(false);
   const [dailyAttempt, setDailyAttempt] = useState(0);
   // When the current answer was requested: it is stale once the server's
   // reset falls between that and a new start (RV-DC-3).
-  const dailyRequestedAtRef = useRef(0);
+  const dailyRequestedAtRef = useRef(initialDaily ? servedAt : 0);
   const [refreshingDaily, setRefreshingDaily] = useState(false);
   const seed = daily?.seed ?? null;
   const [summary, setSummary] = useState<DailySummary | null>(null);
@@ -76,7 +89,11 @@ export function DailyClimbClient() {
   // localStorage + the clock are client-only — resolve after mount
   // so SSR and the first client render agree (no hydration mismatch). Refresh
   // the reset countdown each minute so it doesn't go stale in a long lobby.
+  const hadInitialDaily = initialDaily !== null;
   useEffect(() => {
+    // The server already answered for this render; later attempts (retry,
+    // a refetch after the reset) always ask again.
+    if (dailyAttempt === 0 && hadInitialDaily) return;
     let cancelled = false;
     const requestedAt = Date.now();
     setDailyFailed(false);
@@ -96,7 +113,7 @@ export function DailyClimbClient() {
     return () => {
       cancelled = true;
     };
-  }, [dailyAttempt]);
+  }, [dailyAttempt, hadInitialDaily]);
 
   useEffect(() => {
     setSummary(dailySummary());
@@ -292,9 +309,12 @@ function DailyShell({
 }) {
   return (
     <div className="flex flex-col items-center gap-5">
-      <DailyHeader today={today} reset={reset} />
-
+      {/* The stage comes first, like on /play: anything above it would shrink
+          the height-fitted canvas and move it, so switching Play ↔ Daily
+          would resize the tower. The date and countdown sit just below. */}
       {children}
+
+      <DailyHeader today={today} reset={reset} />
 
       <div className="flex w-full max-w-4xl flex-col gap-3">
         {result ? <DailyResult result={result} /> : null}
@@ -309,7 +329,7 @@ function DailyShell({
   );
 }
 
-/** Date · title · next-tower countdown, above the stage. */
+/** Date · title · next-tower countdown, under the stage. */
 function DailyHeader({ today, reset }: { today: string; reset: string }) {
   return (
     <header className="flex w-full max-w-4xl flex-wrap items-end justify-between gap-3">
@@ -339,6 +359,7 @@ function DailyResult({ result }: { result: DailyRunResult }) {
     <section
       aria-label="Today's result"
       data-climb-chrome
+      data-entrance="live"
       className="climb-reveal relative overflow-hidden rounded-2xl border border-signal/30 bg-surface p-6 shadow-signal"
     >
       <div className="pointer-events-none absolute inset-0 survey-grid opacity-40" aria-hidden="true" />
@@ -382,7 +403,25 @@ function StreakStrip({
   week: DailyWeekDay[];
   justClimbed: boolean;
 }) {
-  if (week.length === 0) return null;
+  // The week is read from this device after mount. Until then the strip keeps
+  // its full size (seven empty days, text hidden) so nothing below it moves
+  // when the days fill in.
+  if (week.length === 0) {
+    return (
+      <section
+        aria-hidden="true"
+        className="invisible flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border border-border-subtle bg-surface px-4 py-3"
+      >
+        <p className="font-display text-lg font-bold uppercase tracking-tight">No streak yet</p>
+        <ul className="flex gap-1.5">
+          {Array.from({ length: 7 }, (_, i) => (
+            <li key={i} className="h-9 w-9 rounded-lg border" />
+          ))}
+        </ul>
+        <p className="text-xs sm:ml-auto">Climb today to keep the streak alive.</p>
+      </section>
+    );
+  }
 
   return (
     <section

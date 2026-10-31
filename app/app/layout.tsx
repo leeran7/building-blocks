@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ViewTransition } from "react";
 import { Bricolage_Grotesque, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
@@ -110,7 +111,9 @@ export default function RootLayout({
           Skip to content
         </a>
         <AuthProvider>
-          {children}
+          {/* Every navigation crossfades the page instead of cutting to it
+              (`.page` in globals.css). */}
+          <ViewTransition default="page">{children}</ViewTransition>
           <SiteFooter />
         </AuthProvider>
         <SoftNavigationFlag />

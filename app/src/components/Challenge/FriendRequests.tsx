@@ -5,19 +5,22 @@
  * requests (cancel). Fetches GET /api/friends/requests on mount.
  *
  * Returns null when both lists are empty (and there's no error) so the
- * parent layout collapses cleanly.
+ * parent layout collapses cleanly. The first read renders nothing too, rather
+ * than a loading row: the lists are usually empty, so a row that showed and
+ * then vanished made the page jump on every visit. A revisit paints the last
+ * lists at once (sessionCache) and refreshes behind them.
  *
- * States: loading, error (message + retry), empty (null), populated,
+ * States: loading (null), error (message + retry), empty (null), populated,
  * per-item actioning.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
+import { readSessionCache, writeSessionCache } from "../../lib/sessionCache";
 import { climberDisplay } from "../../lib/handle";
 import { Button } from "../ui/Button";
 import { UsernameHandle } from "./UsernameHandle";
-import { Spinner } from "../ui/Spinner";
 
 interface FriendRequest {
   id: string;
@@ -43,18 +46,22 @@ export interface FriendRequestsProps {
   onAccepted?: () => void;
 }
 
+const REQUESTS_KEY = "friend-requests";
+
 export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps = {}) {
-  const { token } = useAuth();
-  const [incoming, setIncoming] = useState<FriendRequest[]>([]);
-  const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user, token } = useAuth();
+  const uid = user?.uid ?? null;
+  const [cached] = useState(() => readSessionCache<RequestsPayload>(uid, REQUESTS_KEY));
+  const [incoming, setIncoming] = useState<FriendRequest[]>(cached?.incoming ?? []);
+  const [outgoing, setOutgoing] = useState<OutgoingRequest[]>(cached?.outgoing ?? []);
+  // Only the first read is "loading": a refresh keeps the current lists up.
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>(null);
   const [actioning, setActioning] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
   const fetchRequests = useCallback(async () => {
     if (!token) return;
-    setLoading(true);
     setError(null);
     try {
       const res = await authedFetch("/api/friends/requests", token);
@@ -75,6 +82,12 @@ export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps =
     fetchRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchRequests, refreshKey]);
+
+  // Accepting, declining and cancelling edit the lists in place; keep the
+  // cached copy in step so a revisit doesn't paint rows that are gone.
+  useEffect(() => {
+    if (!loading && !error) writeSessionCache(uid, REQUESTS_KEY, { incoming, outgoing });
+  }, [uid, loading, error, incoming, outgoing]);
 
   const clearActionError = useCallback((id: string) => {
     setActionErrors((prev) => {
@@ -156,13 +169,7 @@ export function FriendRequests({ refreshKey, onAccepted }: FriendRequestsProps =
 
   // ---- Render ----
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-text-muted text-sm py-2">
-        <Spinner /> Loading requests...
-      </div>
-    );
-  }
+  if (loading) return null;
 
   if (error) {
     return (

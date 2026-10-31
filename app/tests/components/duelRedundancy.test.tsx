@@ -7,7 +7,7 @@
  *  1. ChipDuelLobby now renders THROUGH DuelStackShell instead of hand-rolling
  *     its own navbar + tab band at max-w-2xl. That re-fixes the tab-band width
  *     jump on /duel/chips: the band must sit at the canonical DUEL_STACK_WIDTH
- *     (max-w-4xl) like /duel and /duel/leaderboard, with neither tab active.
+ *     (max-w-5xl) like /duel and /duel/leaderboard, with neither tab active.
  *  2. The /duel chips tier is a lean teaser: it links to /duel/chips (the
  *     canonical home for buy/claim) and no longer renders the "Buy chips" or
  *     "Claim daily chips" controls.
@@ -73,7 +73,7 @@ describe("ChipDuelLobby renders through DuelStackShell (tab-band jitter fix)", (
   it("pins the 1v1 tab band to the canonical DUEL_STACK_WIDTH", () => {
     mockAuth = { user: null, token: null, isAnonymous: false };
     const html = renderToStaticMarkup(createElement(ChipDuelLobby));
-    // The band container is the shared shell's, at max-w-4xl — not the old
+    // The band container is the shared shell's, at max-w-5xl — not the old
     // hand-rolled max-w-2xl band that made the width jump.
     expect(tabBandOuter(html)).toContain(`${DUEL_STACK_WIDTH} mx-auto`);
     expect(html).not.toContain("max-w-2xl mx-auto w-full px-4 py-2");

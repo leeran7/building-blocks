@@ -478,19 +478,41 @@ button:focus-visible,
 }
 
 /* Page entrances play on a fresh load only. After an in-app navigation
-   (SoftNavigationFlag) the view transition below is the motion; a rise that
-   starts at opacity 0 would crossfade the page into a blank frame first. */
-html[data-soft-nav] .climb-reveal {
+   (SoftNavigationFlag) the page crossfade below is the only motion: a rise or
+   drop that starts at opacity 0 would fade the new page in from blank and then
+   move it after it has arrived. Infinite loops (molten sweep, scroll cue) keep
+   running; only their one-shot entrance goes. A panel that appears mid-page
+   (a run result) opts back in with data-entrance="live". */
+html[data-soft-nav] :is(
+  .climb-reveal,
+  .reveal,
+  .block-drop,
+  .molten-underline,
+  .animate-enter,
+  .animate-climbEnter,
+  .animate-climbPunch
+):not([data-entrance="live"]) {
   animation: none;
+}
+html[data-soft-nav] .molten-letter {
+  animation: molten 5s linear infinite;
+}
+html[data-soft-nav] .scroll-cue {
+  animation: scrollCue 1.6s ease-in-out 2s infinite;
 }
 
 /* ── Page switches (React <ViewTransition> on Next navigations) ──────────────
-   The page crossfades quickly; the stack tab band (`stack-tabs`, StackTabs)
-   stays on top and only its pill changes, gliding when the band moves between
-   the free and 1v1 stacks. Snapshots keep their natural size, anchored left,
-   so a two-tab band never stretches into a three-tab one. */
+   Every navigation crossfades the page (`.page`, the boundary around the
+   routes in app/layout.tsx) quickly; the stack tab band (`stack-tabs`,
+   StackTabs) stays on top and only its pill changes, gliding when the band
+   moves between the free and 1v1 stacks. Snapshots keep their natural size,
+   anchored top-left, so nothing is ever stretched while the page's height or
+   the band's width changes underneath. */
 ::view-transition-old(root),
-::view-transition-new(root) {
+::view-transition-new(root),
+::view-transition-group(.page),
+::view-transition-old(.page),
+::view-transition-new(.page) {
   animation-duration: 180ms;
   animation-timing-function: ease-out;
 }

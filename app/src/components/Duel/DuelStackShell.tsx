@@ -26,8 +26,10 @@ export type DuelStackSection = "play" | "leaderboard" | "chips";
  * The one canonical width for the 1v1 band + content on every duel route. The
  * two routes have different ideal content widths (a 2-column grid on /duel, a
  * table on /duel/leaderboard) but the chrome must not move, so both pin to this.
+ * It matches FreeStackShell's max-w-5xl, so the tab band also stays put when
+ * the leaderboard's Solo / 1v1 switch crosses between the two stacks.
  */
-export const DUEL_STACK_WIDTH = "max-w-4xl";
+export const DUEL_STACK_WIDTH = "max-w-5xl";
 
 export function DuelStackShell({
   section,
