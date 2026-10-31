@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { fillClimbInput, isInteractiveTarget, NO_TOUCH, shouldCaptureGameKey, type TouchInput } from "@app/game/useClimb";
-import { createTraining, TRAINING_GOALS, trainingHint, type Training } from "@app/game/levels/training";
-import { emptySample, sampleInterp, type RenderFrame } from "@app/game/renderFeed";
-import { TICK_DT, type PlayerInput } from "@app/game/types";
+import { createTraining, TRAINING_GOALS, trainingHint } from "@app/game/levels/training";
 import { POWER_UP_SPECS } from "@app/game/powerups";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ActivePowerStack } from "@app/components/Game/PowerUpHud";
@@ -20,6 +17,7 @@ import { Button } from "../components/ui";
 import { useSettings } from "../contexts/AppDataContext";
 import { notifySuccess, tapLight } from "../lib/haptics";
 import { useGameHaptics } from "../lib/useGameHaptics";
+import { usePracticeLoop } from "../lib/usePracticeLoop";
 import { markTutorialsSeen } from "../lib/levels/tutorialSeen";
 import { guestOnboarding, markOnboardingDone, TOUR_STATE } from "../lib/onboarding";
 import { useGuest } from "../contexts/GuestContext";
@@ -210,7 +208,7 @@ function Point({ n, title, children }: { n: number; title: string; children: Rea
  */
 function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const training = useMemo(() => createTraining(), []);
-  const { view, feed, setTouch } = useTrainingLoop(training);
+  const { view, feed, setTouch } = usePracticeLoop(training);
   const touch = useCoarsePointer();
   const [scheme, setScheme] = useControlScheme();
   const otherScheme = scheme === "joystick" ? "buttons" : "joystick";
@@ -358,86 +356,4 @@ function TrainingClimb({ onDone, onSkip }: { onDone: () => void; onSkip: () => v
       `}</style>
     </div>
   );
-}
-
-/** React's view of the training: refreshed every few ticks and on every goal change. */
-interface TrainingView {
-  goalIndex: number;
-  done: boolean;
-  tick: number;
-}
-
-/** Ticks between React snapshots (~10 Hz), as in useClimb. */
-const VIEW_EVERY_TICKS = 3;
-
-/**
- * Steps the training at the engine's tick rate from the keyboard and the
- * touch controls, and hands the canvas each tick through a render feed.
- */
-function useTrainingLoop(training: Training) {
-  const [view, setView] = useState<TrainingView>({ goalIndex: training.goalIndex, done: training.done, tick: 0 });
-  const feed = useRef<RenderFrame | null>(null);
-  const touchRef = useRef<TouchInput>(NO_TOUCH);
-  const keysRef = useRef<Set<string>>(new Set());
-  const setTouch = useCallback((t: TouchInput) => {
-    touchRef.current = t;
-  }, []);
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (!shouldCaptureGameKey(e.key, training.state.phase, isInteractiveTarget(e.target))) return;
-      e.preventDefault();
-      keysRef.current.add(e.key);
-    };
-    const up = (e: KeyboardEvent) => keysRef.current.delete(e.key);
-    const clear = () => keysRef.current.clear();
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    window.addEventListener("blur", clear);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-      window.removeEventListener("blur", clear);
-    };
-  }, [training]);
-
-  useEffect(() => {
-    const frame: RenderFrame = { state: training.state, prev: null, stepTs: 0 };
-    const prev = emptySample();
-    const input: PlayerInput = { moveX: 0, jump: false, climbY: 0, usePowerUp: false };
-    feed.current = frame;
-    let raf = 0;
-    let lastTs = 0;
-    let acc = 0;
-    let sinceView = 0;
-    const loop = (ts: number) => {
-      raf = requestAnimationFrame(loop);
-      if (training.done) return;
-      if (lastTs === 0) lastTs = ts;
-      acc += Math.min(0.25, (ts - lastTs) / 1000);
-      lastTs = ts;
-      let advanced = false;
-      let goalChanged = false;
-      while (acc >= TICK_DT && !training.done) {
-        acc -= TICK_DT;
-        sampleInterp(training.state, prev);
-        const goal = training.goalIndex;
-        training.step(fillClimbInput(input, keysRef.current, touchRef.current));
-        goalChanged ||= training.goalIndex !== goal;
-        advanced = true;
-        sinceView += 1;
-      }
-      if (!advanced) return;
-      frame.prev = prev;
-      frame.stepTs = ts - acc * 1000;
-      if (goalChanged || training.done || sinceView >= VIEW_EVERY_TICKS) {
-        sinceView = 0;
-        setView({ goalIndex: training.goalIndex, done: training.done, tick: training.state.tick });
-      }
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [training]);
-
-  return { view, feed, setTouch };
 }

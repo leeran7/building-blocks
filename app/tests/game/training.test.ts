@@ -10,6 +10,7 @@ import {
   TRAINING_GOALS,
   TRAINING_SUMMIT_FLOOR,
   WALK_GOAL_M,
+  createControlsPractice,
   createTraining,
   type Training,
   type TrainingGoalId,
@@ -250,5 +251,42 @@ describe("trainingHint", () => {
       checked += 1;
     }
     expect(checked).toBeGreaterThan(0);
+  });
+});
+
+describe("controls practice", () => {
+  it("starts on the move: past the countdown, on the ground floor, no orbs", () => {
+    const p = createControlsPractice();
+    expect(p.state.phase).toBe("climb");
+    expect(floorIndexAt(p.state.tower, p.state.players[0].y + 1e-6)).toBe(0);
+    expect(p.state.powerUps).toEqual([]);
+    expect(p.restarts).toBe(0);
+  });
+
+  it("moves with the player's input and stands still without it", () => {
+    const p = createControlsPractice();
+    const x0 = p.state.players[0].x;
+    for (let i = 0; i < 2 * TICK_HZ; i++) p.step(IDLE);
+    expect(p.state.players[0].x).toBe(x0);
+    for (let i = 0; i < TICK_HZ; i++) p.step({ ...IDLE, moveX: 1 });
+    expect(p.state.players[0].x).not.toBe(x0);
+    expect(p.restarts).toBe(0);
+  });
+
+  it("a climb that reaches the diamond starts over on the ground floor", () => {
+    const p = createControlsPractice();
+    const bot = createRouteBot();
+    const first = p.state;
+    let n = 0;
+    while (p.restarts === 0 && n < 120 * TICK_HZ) {
+      p.step(bot(p.state.players[0], p.state.tower, p.state.tick));
+      n += 1;
+    }
+    expect(p.restarts).toBe(1);
+    expect(p.state).not.toBe(first);
+    expect(first.players[0].status).toBe("finished");
+    expect(p.state.players[0].status).toBe("climbing");
+    expect(floorIndexAt(p.state.tower, p.state.players[0].y + 1e-6)).toBe(0);
+    expect(p.state.powerUps).toEqual([]);
   });
 });

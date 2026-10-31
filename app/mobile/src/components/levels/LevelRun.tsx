@@ -41,6 +41,7 @@ import { PowerUpName } from "./LevelStartExtras";
 import { BackButton } from "../ui";
 import { ControlSchemePicker } from "@app/components/ControlSchemePicker";
 import { useCoarsePointer } from "@app/hooks/useCoarsePointer";
+import { ControlsPracticeWindow, useControlsPractice, useRoomForControlsPractice } from "./ControlsPractice";
 
 /**
  * The climb itself, on the level's tower and lava from the season manifest
@@ -110,6 +111,12 @@ export function LevelRun({
   // plays over the result card.
   const player = running ? state.players[0] : undefined;
   const touchActive = running && (phase === "countdown" || phase === "climb");
+
+  // Level 1 on touch: the layout picker, with a live practice window driven by
+  // the real controls, so the player tries each layout before choosing.
+  const roomToTry = useRoomForControlsPractice();
+  const tryControls = pickControls && touch && roomToTry;
+  const tryout = useControlsPractice(tryControls && phase === "lobby" && !paused);
 
   const countdownValue = phase === "countdown" ? countdownNumeral(state.tick) : null;
   useEffect(() => {
@@ -248,7 +255,9 @@ export function LevelRun({
 
 
       {(phase === "lobby" || phase === "countdown") && (
-        <Overlay>
+        // With the practice controls up, the page sits above them, through the
+        // countdown too, so Start and the numerals stay where they were.
+        <Overlay inset={tryControls ? { top: safeArea.top + 56, bottom: bottomInset } : null}>
           <BackButton onBack={onQuit} className="absolute left-4" style={{ top: safeArea.top + 12 }} />
           <span className={`font-mono text-label uppercase tracking-eyebrow ${isHardLevel(level) ? "text-ember" : "text-signal"}`}>
             {practice ? "Practice" : isHardLevel(level) ? "Hard level" : "Level"}
@@ -256,8 +265,11 @@ export function LevelRun({
           <h1 className="mt-2 font-display text-5xl font-black uppercase leading-none tracking-tight text-text-primary">
             Level {level}
           </h1>
-          <span className="mt-4 h-px w-14 bg-border-strong" />
-          <p className="mt-4 max-w-[280px] text-center text-body text-text-secondary">
+          {/* On shorter phones the practice window takes the description's room. */}
+          <span className={`mt-4 h-px w-14 bg-border-strong ${tryControls ? "[@media(max-height:760px)]:hidden" : ""}`} />
+          <p
+            className={`mt-4 max-w-[280px] text-center text-body text-text-secondary ${tryControls ? "[@media(max-height:760px)]:hidden" : ""}`}
+          >
             Climb to the summit at {Math.round(goalFt).toLocaleString()} {ALTITUDE_UNIT} and touch the diamond before the lava catches you.
           </p>
           {startPowerUp && (
@@ -275,6 +287,7 @@ export function LevelRun({
                 Your controls
               </p>
               <ControlSchemePicker labelledBy="level-run-controls" />
+              {tryControls && <ControlsPracticeWindow practice={tryout} />}
             </div>
           )}
           {/* Start and the countdown share one slot, so pressing Start
@@ -310,6 +323,8 @@ export function LevelRun({
               How to play
             </button>
           )}
+          {/* The real layout, where it sits in the run; at GO the run's own controls take this spot. */}
+          {tryControls && phase === "lobby" && <TouchControls active onInput={tryout.setTouch} />}
         </Overlay>
       )}
 
@@ -386,9 +401,19 @@ export function GoalBar({
   );
 }
 
-function Overlay({ children }: { children: React.ReactNode }) {
+function Overlay({
+  children,
+  inset = null,
+}: {
+  children: React.ReactNode;
+  /** Keep the page clear of the Back button above and the practice controls below. */
+  inset?: { top: number; bottom: number } | null;
+}) {
   return (
-    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-void/75 px-6 backdrop-blur-md">
+    <div
+      className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-void/75 px-6 backdrop-blur-md"
+      style={inset ? { paddingTop: inset.top, paddingBottom: inset.bottom } : undefined}
+    >
       {children}
     </div>
   );
