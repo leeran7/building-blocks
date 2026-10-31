@@ -10,7 +10,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { DailyClimbClient } from "../../src/components/Game/DailyClimbClient";
-import { Chevron } from "../../src/components/Chevron";
+import { GameNotes } from "../../src/components/Game/GameNotes";
 import { buildMetadata } from "../../src/lib/seo";
 import { nextUtcResetAt, utcDayKey } from "../../src/lib/dailyDay";
 import { dailySeedConfigured, dailySeedFor } from "../../src/lib/dailySeedServer";
@@ -90,12 +90,8 @@ function KeepClimbing() {
  */
 function DailyIntro() {
   return (
-    <details className="group mx-auto mt-4 max-w-2xl rounded-xl border border-border-subtle bg-surface px-5 py-4 open:border-signal/40">
-      <summary className="flex items-center gap-3 cursor-pointer list-none min-h-[44px] text-sm font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
-        <span className="flex-1">About the Daily Climb</span>
-        <Chevron />
-      </summary>
-      <p className="mt-3 text-sm leading-relaxed text-text-secondary">
+    <GameNotes aboutTitle="About the Daily Climb">
+      <p className="text-sm leading-relaxed text-text-secondary">
         The Daily Climb gives every player the same procedurally generated tower
         each calendar day — one seed, so it&rsquo;s a fair, shared challenge.
         Climb as high as you can before the rising lava catches you; your peak
@@ -108,6 +104,6 @@ function DailyIntro() {
         on a fresh random tower each time, or a head-to-head race? Both are one
         tap away in &ldquo;Keep climbing until it resets&rdquo; above.
       </p>
-    </details>
+    </GameNotes>
   );
 }
