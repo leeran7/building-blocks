@@ -68,7 +68,8 @@ export interface ClimbCanvasProps {
   myId?: string;
   /**
    * Display names keyed by player id — used for nameplates drawn above each
-   * climber. Falls back to "Guest" when a player id is not present.
+   * climber. Opponents not present read "Guest"; a local climber not present
+   * (solo runs) draws no nameplate.
    */
   playerNames?: Record<string, string>;
   /**
