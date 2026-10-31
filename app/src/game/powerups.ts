@@ -61,6 +61,7 @@
 
 import {
   ActivePowerUp,
+  GAME_SPEED,
   Platform,
   PlayerState,
   PowerUpPickup,
@@ -110,14 +111,14 @@ const SPAWN_CHANCE_HIGH = 0.34;
 export const RAPID_CLIMB_MULT = 1.75;
 /** Multiplier applied to `tower.moveSpeed` while sprint-burst runs. */
 export const SPRINT_BURST_MULT = 1.5;
-/** Upward acceleration applied while the jetpack is thrusting, in m/s². */
-export const JETPACK_THRUST = 80;
+/** Upward acceleration applied while the jetpack is thrusting, in m/s² (80 before GAME_SPEED²). */
+export const JETPACK_THRUST = 80 * GAME_SPEED * GAME_SPEED;
 /**
- * Terminal rise speed while thrusting, in m/s. A bit above a typical ladder
+ * Terminal rise speed while thrusting, in m/s (12 before GAME_SPEED). A bit above a typical ladder
  * so the pack reads as a skip, not a second climb. Fuel is sized so a full
  * burn covers a few floors at this cap.
  */
-export const JETPACK_MAX_VY = 12;
+export const JETPACK_MAX_VY = 12 * GAME_SPEED;
 /** Seconds of thrust in the tank. Feathered inside the window, not a full-window fly. */
 export const JETPACK_FUEL_SECONDS = 7.5;
 /** Window in which leftover fuel may still be burned. */

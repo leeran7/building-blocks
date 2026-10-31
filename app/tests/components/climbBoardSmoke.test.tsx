@@ -30,10 +30,11 @@ describe("ClimbBoard smoke render", () => {
     expect(html).toContain("1v1");
     expect(html).toContain("apex");
     expect(html).toContain("rival");
-    // Before the viewer effect settles (no effects run in a static server
-    // render), the panel shows its initial loading copy — never the CTA-only
-    // fallback text, and the standings render regardless.
-    expect(html).toContain("Checking your standing");
+    // Auth has already settled as signed out, so the very first paint is the
+    // sign-in prompt (no "Checking…" line that would swap out a frame later),
+    // and the standings render regardless.
+    expect(html).toContain("to record your height and take a rank");
+    expect(html).not.toContain("Checking your standing");
     expect(html).toContain("Play the climb");
   });
 

@@ -1,42 +1,22 @@
 /**
  * Climb panel intro — lives below the hairline inside /climb children.
  * Title, CTA, meta, and compact controls used to sit in the tab band and made
- * the hairline jump when switching to /play.
+ * the hairline jump when switching to /play. It is the shared BoardIntro, the
+ * same block /duel/leaderboard opens with, so the Solo | 1v1 switch under it
+ * stays put; the controls guide moved into "About the free climb".
  */
 
 import Link from "next/link";
 import { ClimbControlsGuide } from "../Game/ClimbControlsGuide";
 import { Chevron } from "../Chevron";
-import { CLIMB_PANEL_INTRO_TITLE_CLASS } from "../../design/climbFeelTokens";
+import { BoardIntro } from "../Leaderboard/BoardChrome";
 
 export function ClimbPanelIntro({ title }: { title: string }) {
   return (
-    <header>
-      <p
-        className="climb-reveal font-mono text-xs uppercase tracking-[0.2em] font-medium text-signal"
-        style={{ animationDelay: "0ms" }}
-      >
-        Endless · no payment
-      </p>
-      {/* The "Play the climb" primary lives in the board's "your best" panel —
-          its canonical home in the new composition, so this header carries the
-          title alone rather than a second copy of the same ask. */}
-      <div className="climb-reveal mt-1" style={{ animationDelay: "70ms" }}>
-        <h1 className={CLIMB_PANEL_INTRO_TITLE_CLASS}>
-          {title}
-        </h1>
-      </div>
-      <p
-        className="climb-reveal mt-3 text-sm text-text-secondary max-w-lg"
-        style={{ animationDelay: "140ms" }}
-      >
-        One leaderboard for the free game. Climb the endless stack as high as you
-        can before the lava catches you — your best height is your rank.
-      </p>
-      <div className="climb-reveal mt-4" style={{ animationDelay: "210ms" }}>
-        <ClimbControlsGuide variant="compact" />
-      </div>
-    </header>
+    <BoardIntro eyebrow="Endless · no payment" title={title}>
+      One leaderboard for the free game. Climb the endless stack as high as you
+      can before the lava catches you — your best height is your rank.
+    </BoardIntro>
   );
 }
 
@@ -66,21 +46,9 @@ export function ClimbAbout() {
         stake chips in ranked matches, or enter tournaments for cash prizes. See{" "}
         <Link href="/rules" className="text-signal underline underline-offset-2 hover:decoration-2">the rules</Link> for details.
       </p>
+      <div className="mt-4">
+        <ClimbControlsGuide variant="compact" />
+      </div>
     </details>
-  );
-}
-
-/** The single primary CTA of the /climb surface. */
-export function PlayTheClimbCta({ fullWidth = false }: { fullWidth?: boolean }) {
-  return (
-    <Link
-      href="/play"
-      className={
-        "inline-flex items-center justify-center rounded-full bg-signal text-void font-semibold px-6 min-h-[44px] shadow-signal hover:brightness-110 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,scale] whitespace-nowrap" +
-        (fullWidth ? " w-full" : "")
-      }
-    >
-      Play the climb
-    </Link>
   );
 }

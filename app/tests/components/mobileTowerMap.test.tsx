@@ -309,6 +309,7 @@ describe("tower map", () => {
         peakFt: s.ticket.goalFt,
         replayToken: null,
         outOfTime: false,
+        spiked: false,
       });
     }
   }
@@ -615,6 +616,7 @@ describe("tower map", () => {
       peakFt: s.ticket.goalFt,
       replayToken: null,
       outOfTime: false,
+      spiked: false,
     });
   }
 

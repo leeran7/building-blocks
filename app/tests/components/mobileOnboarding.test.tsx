@@ -193,6 +193,7 @@ async function clearLevel(client: LevelsClient, level: number) {
     peakFt: s.ticket.goalFt,
     replayToken: null,
     outOfTime: false,
+    spiked: false,
   });
 }
 

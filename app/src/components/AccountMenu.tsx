@@ -118,6 +118,7 @@ export function AccountMenu() {
         <nav
           id={menuId}
           aria-label="Account"
+          data-entrance="live"
           className="reveal absolute right-0 mt-2 w-56 rounded-xl border border-border-strong bg-surface-raised shadow-lifted p-1.5"
         >
           {/* Chip balance — display-only, shown when paid features are on */}

@@ -75,7 +75,7 @@ import type { PlayerInput } from "../../src/game/types";
 const DAY = "2026-09-26";
 const NOW = new Date("2026-09-26T12:00:00Z");
 
-/** Same scripted policy as tests/game/dailyVerify.test.ts (climbs 10.33 m on DAY). */
+/** Same scripted policy as tests/game/dailyVerify.test.ts (climbs 10.95 m on DAY). */
 function playRun(seed: string): { inputs: PlayerInput[]; peakY: number; ticks: number } {
   const state = createMatch({ seed, mode: "solo", tower: applyRunSeed(buildFreeTower(), seed), playerIds: ["you"] });
   while (state.phase === "countdown") stepMatch(state, {});
@@ -159,7 +159,7 @@ describe("POST /api/climb/daily/result", () => {
     const { run, body } = await honestPayload();
     const res = await post(body);
     expect(await res.json()).toMatchObject({ saved: true, rewards: { xpGained: 3, dailyXp: 3, lifeGranted: true } });
-    // This scripted run stays on the ground floor (10.33 m), so it pays 0 XP;
+    // This scripted run stays on the ground floor (10.95 m), so it pays 0 XP;
     // dailyFloorsForPeak itself is pinned on higher peaks in tests/levels/extras.test.ts.
     const floors = dailyFloorsForPeak(body.seed, run.peakY);
     expect(vi.mocked(recordDailyRewards).mock.calls[0][0]).toEqual({ userId: "u1", day: DAY, floors, now: NOW });
@@ -640,8 +640,9 @@ describe("POST /api/climb/daily/result: hardening (SEC-DC-2, 3, 4)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const owners = useClaimStore();
     const { inputs, body } = await idlePayload();
-    // Precondition: this is the 221-tick, 0 m log every idle player produces.
-    expect(inputs.length).toBe(221);
+    // Precondition: this is the 115-tick, 0 m log every idle player produces
+    // (221 ticks before the 2026-10-29 faster tune).
+    expect(inputs.length).toBe(115);
     expect(body.peakY).toBe(0);
 
     asUser("u1");
@@ -662,9 +663,9 @@ describe("POST /api/climb/daily/result: hardening (SEC-DC-2, 3, 4)", () => {
     const { run, body } = await honestPayload();
     expect(run.peakY).toBeGreaterThanOrEqual(DAILY_CLAIM_MIN_PEAK_M);
     // Precondition: well past the segment floor (SEC-DC-15), so it is claimed.
-    // 38 since #154: a held climb re-grabs the ladder after landing, so the
-    // scripted run lasts 274 ticks (10.33 m) instead of 227 (7.61 m).
-    expect(dailyInputSegments(run.inputs)).toBe(38);
+    // 20 since the 2026-10-29 faster tune: the scripted run lasts 155 ticks
+    // (10.95 m); it was 274 ticks and 38 segments (10.33 m) after #154.
+    expect(dailyInputSegments(run.inputs)).toBe(20);
 
     asUser("u1");
     expect((await post(body)).status).toBe(200);

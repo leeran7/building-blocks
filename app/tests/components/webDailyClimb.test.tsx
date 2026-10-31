@@ -143,3 +143,55 @@ describe("web Daily Climb seed (SEC-DC-3, SEC-DC-4)", () => {
     expect($('[role="alert"]')).toBeNull();
   });
 });
+
+describe("web Daily Climb loading keeps the stage's place", () => {
+  it("shows the loading line inside a stage-sized box, then swaps in the scene", async () => {
+    let answer: (r: Response) => void = () => {};
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((ok) => { answer = ok; }));
+    // happy-dom lays nothing out: give the column a width so the stage fits.
+    const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(600);
+    await mount();
+    width.mockRestore();
+
+    const box = $('[data-testid="daily-stage-placeholder"]') as HTMLElement | null;
+    expect(box).not.toBeNull();
+    expect(box!.textContent).toContain("Loading today");
+    // Sized like the stage, so what sits below doesn't jump when the tower lands.
+    // Same fit as the canvas: height-bound, 9:16.
+    const w = parseFloat(box!.style.width);
+    const h = parseFloat(box!.style.height);
+    expect(w).toBeGreaterThan(0);
+    expect(Math.abs(h - w * (640 / 360))).toBeLessThan(2);
+    expect($('[data-testid="scene"]')).toBeNull();
+
+    await act(async () => {
+      answer({ ok: true, status: 200, json: async () => net.body } as Response);
+    });
+    await settle();
+    expect($('[data-testid="daily-stage-placeholder"]')).toBeNull();
+    expect($('[data-testid="scene"]')?.textContent).toBe(`seed:${SERVER_SEED}`);
+  });
+
+  it("holds the offline message in the same box", async () => {
+    net.fail = true;
+    await mount();
+    const box = $('[data-testid="daily-stage-placeholder"]');
+    expect(box?.querySelector('[role="alert"]')).not.toBeNull();
+  });
+});
+
+describe("web Daily Climb with the server's tower in the page", () => {
+  it("paints the stage on the first render and skips the client fetch", async () => {
+    const initialDaily = { day: SERVER_DAY, seed: SERVER_SEED, resetsAt: "2026-09-27T00:00:00.000Z" };
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    await act(async () => {
+      root = createRoot(container!);
+      root.render(createElement(DailyClimbClient, { initialDaily, servedAt: Date.parse("2026-09-26T12:00:00Z") }));
+    });
+    await settle();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect($('[data-testid="daily-stage-placeholder"]')).toBeNull();
+    expect(scene.props[0]?.seed).toBe(SERVER_SEED);
+  });
+});

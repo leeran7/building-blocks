@@ -255,7 +255,7 @@ describe("trailer's client and the server re-sim agree during the leader's burst
   // A seed where the greedy leader picks up a jetpack while the trailer is
   // still climbing, and nobody holds slow-lava or harden-lava (those peer
   // flags are a separate, pre-existing desync: SEC-LAVA-8).
-  const SEED = "duel-burst-11";
+  const SEED = "duel-burst-10";
   const duel = once(() => {
     const joint = playJointDuel(SEED);
     const res = simulateDuel(

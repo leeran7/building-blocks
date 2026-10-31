@@ -73,7 +73,7 @@ export function LevelResultCard({
   const chestsOpen = result.chestsOpened.length > 0 && collectedKey !== chestKey;
   const label = result.cleared
     ? `Level ${result.level} cleared, ${result.stars} of ${MAX_STARS} stars`
-    : (nearMiss ?? `${result.outOfTime ? "Out of time" : "Caught by the lava"}, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`);
+    : (nearMiss ?? `${lossLabel(result.outOfTime, result.spiked)}, ${feetShort(result)} ${ALTITUDE_UNIT} from the summit`);
   return (
     <Sheet label={label}>
       {result.cleared ? (
@@ -84,6 +84,7 @@ export function LevelResultCard({
           peakFt={result.peakFt}
           level={result.level}
           outOfTime={result.outOfTime}
+          spiked={result.spiked}
           nearMiss={nearMiss}
         />
       )}
@@ -362,17 +363,25 @@ function UnlockedAvatars({
   );
 }
 
+/** Why a level run was lost, as the result card's eyebrow says it. */
+function lossLabel(outOfTime: boolean, spiked: boolean): string {
+  if (outOfTime) return "Out of time";
+  return spiked ? "Hit the spikes" : "Caught by the lava";
+}
+
 function Lost({
   goalFt,
   peakFt,
   level,
   outOfTime,
+  spiked,
   nearMiss = null,
 }: {
   goalFt: number;
   peakFt: number;
   level: number;
   outOfTime: boolean;
+  spiked: boolean;
   nearMiss?: string | null;
 }) {
   const short = feetShort({ goalFt, peakFt });
@@ -380,7 +389,7 @@ function Lost({
   return (
     <>
       <p className="text-center font-mono text-label font-bold uppercase tracking-eyebrow text-ember">
-        {outOfTime ? "Out of time" : "Caught by the lava"} · Level {level}
+        {lossLabel(outOfTime, spiked)} · Level {level}
       </p>
       {nearMiss && (
         <p className="mt-3 text-center font-display text-headline font-black uppercase text-signal">{nearMiss}</p>
@@ -471,6 +480,7 @@ export function PracticeResultCard({
   peakFt,
   timeMs,
   outOfTime,
+  spiked,
   onRetry,
   onMap,
   nearMiss = null,
@@ -480,6 +490,7 @@ export function PracticeResultCard({
   peakFt: number;
   timeMs: number | null;
   outOfTime: boolean;
+  spiked: boolean;
   nearMiss?: string | null;
   onRetry: () => void;
   onMap: () => void;
@@ -497,7 +508,7 @@ export function PracticeResultCard({
           <p className="text-center text-body text-text-secondary">Summit reached</p>
         </>
       ) : (
-        <Lost goalFt={goalFt} peakFt={peakFt} level={level} outOfTime={outOfTime} nearMiss={nearMiss} />
+        <Lost goalFt={goalFt} peakFt={peakFt} level={level} outOfTime={outOfTime} spiked={spiked} nearMiss={nearMiss} />
       )}
       <p className="mt-3 text-center text-meta text-text-muted">Practice runs earn no stars or XP.</p>
       <div className="mt-6 flex gap-2.5">

@@ -21,7 +21,7 @@ import { FullscreenButton } from "../Game/FullscreenButton";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useFullscreen } from "../../hooks/useFullscreen";
-import { createMatch, stepMatch, DEFAULT_SIM_CONFIG } from "../../game/simulation";
+import { createMatch, stepMatch, DEFAULT_SIM_CONFIG, COUNTDOWN_TICKS } from "../../game/simulation";
 import { buildTower } from "../../game/towers";
 import { buildDuelWatchUrl } from "../../game/runReplay";
 import { formatAltitude } from "../../lib/units";
@@ -180,8 +180,6 @@ export function DuelWatch({ duelId }: { duelId: string }) {
       const log1 = data.log1 ?? [];
       const log2 = data.log2 ?? [];
 
-      // Countdown ticks before climb inputs start (mirrors useDuel)
-      const COUNTDOWN_TICKS = 90;
 
       const loop = (ts: number) => {
         rafRef.current = requestAnimationFrame(loop);

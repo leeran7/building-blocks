@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { headers } from "next/headers";
 import { DuelHome } from "../../src/components/Duel/DuelHome";
 import { resolveRankedEligibility } from "../../src/lib/rankedEligibility";
@@ -26,9 +25,9 @@ export default async function DuelPage() {
   // paint with the true decision instead of flashing available → blocked.
   const { allowed } = resolveRankedEligibility(await headers());
 
-  return (
-    <Suspense>
-      <DuelHome initialGeoAllowed={allowed} />
-    </Suspense>
-  );
+  // No <Suspense> here: a fresh boundary with no fallback painted the page
+  // blank while DuelHome's code loaded on a client navigation. Without it the
+  // navigation keeps the previous page up until /duel is ready, then
+  // crossfades. (useSearchParams needs no boundary on a dynamic route.)
+  return <DuelHome initialGeoAllowed={allowed} />;
 }

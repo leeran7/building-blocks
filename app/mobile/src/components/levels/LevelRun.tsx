@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { buildFreeTower } from "@app/game/freeStack";
 import { useClimb } from "@app/game/useClimb";
 import { levelTimeLimitTicks } from "@app/game/simulation";
+import { endedOnSpikes } from "@app/game/spikes";
 import { encodeRunReplay } from "@app/game/runReplay";
 import { hazardPhase } from "@app/game/hazard";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
@@ -168,6 +169,7 @@ export function LevelRun({
     const raceTicks = Math.max(0, simRef.current.tick);
     const limit = levelTimeLimitTicks(simRef.current.tower);
     const outOfTime = !reached && limit !== null && me?.finishedTick != null && me.finishedTick >= limit;
+    const spiked = !reached && !outOfTime && me !== undefined && endedOnSpikes(simRef.current.tower, me);
     if (reached) void tapMedium();
     else void notifyError();
     void (async () => {
@@ -180,6 +182,7 @@ export function LevelRun({
         peakFt: me?.peakY ?? 0,
         replayToken,
         outOfTime,
+        spiked,
       });
     })();
   }, [finished, inputLog, level, onEnd, simRef, state.seed]);

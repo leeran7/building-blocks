@@ -6,7 +6,9 @@
  * Composition (mockup 2): board scope row → [ search + find-me filter row +
  * ranked table ] beside a "your best" panel that carries the page's single
  * primary CTA. Below `lg` the panel stacks above the board, because "where do
- * I stand" is the first thing a returning climber wants.
+ * I stand" is the first thing a returning climber wants. The frame around the
+ * rows is BoardChrome, shared with /duel/leaderboard so the Solo | 1v1 switch
+ * only swaps the rows.
  *
  * The standings themselves stay server-rendered and are passed in untouched —
  * this island exists only because Firebase identity is client-side. It reads
@@ -15,15 +17,23 @@
  * table.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { authedFetch } from "../../lib/authedFetch";
+import { readSessionCache, writeSessionCache } from "../../lib/sessionCache";
 import type { ClimberRank } from "../../db/climb";
 import { ALTITUDE_UNIT } from "../../lib/units";
-import { DUEL_LEADERBOARD_HREF, SIGNIN_HREF } from "../navLinks";
+import { SIGNIN_HREF } from "../navLinks";
+import {
+  BoardCta,
+  BoardFindMe,
+  BoardLayout,
+  BoardNoMatch,
+  BoardSearch,
+  StandingPanel,
+} from "../Leaderboard/BoardChrome";
 import { ClimbLeaderboard, YOUR_ROW_ID } from "./ClimbLeaderboard";
-import { PlayTheClimbCta } from "./ClimbPanelIntro";
 
 /** The slice of GET /api/dashboard this surface needs. Everything else is ignored. */
 interface ViewerRecord {
@@ -35,12 +45,31 @@ interface ViewerRecord {
 
 type ViewerState =
   | { status: "anonymous" }
-  | { status: "loading" }
+  /** `signedIn`: the read is in flight, so the panel holds a record's shape. */
+  | { status: "loading"; signedIn?: boolean }
   /** Signed in, request settled, but this climber has no recorded run. */
   | { status: "none" }
   | { status: "ready"; record: ViewerRecord }
   /** Signed in but the read failed — panel falls back to the CTA only. */
   | { status: "unavailable" };
+
+/**
+ * The last settled standing, for this tab (see sessionCache). A return to
+ * /climb paints it at once (then refreshes), instead of a loading panel that
+ * changes height when the read lands.
+ */
+const STANDING_KEY = "climb-standing";
+
+function cachedStanding(uid: string): ViewerState {
+  return readSessionCache<ViewerState>(uid, STANDING_KEY) ?? { status: "loading", signedIn: true };
+}
+
+/** What the panel shows on its first paint, before the effect below runs. */
+function initialViewer(authLoading: boolean, uid: string | null, token: string | null): ViewerState {
+  if (authLoading) return { status: "loading" };
+  if (!uid || !token) return { status: "anonymous" };
+  return cachedStanding(uid);
+}
 
 export function ClimbBoard({
   climbers,
@@ -50,9 +79,10 @@ export function ClimbBoard({
   unavailable?: boolean;
 }) {
   const { user, token, loading: authLoading } = useAuth();
-  const [viewer, setViewer] = useState<ViewerState>({ status: "loading" });
+  const [viewer, setViewer] = useState<ViewerState>(() =>
+    initialViewer(authLoading, user?.uid ?? null, token)
+  );
   const [query, setQuery] = useState("");
-  const boardRef = useRef<HTMLDivElement>(null);
 
   // Identity-derived read: early-return while auth is still resolving and keep
   // `authLoading` in deps, per context/conventions.md.
@@ -64,7 +94,8 @@ export function ClimbBoard({
     }
 
     let cancelled = false;
-    setViewer({ status: "loading" });
+    const uid = user.uid;
+    setViewer(cachedStanding(uid));
 
     authedFetch("/api/dashboard", token)
       .then(async (res) => {
@@ -83,11 +114,11 @@ export function ClimbBoard({
         const record = toViewerRecord(body);
         if (body === null) {
           setViewer({ status: "unavailable" });
-        } else if (record) {
-          setViewer({ status: "ready", record });
-        } else {
-          setViewer({ status: "none" });
+          return;
         }
+        const next: ViewerState = record ? { status: "ready", record } : { status: "none" };
+        writeSessionCache(uid, STANDING_KEY, next);
+        setViewer(next);
       })
       .catch(() => {
         if (!cancelled) setViewer({ status: "unavailable" });
@@ -113,132 +144,43 @@ export function ClimbBoard({
   const viewerVisible =
     viewerId !== null && filtered.some((c) => c.userId === viewerId);
 
-  const handleFindMe = useCallback(() => {
-    // Clearing the filter first guarantees the row is mounted when we scroll.
-    setQuery("");
-    requestAnimationFrame(() => {
-      boardRef.current
-        ?.querySelector(`#${YOUR_ROW_ID}`)
-        ?.scrollIntoView({ block: "center" });
-    });
-  }, []);
-
   const noMatches = !unavailable && climbers.length > 0 && filtered.length === 0;
 
   return (
-    <div className="mt-6">
-      <BoardScopeNav />
-
-      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        {/* Your standing. First in the DOM so small screens lead with it. */}
-        <div className="lg:col-start-2 lg:row-start-1">
-          <YourBestPanel viewer={viewer} />
-        </div>
-
-        <div className="lg:col-start-1 lg:row-start-1" ref={boardRef}>
-          {/* Filter row — client-side only; it narrows the rows already on the
-              page and never refetches. */}
-          {!unavailable && climbers.length > 0 && (
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <div className="relative min-w-0 flex-1">
-                <label htmlFor="climber-search" className="sr-only">
-                  Find a climber
-                </label>
-                <input
-                  id="climber-search"
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Find a climber"
-                  className="w-full rounded-lg border border-border-strong bg-surface px-3 min-h-[44px] text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-                />
-              </div>
-              {viewerInBoard && (
-                <button
-                  type="button"
-                  onClick={handleFindMe}
-                  className="inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-full border border-signal/40 px-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal transition-colors hover:bg-signal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-                >
-                  Find me
-                </button>
-              )}
-            </div>
+    <BoardLayout scope="solo" panel={<YourBestPanel viewer={viewer} />}>
+      {!unavailable && climbers.length > 0 && (
+        <BoardSearch id="climber-search" label="Find a climber" value={query} onChange={setQuery}>
+          {viewerInBoard && (
+            <BoardFindMe rowId={YOUR_ROW_ID} onClearSearch={() => setQuery("")} />
           )}
+        </BoardSearch>
+      )}
 
-          {noMatches ? (
-            <div className="rounded-xl border border-border-strong bg-surface p-8 text-center">
-              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-text-muted">
-                [ no match ]
-              </p>
-              <p className="mt-3 text-sm text-text-secondary">
-                No climber matches &ldquo;{trimmed}&rdquo;.
-              </p>
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-border-strong px-5 text-sm font-medium text-text-primary transition-colors hover:border-signal/50"
-              >
-                Clear search
-              </button>
-            </div>
-          ) : (
-            <ClimbLeaderboard
-              climbers={filtered}
-              unavailable={unavailable}
-              highlightUserId={viewerId}
-            />
-          )}
+      {noMatches ? (
+        <BoardNoMatch query={trimmed} noun="climber" onClear={() => setQuery("")} />
+      ) : (
+        <ClimbLeaderboard
+          climbers={filtered}
+          unavailable={unavailable}
+          highlightUserId={viewerId}
+        />
+      )}
 
-          {/* Outside the fetched top 50 (or filtered out of view): pin the
-              viewer's own standing under the board so it is never lost. */}
-          {viewerRecord && !viewerVisible && !noMatches && (
-            <PinnedViewerRow record={viewerRecord} />
-          )}
-        </div>
-      </div>
-    </div>
+      {/* Outside the fetched top 50 (or filtered out of view): pin the
+          viewer's own standing under the board so it is never lost. */}
+      {viewerRecord && !viewerVisible && !noMatches && (
+        <PinnedViewerRow record={viewerRecord} />
+      )}
+    </BoardLayout>
   );
 }
 
 // ────────────────────────────── Presentational ─────────────────────────────
 
-/**
- * Which board you are looking at. Plain navigation between the two boards
- * that exist — the free climb board and the 1v1 board stay separate pages.
- */
-function BoardScopeNav() {
-  return (
-    <nav aria-label="Leaderboards" className="flex flex-wrap gap-2">
-      <ScopeLink href="/climb" label="Endless" current />
-      <ScopeLink href={DUEL_LEADERBOARD_HREF} label="1v1" />
-    </nav>
-  );
-}
-
-function ScopeLink({
-  href,
-  label,
-  current,
-}: {
-  href: string;
-  label: string;
-  current?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={current ? "page" : undefined}
-      className={
-        "inline-flex min-h-[44px] items-center rounded-full border px-5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void " +
-        (current
-          ? "border-signal/60 bg-signal/10 text-signal"
-          : "border-border-strong bg-surface text-text-secondary hover:border-signal/40 hover:text-text-primary")
-      }
-    >
-      {label}
-    </Link>
-  );
-}
+const CLIMB_STATS = [
+  { label: "Your rank", tone: "signal" },
+  { label: "Climbers", tone: "secondary" },
+] as const;
 
 /**
  * The viewer's own standing plus the page's single primary CTA. Every state —
@@ -247,71 +189,43 @@ function ScopeLink({
  */
 function YourBestPanel({ viewer }: { viewer: ViewerState }) {
   const record = viewer.status === "ready" ? viewer.record : null;
+  // Auth still resolving (a full page load) is not yet "signed in".
+  const signedIn =
+    viewer.status !== "anonymous" && !(viewer.status === "loading" && viewer.signedIn !== true);
 
   return (
-    <section
-      aria-label="Your best climb"
-      data-climb-chrome
-      className="climb-reveal relative overflow-hidden rounded-2xl border border-signal/30 bg-surface p-6 shadow-signal lg:sticky lg:top-4"
-    >
-      <div className="pointer-events-none absolute inset-0 survey-grid opacity-40" aria-hidden="true" />
-
-      <p className="relative font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
-        Your best climb
-      </p>
-
-      {record ? (
-        <>
-          <p className="relative mt-2 font-mono text-5xl font-bold tabular-nums leading-none text-text-primary">
-            {record.peakY.toFixed(0)}
-            <span className="ml-1 text-xl font-normal text-text-secondary">
-              {ALTITUDE_UNIT}
-            </span>
-          </p>
-          <dl className="relative mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border-subtle bg-border-subtle">
-            <div className="bg-surface px-3 py-2.5">
-              <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                Your rank
-              </dt>
-              <dd className="mt-0.5 font-mono text-lg font-bold tabular-nums text-signal">
-                #{record.rank}
-              </dd>
-            </div>
-            <div className="bg-surface px-3 py-2.5">
-              <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                Climbers
-              </dt>
-              <dd className="mt-0.5 font-mono text-lg font-bold tabular-nums text-text-secondary">
-                {record.totalClimbers}
-              </dd>
-            </div>
-          </dl>
-        </>
-      ) : (
-        <p className="relative mt-3 text-sm leading-relaxed text-text-secondary">
-          {viewer.status === "loading"
-            ? "Checking your standing…"
-            : viewer.status === "anonymous" ? (
-                <>
-                  <Link
-                    href={`${SIGNIN_HREF}?redirect=%2Fclimb`}
-                    className="text-signal underline underline-offset-4"
-                  >
-                    Sign in
-                  </Link>{" "}
-                  to record your height and take a rank.
-                </>
-              )
-            : viewer.status === "none"
-              ? "No recorded climb yet. Your best height becomes your rank."
-              : "Your standing couldn’t be loaded right now."}
-        </p>
-      )}
-
-      <div className="relative mt-6">
-        <PlayTheClimbCta fullWidth />
-      </div>
-    </section>
+    <StandingPanel
+      label="Your best climb"
+      signedIn={signedIn}
+      pending={viewer.status === "loading" && viewer.signedIn === true}
+      unit={ALTITUDE_UNIT}
+      stats={CLIMB_STATS}
+      record={
+        record
+          ? { value: record.peakY.toFixed(0), stats: [`#${record.rank}`, record.totalClimbers] }
+          : null
+      }
+      message={
+        viewer.status === "loading" ? (
+          "Checking your standing…"
+        ) : viewer.status === "anonymous" ? (
+          <>
+            <Link
+              href={`${SIGNIN_HREF}?redirect=%2Fclimb`}
+              className="text-signal underline underline-offset-4"
+            >
+              Sign in
+            </Link>{" "}
+            to record your height and take a rank.
+          </>
+        ) : viewer.status === "none" ? (
+          "No recorded climb yet. Your best height becomes your rank."
+        ) : (
+          "Your standing couldn’t be loaded right now."
+        )
+      }
+      cta={<BoardCta href="/play">Play the climb</BoardCta>}
+    />
   );
 }
 

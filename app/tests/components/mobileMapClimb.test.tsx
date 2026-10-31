@@ -239,6 +239,7 @@ describe("climb on the map", () => {
         peakFt: s.ticket.goalFt,
         replayToken: null,
         outOfTime: false,
+        spiked: false,
       });
     }
   }

@@ -93,7 +93,7 @@ export function PayoutPage() {
 
   return (
     <div className="grain topo relative min-h-screen bg-void flex flex-col">
-      <div className="shrink-0"><Navbar contextLabel="Payouts" /></div>
+      <div className="sticky top-0 z-30 shrink-0"><Navbar contextLabel="Payouts" /></div>
       <main id="main-content" className="relative flex flex-1 flex-col">
 
         <div className="mx-auto w-full max-w-2xl px-4 py-8">

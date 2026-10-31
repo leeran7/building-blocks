@@ -59,7 +59,7 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
         "button",
         {
           onClick: () =>
-            props.onEnd({ level: props.level, finished: true, finishedTick: 30, raceTicks: 30, peakFt: props.goalFt, replayToken: null, outOfTime: false }),
+            props.onEnd({ level: props.level, finished: true, finishedTick: 30, raceTicks: 30, peakFt: props.goalFt, replayToken: null, outOfTime: false, spiked: false }),
         },
         "stub-clear",
       ),
@@ -151,6 +151,7 @@ async function clearGuestLevels(upTo: number) {
       peakFt: s.ticket.goalFt,
       replayToken: null,
       outOfTime: false,
+      spiked: false,
     });
   }
 }

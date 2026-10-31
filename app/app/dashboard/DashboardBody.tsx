@@ -131,9 +131,11 @@ export function DashboardBody({ initialData }: Props) {
       <Navbar contextLabel="Dashboard" />
       <main id="main-content" className="flex flex-1 flex-col">
 
-        {/* Tab band */}
+        {/* Tab band — max-w-5xl like every stack page's band, so the pills
+            don't jump sideways when you leave for /climb, /play or /duel. The
+            content keeps its narrower column, left-aligned under them. */}
         <div className="border-b border-border-subtle shrink-0">
-          <div className="max-w-2xl mx-auto w-full px-4 py-2 flex items-center justify-between gap-4">
+          <div className="max-w-5xl mx-auto w-full px-4 py-2 flex items-center justify-between gap-4">
             <div
               className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
               role="tablist"
@@ -154,7 +156,7 @@ export function DashboardBody({ initialData }: Props) {
         {/* Always-visible secondary entry point — narrow viewports don't get
             the Navbar's "1v1" link (hidden below `sm`), so this closes that
             discoverability gap without competing with "Start a duel" above. */}
-        <div className="max-w-2xl mx-auto w-full px-4 pt-3">
+        <div className="max-w-5xl mx-auto w-full px-4 pt-3">
           <Link
             href="/duel?mode=challenge"
             className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em] text-text-secondary hover:text-signal transition-colors"
@@ -164,7 +166,7 @@ export function DashboardBody({ initialData }: Props) {
         </div>
 
         {/* Content */}
-        <div className="max-w-2xl mx-auto w-full px-4 py-6 flex flex-col gap-5">
+        <div className="max-w-5xl mx-auto w-full px-4 py-6 flex flex-col gap-5 *:w-full *:max-w-2xl">
           {fetchState.status === "loading" && (
             <>
               <SkeletonCard />

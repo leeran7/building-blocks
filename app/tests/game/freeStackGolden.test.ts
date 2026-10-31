@@ -9,7 +9,7 @@
  * DAILY_SIM_VERSION is not bumped for level-only features.
  *
  * So this file fingerprints the real outputs, not the source:
- *   - tower geometry past the floor-50 ramp cap (heights, platforms,
+ *   - tower geometry past the floor-30 ramp cap (heights, platforms, spikes,
  *     ladders, crates, orbs) on the free tower and a category tower;
  *   - a greedy-bot solo run through stepMatch, tick by tick, on a run that
  *     collects random orbs (the RNG path a re-sim must reproduce);
@@ -32,6 +32,7 @@ import {
 } from "../../src/game/simulation";
 import { applyRunSeed, buildTower, floorHeight, laddersForFloor, platformsForFloor } from "../../src/game/towers";
 import { obstaclesForFloor } from "../../src/game/obstacles";
+import { spikesForFloor } from "../../src/game/spikes";
 import { powerUpForFloor } from "../../src/game/powerups";
 import { buildFreeTower } from "../../src/game/freeStack";
 import { decodeRunReplay, encodeRunReplay } from "../../src/game/runReplay";
@@ -43,32 +44,34 @@ import { botInput } from "./greedyBot";
 
 vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 
-// ── Pinned values (DAILY_SIM_VERSION 4: the free stack's hanging ladders and
-// short tops, ENDLESS_LADDERS; category towers and duels unchanged since 3) ──
-const PIN_FREE_GEOMETRY = "3d83d67129408b3d233a4b6856ee5075decf8df638386b23f36a292c45830ada";
-const PIN_CATEGORY_GEOMETRY = "7247ce3db432cf7d57e48b86b3a786dfb9912ddc93326980f35a98cbf214679d";
-const PIN_SOLO_OUTCOME = { peakY: 628.041049955388, finishedTick: 3461, ticks: 3461 };
-const PIN_SOLO_TRACE = "0d4278d76b40e3997d51f73a91d688e189a8aec9e52d6871c17c29019fa4ba3f";
+// ── Pinned values (DAILY_SIM_VERSION 5: the faster tune of 2026-10-29,
+// GAME_SPEED 1.3, 2 s lava grace, 90 s ramp, 30-floor layout ramp, 2 s
+// countdown, and floor spikes on the free stack; category towers and duels
+// move with the speed, grace and countdown) ──
+const PIN_FREE_GEOMETRY = "eb1a402d814e9c6ad49d4825a139b3d0456857085ab85ce384441799ffe2cf38";
+const PIN_CATEGORY_GEOMETRY = "d75d91f74d90faf735db06518023cda0ca74925c34bc89df3370e107113fa42b";
+const PIN_SOLO_OUTCOME = { peakY: 654.8899436745048, finishedTick: 2663, ticks: 2663 };
+const PIN_SOLO_TRACE = "35cb4c45d304c10832811bbae03f01598121d67074735ceb732cf7fa346ead50";
 const PIN_DAILY = {
   ok: true,
-  peakY: 518.0241972076892,
-  ticks: 3195,
-  inputHash: "3e72b08e0069efe12c1ec638d040a21c5787d2ac3c6cbe4114a9ddc105b70928",
+  peakY: 608.9366555713902,
+  ticks: 2743,
+  inputHash: "c56861126b59ac5d662634d7f7b461ca680ddc780a6b157fc80953da746ab085",
 };
-const PIN_DAILY_TRACE = "7545301e8891c4e0f43c487e5b9e529c45ffadc0123da1b88daeec620a4ac3df";
-const PIN_DUEL_TRACE = "03fc9d07a9d1d54a88df3a43f1381bc1bdee00e6fed42fe6edb6269baabd2f9b";
+const PIN_DAILY_TRACE = "928f9e5e2bb6c0c4593c8e114ff2ab993ccca4acd6334331c314a6a6fac6e907";
+const PIN_DUEL_TRACE = "edcfa9b7d721effb191061007e01d2f2022fd439d4b0d3e959aba8e5a7f89a15";
 const PIN_DUEL_RESULT = {
   winnerId: "p1",
-  player1Peak: 514.1702797510227,
-  player2Peak: 484.23065941979496,
+  player1Peak: 537.7791268002987,
+  player2Peak: 537.7791268002987,
   player1CheatFlagged: false,
   player2CheatFlagged: false,
   tiebreakRule: null,
-  finishedTick: 2828,
-  totalTicks: 2828,
+  finishedTick: 2604,
+  totalTicks: 2604,
 };
 
-/** Past DIFFICULTY_FLOORS (50), so the held late-game values are pinned too. */
+/** Past DIFFICULTY_FLOORS (30), so the held late-game values are pinned too. */
 const FLOORS = 120;
 const MAX_BOT_TICKS = 20_000;
 /** randomOrb.test.ts: this run collects random orbs (ticks ~734 and ~1237). */
@@ -90,6 +93,7 @@ function geometry(tower: TowerSpec) {
       platforms: platformsForFloor(tower, i),
       ladders: laddersForFloor(tower, i),
       obstacles: obstaclesForFloor(tower, i),
+      spikes: spikesForFloor(tower, i),
       orb: powerUpForFloor(tower, i),
     });
   }
@@ -178,6 +182,11 @@ describe("golden: stepMatch", () => {
     });
     expect(run.randomPicks).toBeGreaterThan(0);
     const peakY = run.live.players[0].peakY;
+    // Fixture guard: the run climbs past spike rows, so the trace covers them.
+    const tower = applyRunSeed(buildFreeTower(), seed);
+    let spikeRows = 0;
+    for (let i = 0; floorHeight(tower, i) < peakY; i++) spikeRows += spikesForFloor(tower, i).length;
+    expect(spikeRows).toBeGreaterThan(0);
     const token = await encodeRunReplay({ seed, peakY, inputs: run.log.map((t) => t.you) });
     const replay = await decodeRunReplay(token as string);
     expect(replay).not.toBeNull();
