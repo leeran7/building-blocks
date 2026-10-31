@@ -1,23 +1,31 @@
 /**
- * Phones: the navbar's mode links (1v1, Daily, Endless) are hidden below sm,
- * and a signed-out visitor had no other way to reach them (Leeran,
- * 2026-10-31: "Unauthenticated mobile navigation is broken"). NavModesMenu
- * puts them behind one labelled button for every visitor.
+ * Phones: the navbar hides its mode links (1v1, Daily, Endless) below sm, and
+ * the game pages are fullscreen there, covering the Leaderboard | Play band.
+ * Leeran (2026-10-31): "Unauthenticated mobile navigation is broken", "How do
+ * I even get to the leaderboard page on mobile?", "Add a dropdown menu
+ * similar to the authed dropdown for mobile", "Authenticated menu should also
+ * house the same links".
  *
- * Mounts the real Navbar, signed out, and drives the menu.
+ * Mounts the real Navbar, signed out and signed in, and drives its dropdown:
+ * both menus list each mode's Play and Leaderboard, phone-only.
  *
  * @vitest-environment happy-dom
  */
 
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: null, token: null, loading: false, signOut: async () => undefined }),
+const auth = vi.hoisted(() => ({
+  user: null as { uid: string; displayName: string } | null,
+  token: null as string | null,
 }));
+vi.mock("../../src/contexts/AuthContext", () => ({
+  useAuth: () => ({ ...auth, loading: false, signOut: async () => undefined }),
+}));
+const routerMock = { push: vi.fn(), replace: vi.fn() };
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => routerMock,
   usePathname: () => "/",
 }));
 
@@ -35,62 +43,92 @@ function mount(contextLabel?: string) {
   act(() => root.render(createElement(Navbar, { contextLabel })));
 }
 
+beforeEach(() => {
+  auth.user = null;
+  auth.token = null;
+  // The account menu and bell fetch on mount; leave those pending.
+  vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+});
+
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
+  vi.unstubAllGlobals();
 });
 
-const trigger = () => host.querySelector<HTMLButtonElement>('button[aria-label^="Game modes"]')!;
-const menu = () => host.querySelector('nav[aria-label="Game modes"]');
+const guestTrigger = () => host.querySelector<HTMLButtonElement>('button[aria-label="Menu"]');
+const accountTrigger = () => host.querySelector<HTMLButtonElement>('button[aria-label="Account menu"]');
+const modes = () => host.querySelector('[role="group"][aria-label="Game modes"]');
+const modeLinks = () =>
+  [...(modes()?.querySelectorAll("a") ?? [])].map((a) => [a.textContent, a.getAttribute("href")]);
 
-describe("phone modes menu, signed out", () => {
-  it("is in the navbar for a signed-out visitor, phone-only, and names the current mode", () => {
+const EVERY_MODE = [
+  ["1v1", "/duel"],
+  ["Leaderboard", "/duel/leaderboard"],
+  ["Daily", "/daily"],
+  ["Leaderboard", "/daily/leaderboard"],
+  ["Endless", "/play"],
+  ["Leaderboard", "/climb"],
+];
+
+describe("signed-out phone menu", () => {
+  it("is a phone-only dropdown with each mode's Play and Leaderboard, then Sign in and Get started", () => {
+    mount("Endless");
+    const trigger = guestTrigger()!;
+    expect(trigger.closest(".sm\\:hidden")).not.toBeNull();
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+
+    act(() => trigger.click());
+    expect(modeLinks()).toEqual(EVERY_MODE);
+    const current = [...modes()!.querySelectorAll("a")].map((a) => a.getAttribute("aria-current"));
+    expect(current).toEqual([null, null, null, null, "true", null]);
+
+    const menu = host.querySelector('nav[aria-label="Menu"]')!;
+    expect([...menu.querySelectorAll("a")].slice(-2).map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["Sign in", "/auth/signin"],
+      ["Get started", "/auth/signup"],
+    ]);
+  });
+
+  it("closes on a pick, on Escape and on a press outside, not on a press inside", () => {
     mount("Daily Climb");
-    expect(host.textContent).toContain("Sign in");
-    const btn = trigger();
-    expect(btn).not.toBeNull();
-    expect(btn.closest(".sm\\:hidden")).not.toBeNull();
-    expect(btn.textContent).toContain("Daily");
-    expect(btn.getAttribute("aria-expanded")).toBe("false");
-  });
+    act(() => guestTrigger()!.click());
+    const board = [...modes()!.querySelectorAll("a")].find((a) => a.getAttribute("href") === "/daily/leaderboard")!;
+    act(() => board.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })));
+    expect(modes()).toBeNull();
 
-  it("says Modes off the mode pages", () => {
-    mount("Rules");
-    expect(trigger().textContent).toContain("Modes");
-  });
-
-  it("opens to all three modes, marking the current one, and closes on a pick", () => {
-    mount("Endless");
-    act(() => trigger().click());
-    const links = [...menu()!.querySelectorAll("a")];
-    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/duel", "/daily", "/play"]);
-    expect(links.map((a) => a.getAttribute("aria-current"))).toEqual([null, null, "true"]);
-    expect(trigger().getAttribute("aria-expanded")).toBe("true");
-
-    act(() => links[1].dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })));
-    expect(menu()).toBeNull();
-  });
-
-  it("closes on Escape and on a press outside, but not on a press inside", () => {
-    mount("1v1");
-    act(() => trigger().click());
-    act(() => menu()!.dispatchEvent(new Event("pointerdown", { bubbles: true })));
-    expect(menu()).not.toBeNull();
+    act(() => guestTrigger()!.click());
+    act(() => modes()!.dispatchEvent(new Event("pointerdown", { bubbles: true })));
+    expect(modes()).not.toBeNull();
     act(() => document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })));
-    expect(menu()).toBeNull();
+    expect(modes()).toBeNull();
 
-    act(() => trigger().click());
+    act(() => guestTrigger()!.click());
     act(() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
-    expect(menu()).toBeNull();
-    expect(document.activeElement).toBe(trigger());
+    expect(modes()).toBeNull();
+    expect(document.activeElement).toBe(guestTrigger());
   });
 
-  it("keeps a sign-in link on narrow phones, where the two auth links merge into one", () => {
-    mount("Endless");
-    const signIns = [...host.querySelectorAll('a[href="/auth/signin"]')];
-    // One shown from 400px up, one under it: every width has exactly one.
-    expect(signIns.map((a) => /max-\[399px\]:hidden/.test(a.className))).toEqual([true, false]);
-    expect(signIns[1].className).toContain("min-[400px]:hidden");
-    expect(host.querySelector('a[href="/auth/signup"]')!.className).toContain("max-[399px]:hidden");
+  it("keeps the wide-screen Sign in link hidden on phones only, and Get started everywhere", () => {
+    mount();
+    const outside = [...host.querySelectorAll("a")].filter((a) => !a.closest('nav[aria-label="Menu"]'));
+    const signIn = outside.find((a) => a.getAttribute("href") === "/auth/signin")!;
+    const signUp = outside.find((a) => a.getAttribute("href") === "/auth/signup")!;
+    expect(signIn.className.split(/\s+/)).toContain("max-sm:hidden");
+    expect(signUp.className.split(/\s+/)).not.toContain("max-sm:hidden");
+  });
+});
+
+describe("signed-in account menu", () => {
+  it("houses the same mode rows, phone-only, and no guest menu", () => {
+    auth.user = { uid: "u1", displayName: "Lenny" };
+    auth.token = "tok";
+    mount("1v1");
+    expect(guestTrigger()).toBeNull();
+
+    act(() => accountTrigger()!.click());
+    expect(modeLinks()).toEqual(EVERY_MODE);
+    expect(modes()!.closest(".sm\\:hidden")).not.toBeNull();
+    expect(modes()!.querySelector('a[aria-current="true"]')?.textContent).toBe("1v1");
   });
 });

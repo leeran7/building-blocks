@@ -7,7 +7,9 @@
  *  - touch: the panel shows one row per dialog, with Today's countdown;
  *  - a row closes the panel and opens that dialog;
  *  - a page with no info dialogs (the app, the landing demo) gets no rows;
- *  - with a mouse the tab bar is visible, so no rows.
+ *  - with a mouse the tab bar is visible, so no rows;
+ *  - inside a real stack shell the panel also links the band's Leaderboard tab
+ *    (Leeran: "How do I even get to the leaderboard page on mobile?").
  *
  * @vitest-environment happy-dom
  */
@@ -21,6 +23,16 @@ vi.mock("../../src/hooks/useCoarsePointer", () => ({ useCoarsePointer: () => poi
 
 import { GameNotes } from "../../src/components/Game/GameNotes";
 import { GameSettingsButton } from "../../src/components/Game/GameSettings";
+import { FreeStackShell } from "../../src/components/FreeStackShell";
+import { DuelStackShell } from "../../src/components/Duel/DuelStackShell";
+
+vi.mock("../../src/contexts/AuthContext", () => ({
+  useAuth: () => ({ user: null, token: null, loading: false, signOut: async () => undefined }),
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/play",
+}));
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -106,5 +118,36 @@ describe("in-game ⚙ panel: info rows", () => {
     act(() => cog().click());
     expect(panel()).not.toBeNull();
     expect(rows()).toEqual([]);
+  });
+});
+
+describe("in-game ⚙ panel: the band's Leaderboard tab", () => {
+  const cogButton = () => createElement(GameSettingsButton, { muted: false, onToggleMute: () => {} });
+  const boardLinks = () =>
+    [...(panel()?.querySelectorAll("a") ?? [])].map((a) => [a.textContent?.replace("›", "").trim(), a.getAttribute("href")]);
+
+  it.each([
+    ["play", "/climb"],
+    ["daily", "/daily/leaderboard"],
+  ] as const)("links the Leaderboard from /%s on touch", (section, href) => {
+    act(() => root.render(createElement(FreeStackShell, { section, title: "t", children: cogButton() })));
+    act(() => cog().click());
+    expect(boardLinks()).toEqual([["Leaderboard", href]]);
+
+    act(() => panel()!.querySelector("a")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })));
+    expect(panel()).toBeNull();
+  });
+
+  it("links the 1v1 Leaderboard from /duel", () => {
+    act(() => root.render(createElement(DuelStackShell, { section: "play", children: cogButton() })));
+    act(() => cog().click());
+    expect(boardLinks()).toEqual([["Leaderboard", "/duel/leaderboard"]]);
+  });
+
+  it("does not link them with a mouse, where the band is visible", () => {
+    pointer.coarse = false;
+    act(() => root.render(createElement(FreeStackShell, { section: "play", title: "t", children: cogButton() })));
+    act(() => cog().click());
+    expect(boardLinks()).toEqual([]);
   });
 });

@@ -63,3 +63,19 @@ export function modeForContext(contextLabel: string | undefined): GameMode | nul
       return null;
   }
 }
+
+export interface GameModeLink {
+  mode: GameMode;
+  /** Where the mode is played. */
+  href: string;
+  /** The mode's leaderboard. */
+  board: string;
+  label: string;
+}
+
+/** The game modes, in navbar order. */
+export const GAME_MODES: readonly GameModeLink[] = [
+  { mode: "1v1", href: DUEL_HREF, board: DUEL_LEADERBOARD_HREF, label: "1v1" },
+  { mode: "daily", href: DAILY_HREF, board: DAILY_LEADERBOARD_HREF, label: "Daily" },
+  { mode: "endless", href: FREE_CLIMB_HREF, board: ENDLESS_LEADERBOARD_HREF, label: "Endless" },
+];

@@ -9,8 +9,7 @@
 import Link from "next/link";
 import { Wordmark } from "./Brand/Wordmark";
 import { NavbarAuth } from "./NavbarAuth";
-import { NavModesMenu, type NavMode } from "./NavModesMenu";
-import { FREE_CLIMB_HREF, DUEL_HREF, DAILY_HREF, modeForContext } from "./navLinks";
+import { GAME_MODES, modeForContext } from "./navLinks";
 
 interface NavbarProps {
   /** Optional breadcrumb shown after the wordmark (e.g. "Dashboard", "Tech stack"). */
@@ -31,13 +30,6 @@ const GHOST =
 const MODE_IDLE = "text-text-muted hover:text-text-primary";
 const MODE_ACTIVE = "text-signal underline decoration-2 underline-offset-8";
 
-/** The mode links, in navbar order. */
-const MODES: readonly NavMode[] = [
-  { mode: "1v1", href: DUEL_HREF, label: "1v1" },
-  { mode: "daily", href: DAILY_HREF, label: "Daily" },
-  { mode: "endless", href: FREE_CLIMB_HREF, label: "Endless" },
-];
-
 export function Navbar({ contextLabel, contextDot }: NavbarProps) {
   // The page's own mode is marked (signal text + underline), so the navbar
   // says which mode you are in and the stack band under it only has to say
@@ -56,9 +48,6 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
             className="h-6 sm:h-8 w-auto group-hover:scale-105 transition-transform"
           />
         </Link>
-        {/* Phones: the mode links below are hidden, so they live behind one
-            labelled button here, for signed-in and signed-out visitors alike. */}
-        <NavModesMenu modes={MODES} active={active} />
         {contextLabel && (
           // Hidden on phones, where it could only show a few letters beside the
           // auth buttons; each page's own heading says where you are. From sm
@@ -81,7 +70,7 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
-        {MODES.map(({ mode, href, label }) => (
+        {GAME_MODES.map(({ mode, href, label }) => (
           <Link
             key={mode}
             href={href}
@@ -91,7 +80,9 @@ export function Navbar({ contextLabel, contextDot }: NavbarProps) {
             {label}
           </Link>
         ))}
-        <NavbarAuth />
+        {/* Phones: the links above are hidden; the dropdown in NavbarAuth (the
+            account menu, or the guest menu when signed out) lists the modes. */}
+        <NavbarAuth activeMode={active} />
       </div>
     </nav>
   );

@@ -14,14 +14,15 @@ import { useAuth } from "../contexts/AuthContext";
 import { AccountMenu } from "./AccountMenu";
 import { NotificationBell } from "./Notifications/NotificationBell";
 import { hasTokenCookie } from "../lib/authCookie";
-import { SIGNIN_HREF, SIGNUP_HREF } from "./navLinks";
+import { SIGNIN_HREF, SIGNUP_HREF, type GameMode } from "./navLinks";
+import { GuestMenu } from "./NavModesMenu";
 
 const PILL =
   "inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 sm:px-4 min-h-[44px] min-w-[44px] text-sm font-semibold tracking-tight transition-[filter,transform,scale] hover:brightness-110 active:scale-[0.98] focus-visible:outline-hidden";
 const GHOST =
   "inline-flex items-center justify-center whitespace-nowrap px-2 sm:px-3 min-h-[44px] min-w-[44px] font-mono text-xs uppercase tracking-[0.14em] text-text-muted hover:text-text-primary transition-colors";
 
-export function NavbarAuth() {
+export function NavbarAuth({ activeMode = null }: { activeMode?: GameMode | null }) {
   const { user, loading } = useAuth();
   // `document.cookie` doesn't exist during the server render (or the
   // client's hydration pass, which must match it), so this starts false —
@@ -51,25 +52,23 @@ export function NavbarAuth() {
     return (
       <div className="flex items-center gap-1">
         <NotificationBell />
-        <AccountMenu />
+        <AccountMenu activeMode={activeMode} />
       </div>
     );
   }
 
-  // Under 400px the row also holds the phone modes menu (NavModesMenu), so
-  // the two auth links become one "Sign in" pill; the sign-in page links to
-  // sign-up for a new player.
+  // Phones: one dropdown like the signed-in account menu (GuestMenu: the
+  // modes with their leaderboards, Sign in, Get started) beside the Get
+  // started pill. From sm up: the two auth links, as before.
   return (
     <>
-      <Link href={SIGNIN_HREF} className={`${GHOST} max-[399px]:hidden`}>
+      <Link href={SIGNIN_HREF} className={`${GHOST} max-sm:hidden`}>
         Sign in
       </Link>
-      <Link href={SIGNUP_HREF} className={`${PILL} bg-signal text-void max-[399px]:hidden`}>
+      <Link href={SIGNUP_HREF} className={`${PILL} bg-signal text-void`}>
         Get started
       </Link>
-      <Link href={SIGNIN_HREF} className={`${PILL} bg-signal text-void min-[400px]:hidden`}>
-        Sign in
-      </Link>
+      <GuestMenu activeMode={activeMode} />
     </>
   );
 }

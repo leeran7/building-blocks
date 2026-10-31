@@ -3,8 +3,9 @@
 /**
  * AccountMenu — signed-in account dropdown for the navbar.
  *
- * Groups Dashboard · Creator page · Settings · Sign out. On a phone the game
- * modes are in the navbar's own modes menu (NavModesMenu), for every visitor. Fetches the user's public
+ * Groups Dashboard · Creator page · Settings · Sign out, plus on a phone,
+ * where the navbar hides them, the game modes with their leaderboards
+ * (ModeRows, shared with the signed-out GuestMenu). Fetches the user's public
  * username so "Creator page" deep-links to /c/[username] — shown only once a
  * username is claimed. When paid features are on, also shows the chip
  * balance and a daily-chip-claim button. Keyboard + click-outside dismissible.
@@ -14,7 +15,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
-import { DASHBOARD_HREF, SETTINGS_HREF } from "./navLinks";
+import { DASHBOARD_HREF, SETTINGS_HREF, type GameMode } from "./navLinks";
+import { ModeRows } from "./NavModesMenu";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../config/paidDuel";
 import { useClaimDailyChips, dailyClaimVisibility } from "../hooks/useClaimDailyChips";
 import { useWalletBalance } from "../hooks/useWalletBalance";
@@ -29,7 +31,7 @@ function initials(name: string): string {
   return (chars || name[0] || "?").toUpperCase();
 }
 
-export function AccountMenu() {
+export function AccountMenu({ activeMode = null }: { activeMode?: GameMode | null }) {
   const { user, token, signOut } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -119,7 +121,7 @@ export function AccountMenu() {
           id={menuId}
           aria-label="Account"
           data-entrance="live"
-          className="reveal absolute right-0 mt-2 w-56 rounded-xl border border-border-strong bg-surface-raised shadow-lifted p-1.5"
+          className="reveal absolute right-0 mt-2 w-64 rounded-xl border border-border-strong bg-surface-raised shadow-lifted p-1.5"
         >
           {/* Chip balance — display-only, shown when paid features are on */}
           {PAID_DUELS_ENABLED_PUBLIC && walletPlayCents !== null && (
@@ -163,6 +165,12 @@ export function AccountMenu() {
           <Link href={SETTINGS_HREF} className={ITEM} onClick={() => setOpen(false)}>
             Settings
           </Link>
+
+          {/* Mobile-only: the navbar hides the mode links below sm. */}
+          <div className="sm:hidden">
+            <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
+            <ModeRows active={activeMode} onPick={() => setOpen(false)} />
+          </div>
 
           <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
           <button
