@@ -20,6 +20,7 @@ import {
   useClimb,
 } from "../../game/useClimb";
 import { TowerSpec } from "../../game/types";
+import { countdownNumeral } from "../../game/simulation";
 import { ClimbCanvas } from "./ClimbCanvas";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { ExpeditionHud } from "./ExpeditionHud";
@@ -540,7 +541,7 @@ export function ClimbScene({
               [ get ready ]
             </p>
             <p className="font-display text-7xl text-text-primary mt-3 tabular-nums">
-              {Math.max(1, 3 - Math.floor(state.tick / 30))}
+              {countdownNumeral(state.tick)}
             </p>
           </Overlay>
         )}

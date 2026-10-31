@@ -8,6 +8,7 @@ import { useGameHaptics } from "../lib/useGameHaptics";
 
 import { useRace, RaceParticipant } from "@app/game/useRace";
 import { useClimb } from "@app/game/useClimb";
+import { countdownNumeral, countdownNumeralAtMs } from "@app/game/simulation";
 import { ClimbCanvas } from "@app/components/Game/ClimbCanvas";
 import { ExpeditionHud, type DuelHudInfo } from "@app/components/Game/ExpeditionHud";
 import {
@@ -27,8 +28,6 @@ import { Button, PushHeader } from "../components/ui";
 
 /** Wall-clock buffer before countdown numerals begin (ms). */
 const COUNTDOWN_BUFFER_MS = 500;
-/** Wall-clock countdown duration (ms). */
-const COUNTDOWN_DURATION_MS = 3000;
 /** Both present, no ready for this long → "Ready up!" nudge. */
 const READY_NUDGE_MS = 60_000;
 /** AFK in lobby this long → auto-forfeit. */
@@ -724,8 +723,7 @@ function DuelGame({
     if (countdownStartsAt === 0) return;
     const update = () => {
       const elapsed = Date.now() - countdownStartsAt;
-      const remaining = Math.max(0, Math.ceil((COUNTDOWN_DURATION_MS - elapsed) / 1000));
-      setWallClockCountdown(remaining);
+      setWallClockCountdown(countdownNumeralAtMs(elapsed));
     };
     update();
     const timer = setInterval(update, 50);
@@ -816,7 +814,7 @@ function DuelGame({
 
   const countdownNum = countdownStartsAt > 0
     ? wallClockCountdown
-    : Math.max(1, 3 - Math.floor(state.tick / 30));
+    : countdownNumeral(state.tick);
 
   // Finished: show result inline
   if (finished && duelResult) {
