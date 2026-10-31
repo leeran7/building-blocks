@@ -56,13 +56,19 @@ export function NavbarAuth() {
     );
   }
 
+  // Under 400px the row also holds the phone modes menu (NavModesMenu), so
+  // the two auth links become one "Sign in" pill; the sign-in page links to
+  // sign-up for a new player.
   return (
     <>
-      <Link href={SIGNIN_HREF} className={GHOST}>
+      <Link href={SIGNIN_HREF} className={`${GHOST} max-[399px]:hidden`}>
         Sign in
       </Link>
-      <Link href={SIGNUP_HREF} className={`${PILL} bg-signal text-void`}>
+      <Link href={SIGNUP_HREF} className={`${PILL} bg-signal text-void max-[399px]:hidden`}>
         Get started
+      </Link>
+      <Link href={SIGNIN_HREF} className={`${PILL} bg-signal text-void min-[400px]:hidden`}>
+        Sign in
       </Link>
     </>
   );

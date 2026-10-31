@@ -3,8 +3,8 @@
 /**
  * AccountMenu — signed-in account dropdown for the navbar.
  *
- * Groups Dashboard · Creator page · Settings · Sign out (plus Browse / Free
- * climb on mobile, where the navbar hides them). Fetches the user's public
+ * Groups Dashboard · Creator page · Settings · Sign out. On a phone the game
+ * modes are in the navbar's own modes menu (NavModesMenu), for every visitor. Fetches the user's public
  * username so "Creator page" deep-links to /c/[username] — shown only once a
  * username is claimed. When paid features are on, also shows the chip
  * balance and a daily-chip-claim button. Keyboard + click-outside dismissible.
@@ -14,7 +14,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
-import { FREE_CLIMB_HREF, DUEL_HREF, DASHBOARD_HREF, SETTINGS_HREF } from "./navLinks";
+import { DASHBOARD_HREF, SETTINGS_HREF } from "./navLinks";
 import { PAID_DUELS_ENABLED_PUBLIC } from "../config/paidDuel";
 import { useClaimDailyChips, dailyClaimVisibility } from "../hooks/useClaimDailyChips";
 import { useWalletBalance } from "../hooks/useWalletBalance";
@@ -163,17 +163,6 @@ export function AccountMenu() {
           <Link href={SETTINGS_HREF} className={ITEM} onClick={() => setOpen(false)}>
             Settings
           </Link>
-
-          {/* Mobile-only: the navbar hides these below sm. */}
-          <div className="sm:hidden">
-            <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
-            <Link href={DUEL_HREF} className={ITEM} onClick={() => setOpen(false)}>
-              1v1
-            </Link>
-            <Link href={FREE_CLIMB_HREF} className={ITEM} onClick={() => setOpen(false)}>
-              Endless
-            </Link>
-          </div>
 
           <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
           <button
