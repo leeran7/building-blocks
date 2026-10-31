@@ -9,7 +9,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { ClimbPlayClient } from "../../src/components/Game/ClimbPlayClient";
-import { Chevron } from "../../src/components/Chevron";
+import { GameNotes } from "../../src/components/Game/GameNotes";
 import { buildMetadata } from "../../src/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
@@ -42,12 +42,8 @@ export default async function FreePlayPage({
  */
 function PlayIntro() {
   return (
-    <details className="group mx-auto mt-4 max-w-2xl rounded-xl border border-border-subtle bg-surface px-5 py-4 open:border-signal/40">
-      <summary className="flex items-center gap-3 cursor-pointer list-none min-h-[44px] text-sm font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
-        <span className="flex-1">About this game</span>
-        <Chevron />
-      </summary>
-      <p className="mt-3 text-sm leading-relaxed text-text-secondary">
+    <GameNotes aboutTitle="About this game">
+      <p className="text-sm leading-relaxed text-text-secondary">
         This is Endless, Doomstack&rsquo;s solo mode — an endless, procedurally generated tower of
         ladders, platforms, and rising lava. Climb as high as you can before the lava catches
         you; there&rsquo;s no timer beyond that. Use the on-screen controls on touch devices or
@@ -64,6 +60,6 @@ function PlayIntro() {
         same rising lava, one winner. See{" "}
         <Link href="/rules" className="text-signal underline underline-offset-2 hover:decoration-2">the rules</Link> for details.
       </p>
-    </details>
+    </GameNotes>
   );
 }

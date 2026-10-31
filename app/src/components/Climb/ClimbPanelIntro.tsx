@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 import { ClimbControlsGuide } from "../Game/ClimbControlsGuide";
-import { Chevron } from "../Chevron";
+import { Disclosure } from "../ui/Disclosure";
 import { BoardIntro } from "../Leaderboard/BoardChrome";
 
 export function ClimbPanelIntro({ title }: { title: string }) {
@@ -28,12 +28,8 @@ export function ClimbPanelIntro({ title }: { title: string }) {
  */
 export function ClimbAbout() {
   return (
-    <details className="group mt-6 rounded-xl border border-border-subtle bg-surface px-5 py-4 open:border-signal/40">
-      <summary className="flex items-center gap-3 cursor-pointer list-none min-h-[44px] text-sm font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
-        <span className="flex-1">About Endless</span>
-        <Chevron />
-      </summary>
-      <p className="mt-3 text-sm leading-relaxed text-text-secondary">
+    <Disclosure title="About Endless" className="mt-6">
+      <p className="text-sm leading-relaxed text-text-secondary">
         Endless is Doomstack&rsquo;s skill-based mode: one global leaderboard, no payment
         required. Climb an endless procedurally generated stack — ladders, platforms, and rising
         lava — and try to reach the highest point before the lava catches you. Your best peak
@@ -49,6 +45,6 @@ export function ClimbAbout() {
       <div className="mt-4">
         <ClimbControlsGuide variant="compact" />
       </div>
-    </details>
+    </Disclosure>
   );
 }

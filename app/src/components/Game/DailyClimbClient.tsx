@@ -20,7 +20,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ClimbScene } from "./ClimbScene";
-import { ClimbControlsGuide } from "./ClimbControlsGuide";
 import { useCanvasSize } from "../../hooks/useCanvasSize";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { buildFreeTower } from "../../game/freeStack";
@@ -320,10 +319,6 @@ function DailyShell({
         {result ? <DailyResult result={result} /> : null}
 
         <StreakStrip streak={streak} week={week} justClimbed={result !== null} />
-      </div>
-
-      <div className="w-full max-w-lg">
-        <ClimbControlsGuide collapsible />
       </div>
     </div>
   );

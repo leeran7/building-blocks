@@ -14,6 +14,7 @@ import {
   type PowerUpSpec,
 } from "../../game/powerups";
 import { PowerUpTypeIcon } from "./PowerUpTypeIcon";
+import { Disclosure } from "../ui/Disclosure";
 
 type Variant = "card" | "compact" | "overlay" | "hint";
 
@@ -245,22 +246,7 @@ export function ClimbControlsGuide({
   );
 
   if (collapsible) {
-    return (
-      <details className="group rounded-2xl border border-border-subtle bg-surface/60">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-5 [&::-webkit-details-marker]:hidden">
-          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-signal">
-            Controls &amp; power-ups
-          </span>
-          <span
-            aria-hidden="true"
-            className="text-text-muted transition-transform group-open:rotate-180"
-          >
-            ▾
-          </span>
-        </summary>
-        <div className="px-5 pb-5">{body}</div>
-      </details>
-    );
+    return <Disclosure title="Controls &amp; power-ups">{body}</Disclosure>;
   }
 
   return (
