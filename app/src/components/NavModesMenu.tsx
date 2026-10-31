@@ -15,6 +15,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { GAME_MODES, SIGNIN_HREF, SIGNUP_HREF, type GameMode } from "./navLinks";
 
 // Colour is added per item, never two text-* utilities on one element (they
@@ -23,29 +24,46 @@ const ITEM_BASE =
   "flex items-center gap-2.5 rounded-lg px-3 min-h-[44px] text-sm hover:bg-elevated transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal";
 const ITEM_MUTED = `${ITEM_BASE} text-text-secondary hover:text-text-primary`;
 
+const ITEM_CURRENT = `${ITEM_BASE} font-semibold bg-signal/10 text-signal`;
+const ITEM_PLAIN = `${ITEM_BASE} font-semibold text-text-primary`;
+
 /**
  * The three modes to play, then one Leaderboard link. It opens the current
  * mode's board (Endless off the mode pages); every board carries the
  * Endless | Daily | 1v1 switch, so one link is enough (Leeran).
+ *
+ * Exactly one row is marked: the page you are on. On a board page that is
+ * the Leaderboard row, not the mode (Leeran: "Leaderboard should be
+ * highlighted. Not endless.").
  */
 export function ModeRows({ active, onPick }: { active: GameMode | null; onPick: () => void }) {
+  const pathname = usePathname();
   const board = (GAME_MODES.find((m) => m.mode === active) ?? GAME_MODES.find((m) => m.mode === "endless"))!.board;
+  const onBoard = GAME_MODES.some((m) => m.board === pathname);
   return (
     <div role="group" aria-label="Game modes">
       <GroupHeading>Play</GroupHeading>
-      {GAME_MODES.map(({ mode, href, label }) => (
-        <Link
-          key={mode}
-          href={href}
-          aria-current={mode === active ? "true" : undefined}
-          onClick={onPick}
-          className={`${ITEM_BASE} font-semibold ${mode === active ? "bg-signal/10 text-signal" : "text-text-primary"}`}
-        >
-          {label}
-        </Link>
-      ))}
+      {GAME_MODES.map(({ mode, href, label }) => {
+        const current = !onBoard && mode === active;
+        return (
+          <Link
+            key={mode}
+            href={href}
+            aria-current={current ? "true" : undefined}
+            onClick={onPick}
+            className={current ? ITEM_CURRENT : ITEM_PLAIN}
+          >
+            {label}
+          </Link>
+        );
+      })}
       <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
-      <Link href={board} onClick={onPick} className={`${ITEM_BASE} font-semibold text-text-primary`}>
+      <Link
+        href={board}
+        aria-current={onBoard ? "true" : undefined}
+        onClick={onPick}
+        className={onBoard ? ITEM_CURRENT : ITEM_PLAIN}
+      >
         Leaderboard
       </Link>
     </div>

@@ -24,9 +24,10 @@ vi.mock("../../src/contexts/AuthContext", () => ({
   useAuth: () => ({ ...auth, loading: false, signOut: async () => undefined }),
 }));
 const routerMock = { push: vi.fn(), replace: vi.fn() };
+const nav = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMock,
-  usePathname: () => "/",
+  usePathname: () => nav.pathname,
 }));
 
 import { Navbar } from "../../src/components/Navbar";
@@ -46,6 +47,7 @@ function mount(contextLabel?: string) {
 beforeEach(() => {
   auth.user = null;
   auth.token = null;
+  nav.pathname = "/";
   // The account menu and bell fetch on mount; leave those pending.
   vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
 });
@@ -120,6 +122,31 @@ describe("signed-out phone menu", () => {
     mount("Rules");
     act(() => guestTrigger()!.click());
     expect(modeLinks().at(-1)).toEqual(["Leaderboard", "/climb"]);
+  });
+
+  // Leeran (2026-10-31, on /duel/leaderboard with 1v1 marked): "The wrong
+  // page is highlighted. Leaderboard should be highlighted. Not endless."
+  it("marks the Leaderboard row, not the mode, on a board page", () => {
+    nav.pathname = "/duel/leaderboard";
+    mount("1v1");
+    act(() => guestTrigger()!.click());
+    const current = [...modes()!.querySelectorAll("a")].map((a) => a.getAttribute("aria-current"));
+    expect(current).toEqual([null, null, null, "true"]);
+    act(() => root.unmount());
+    host.remove();
+
+    nav.pathname = "/climb";
+    mount("Endless");
+    act(() => guestTrigger()!.click());
+    expect(modeLinks().at(-1)).toEqual(["Leaderboard", "/climb"]);
+    expect(modes()!.querySelector('a[aria-current="true"]')?.textContent).toBe("Leaderboard");
+    act(() => root.unmount());
+    host.remove();
+
+    nav.pathname = "/duel";
+    mount("1v1");
+    act(() => guestTrigger()!.click());
+    expect(modes()!.querySelector('a[aria-current="true"]')?.textContent).toBe("1v1");
   });
 
   it("keeps the wide-screen Sign in link hidden on phones only, and Get started everywhere", () => {
