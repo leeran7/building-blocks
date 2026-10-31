@@ -253,11 +253,15 @@ export function resolveObstacleMotion(
     rideStairRamps(band, p, prevX, prevY, LANDING_EPS, tower, marginM);
   }
 
-  // Hurdle: only the grounded walk is blocked. An airborne climber may clip
-  // the face on the way over; landing on the top still catches a short jump.
-  // Stair/pyramid: continuous ramp (no per-tread snap). Giant: strideSmall
-  // also walk-ups lone (non-stair) slab hurdles.
-  if (!p.onGround) return;
+  // Hurdle faces are solid in the air too: a jump that meets one with the
+  // feet a little under the top steps up onto it, a lower one stops at the
+  // face. Feet used to pass into the crate and drop inside it, which read as
+  // getting stuck in it. Stair/pyramid: continuous ramp (no per-tread snap).
+  // Giant: strideSmall also walk-ups lone (non-stair) slab hurdles.
+  if (!p.onGround) {
+    blockAirborneFaces(band, p, prevX, LANDING_EPS);
+    return;
+  }
 
   const faces = band.slice().sort((a, b) => a.y0 - b.y0);
   let stepped = false;
@@ -293,6 +297,37 @@ export function resolveObstacleMotion(
     else if (prevX >= o.x1) p.x = o.x1 + EPS;
     else p.x = prevX < (o.x0 + o.x1) / 2 ? o.x0 - EPS : o.x1 + EPS;
     p.vx = 0;
+  }
+}
+
+/**
+ * Feet a jump may be under a hurdle's top when they meet its face and still
+ * step up onto it (a short jump that clips the corner lands on top).
+ */
+export const LEDGE_STEP_M = 0.6;
+
+/** An airborne climber entering a lone hurdle from the side: step up or stop. */
+function blockAirborneFaces(
+  band: Obstacle[],
+  p: PlayerState,
+  prevX: number,
+  landingEps: number
+): void {
+  for (const o of band) {
+    if (p.x <= o.x0 || p.x >= o.x1) continue;
+    if (prevX > o.x0 && prevX < o.x1) continue;
+    if (p.y >= o.y1 - landingEps || p.y < o.y0 - EPS) continue;
+    if (isStairCrate(band, o)) continue;
+    if (o.y1 - p.y <= LEDGE_STEP_M) {
+      p.y = o.y1;
+      if (p.vy <= 0) {
+        p.vy = 0;
+        p.onGround = true;
+      }
+    } else {
+      p.x = prevX <= o.x0 ? o.x0 - EPS : o.x1 + EPS;
+      p.vx = 0;
+    }
   }
 }
 

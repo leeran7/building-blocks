@@ -44,23 +44,25 @@ import { botInput } from "./greedyBot";
 
 vi.stubEnv("DAILY_SEED_SECRET", TEST_DAILY_SEED_SECRET);
 
-// ── Pinned values (DAILY_SIM_VERSION 5: the faster tune of 2026-10-29,
+// ── Pinned values (DAILY_SIM_VERSION 6: the faster tune of 2026-10-29,
 // GAME_SPEED 1.3, 2 s lava grace, 90 s ramp, 30-floor layout ramp, and
 // floor spikes on the free stack; category towers and duels move with the
-// speed and grace. The countdown's length is not in these pins: the tick
-// resets at GO and nothing moves before it) ──
+// speed and grace. Version 6 (2026-10-31) adds the late/early jump grace,
+// hole walls and solid crate faces in the air; geometry pins are unchanged.
+// The countdown's length is not in these pins: the tick resets at GO and
+// nothing moves before it) ──
 const PIN_FREE_GEOMETRY = "eb1a402d814e9c6ad49d4825a139b3d0456857085ab85ce384441799ffe2cf38";
 const PIN_CATEGORY_GEOMETRY = "d75d91f74d90faf735db06518023cda0ca74925c34bc89df3370e107113fa42b";
-const PIN_SOLO_OUTCOME = { peakY: 654.8899436745048, finishedTick: 2663, ticks: 2663 };
-const PIN_SOLO_TRACE = "35cb4c45d304c10832811bbae03f01598121d67074735ceb732cf7fa346ead50";
+const PIN_SOLO_OUTCOME = { peakY: 654.8726103411715, finishedTick: 2663, ticks: 2663 };
+const PIN_SOLO_TRACE = "e740864435d75b5b2962afc9f2e47a1331cbf9df3207f679c54d16f3436cb63a";
 const PIN_DAILY = {
   ok: true,
   peakY: 608.9366555713902,
-  ticks: 2743,
-  inputHash: "c56861126b59ac5d662634d7f7b461ca680ddc780a6b157fc80953da746ab085",
+  ticks: 2747,
+  inputHash: "6bd15c31f22a5406cd69ffe949616d60b454e924dffd5ac3fa7984dfd3fe6ada",
 };
-const PIN_DAILY_TRACE = "928f9e5e2bb6c0c4593c8e114ff2ab993ccca4acd6334331c314a6a6fac6e907";
-const PIN_DUEL_TRACE = "edcfa9b7d721effb191061007e01d2f2022fd439d4b0d3e959aba8e5a7f89a15";
+const PIN_DAILY_TRACE = "502a7eb6cec9be4d889f222b6c1a411b4415215f0601db21c8acfb777061499e";
+const PIN_DUEL_TRACE = "bc0870340840795350e887f272debd699935951e64646db5ba287ab42a851967";
 const PIN_DUEL_RESULT = {
   winnerId: "p1",
   player1Peak: 537.7791268002987,

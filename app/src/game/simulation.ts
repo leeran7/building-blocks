@@ -49,6 +49,7 @@ import {
   floorIndexAt,
   floorHeight,
   buildTower,
+  platformsForFloor,
   LADDER_JUMP_SPEED_FRAC,
   ladderHangM,
   ladderHangs,
@@ -81,6 +82,7 @@ import {
 } from "./powerups";
 import { isOnObstacle, resolveObstacleMotion } from "./obstacles";
 import { touchesSpikes } from "./spikes";
+import { JUMP_BUFFER_TICKS, inCoyoteWindow } from "./jumpGrace";
 import {
   isHeightDeltaLegal,
   legalClimbSpeedMult,
@@ -94,6 +96,17 @@ const EPS = 0.025; // Increased from 0.01 to prevent ground fall-through due to 
 
 /** Floors of power-ups kept materialized above the highest climber. */
 const POWER_UP_LOOKAHEAD_FLOORS = 6;
+
+export { COYOTE_TICKS, JUMP_BUFFER_TICKS } from "./jumpGrace";
+
+/**
+ * A hole's edges are walls for a falling climber whose feet are within this
+ * many metres under the floor: they fall down the hole instead of drifting
+ * sideways under the slab, which drew the climber through the floor.
+ */
+export const HOLE_WALL_DEPTH_M = 6;
+/** Feet stay this far inside a hole's edge while it walls them in. */
+export const HOLE_WALL_INSET_M = 0.5;
 
 export interface SimConfig {
   hazard: HazardConfig;
@@ -128,6 +141,8 @@ export function spawnPlayer(id: PlayerId, slot: number): PlayerState {
     lastPickupTick: null,
     lastPickupType: null,
     jumpHeldPrev: false,
+    groundedTick: null,
+    jumpPressTick: null,
     jetpackThrusting: false,
     grabSuppressedUntilRelease: null,
   };
@@ -264,6 +279,31 @@ function isSupported(tower: TowerSpec, x: number, y: number, marginM = 0): boole
   return false;
 }
 
+/**
+ * Wall a falling climber into the hole they are dropping through: while the
+ * feet are within HOLE_WALL_DEPTH_M under a floor and were inside one of its
+ * holes last tick, they may not slide in under either slab. Never pushes the
+ * feet outward from where they were, so it cannot teleport anyone.
+ */
+function keepInHole(tower: TowerSpec, p: PlayerState, prevX: number): void {
+  const f = floorIndexAt(tower, p.y + HOLE_WALL_DEPTH_M);
+  const surface = floorHeight(tower, f);
+  if (!(surface > p.y && surface - p.y <= HOLE_WALL_DEPTH_M)) return;
+  const pieces = platformsForFloor(tower, f);
+  for (let k = 0; k + 1 < pieces.length; k++) {
+    const g0 = pieces[k]!.x1;
+    const g1 = pieces[k + 1]!.x0;
+    if (prevX <= g0 || prevX >= g1) continue;
+    const lo = Math.min(prevX, g0 + HOLE_WALL_INSET_M);
+    const hi = Math.max(prevX, g1 - HOLE_WALL_INSET_M);
+    if (p.x < lo || p.x > hi) {
+      p.x = clamp(p.x, lo, hi);
+      p.vx = 0;
+    }
+    return;
+  }
+}
+
 /** Detach from whatever ladder the climber was on, leaving them airborne. */
 function releaseLadder(p: PlayerState): void {
   p.onLadder = false;
@@ -310,7 +350,9 @@ function integratePlayer(
   p: PlayerState,
   input: PlayerInput,
   tower: TowerSpec,
-  tick: number
+  tick: number,
+  /** The jump button as sent, before validation neutralized an air press. */
+  jumpPressed: boolean
 ): void {
   const dt = TICK_DT;
   const moveSpeed = tower.moveSpeed * moveSpeedMultiplier(p, tick);
@@ -408,6 +450,8 @@ function integratePlayer(
           blocked !== null && g.ix === blocked.ix && g.slot === blocked.slot;
         if (!isSuppressed) {
           p.grabSuppressedUntilRelease = null;
+          p.groundedTick = null;
+          p.jumpPressTick = null;
           p.onLadder = true;
           p.ladderIx = g.ix;
           p.ladderSlot = g.slot;
@@ -427,10 +471,18 @@ function integratePlayer(
       // Air jumps are capped at SUPER_JUMP_AIR_JUMPS per activation
       // (consumeSuperJumpAirJump) — otherwise edge-triggering (release + tap)
       // is fast enough to reset vy every tick and hover like a jetpack.
-      if (input.jump && p.onGround) {
+      // A fresh press just after walking off an edge (COYOTE_TICKS) or just
+      // before landing (JUMP_BUFFER_TICKS) launches like a ground jump.
+      const pressed = jumpPressed && !p.jumpHeldPrev;
+      const coyote = pressed && input.jump && inCoyoteWindow(p, tick);
+      const buffered =
+        p.onGround && p.jumpPressTick !== null && tick - p.jumpPressTick <= JUMP_BUFFER_TICKS;
+      if ((input.jump && p.onGround) || buffered || coyote) {
         const jumpMult = isPowerUpActive(p, "super-jump", tick) ? SUPER_JUMP_MULT : 1;
         p.vy = tower.jumpSpeed * jumpMult;
         p.onGround = false;
+        p.groundedTick = null;
+        p.jumpPressTick = null;
       } else if (input.jump && !p.onGround && consumeJetpackFuel(p, tick)) {
         p.jetpackThrusting = true;
       } else if (
@@ -440,6 +492,9 @@ function integratePlayer(
         consumeSuperJumpAirJump(p, tick)
       ) {
         p.vy = tower.jumpSpeed * SUPER_JUMP_MULT;
+      } else if (pressed && !p.onGround) {
+        // Nothing spent the press in the air: hold it for the landing.
+        p.jumpPressTick = tick;
       }
       // Gravity while airborne; thrust beats it and caps at JETPACK_MAX_VY.
       if (p.onGround) {
@@ -484,6 +539,8 @@ function integratePlayer(
       );
       p.x = wrapX(p.x, tower.widthM);
 
+      if (!p.onGround && p.vy <= 0) keepInHole(tower, p, wrappedPrevX);
+
       // Walked off a platform or crate while grounded → start falling.
       if (
         p.onGround &&
@@ -495,6 +552,8 @@ function integratePlayer(
       }
     }
   }
+
+  if (p.onGround) p.groundedTick = tick;
 
   // Permanent peak-height record ethos (AC-8, AC-30/AC-31).
   if (p.y > p.peakY) { p.peakY = p.y; p.peakTick = tick; }
@@ -593,11 +652,11 @@ export function stepMatch(
     // test callers that key by player id. Slot keys ("0","1") never collide with
     // string ids ("p1","you",…), so both schemes coexist safely.
     const raw = inputs[p.slot] ?? inputs[p.id] ?? NO_INPUT;
-    const { input } = validateInput(raw, p, state.tick);
+    const { input, jumpPressed } = validateInput(raw, p, state.tick);
     const prevY = p.y;
 
     // 2. Integrate motion from validated input.
-    integratePlayer(p, input, state.tower, state.tick);
+    integratePlayer(p, input, state.tower, state.tick, jumpPressed);
 
     const sentinel = updateSentinel(
       {
@@ -638,7 +697,7 @@ export function stepMatch(
     }
 
     pruneActive(p, state.tick);
-    p.jumpHeldPrev = input.jump;
+    p.jumpHeldPrev = jumpPressed;
 
     // 4. FINISH — a level tower ends in a diamond on its summit floor; touching
     //    it finishes the climb. Decided before the death line, so touching it
