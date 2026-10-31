@@ -1,10 +1,10 @@
 /**
  * ChooseYourClimb — the landing's mode index (ASCENT design).
  *
- * Three ways to play, side by side, directly under the hero: Solo, 1v1, Daily.
+ * Three ways to play, side by side, directly under the hero: Endless, 1v1, Daily.
  * This is the canonical home for the Daily entry and for the "pick a mode"
  * moment; the hero above keeps exactly one filled primary (1v1) and one plain
- * secondary (free climb), so no destination is pitched twice as a filled CTA
+ * secondary (Endless), so no destination is pitched twice as a filled CTA
  * (app/DESIGN.md, "Calls to action"). Each card carries its mode's distinct
  * one-liner — it does not restate the hero pitch.
  *
@@ -37,10 +37,10 @@ interface ClimbMode {
 const MODES: ClimbMode[] = [
   {
     href: FREE_CLIMB_HREF,
-    title: "Solo",
-    description: "Endless tower. Outclimb the rising lava and set your peak.",
+    title: "Endless",
+    description: "A fresh tower every run. Outclimb the rising lava and set your peak.",
     action: "Play now",
-    label: "Play free climb",
+    label: "Play Endless",
     tone: "signal",
   },
   {

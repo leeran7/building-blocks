@@ -71,7 +71,7 @@ function KeepClimbing() {
           href="/play"
           className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-border-strong bg-surface/60 px-6 text-sm font-medium text-text-primary transition-colors hover:border-signal/50 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
         >
-          Free climb →
+          Endless →
         </Link>
         <Link
           href="/duel"

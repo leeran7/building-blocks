@@ -44,7 +44,13 @@ export function useFullscreen(
     setSupported(
       Boolean(document.fullscreenEnabled ?? doc.webkitFullscreenEnabled)
     );
-    const sync = () => setIsFullscreen(fullscreenElement() === ref.current);
+    // Null-safe: a page that mounts the stage after a loading state has no
+    // element yet, and null === null read as full screen (the replay page
+    // then hid its header and clipped to the screen height).
+    const sync = () => {
+      const el = fullscreenElement();
+      setIsFullscreen(el !== null && el === ref.current);
+    };
     sync();
     document.addEventListener("fullscreenchange", sync);
     document.addEventListener("webkitfullscreenchange", sync);

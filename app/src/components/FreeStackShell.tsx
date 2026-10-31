@@ -52,7 +52,7 @@ export function FreeStackShell({
             : "sticky top-0 z-30 shrink-0"
         }
       >
-        <Navbar contextLabel="Free climb" />
+        <Navbar contextLabel={section === "daily" ? "Daily Climb" : "Endless"} />
       </div>
 
       <main id="main-content" className="relative flex flex-1 flex-col">
@@ -64,7 +64,7 @@ export function FreeStackShell({
                 no entrance animation and one shared view-transition name: a tab
                 switch crossfades the pill in place (and glides it over to the
                 1v1 band, which uses the same name) instead of re-entering. */}
-            <StackTabs label="Free stack sections">
+            <StackTabs label="Endless and Daily Climb sections">
               <NavTab
                 href="/climb"
                 label="Leaderboard"

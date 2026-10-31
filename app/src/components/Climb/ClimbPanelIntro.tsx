@@ -13,7 +13,7 @@ import { BoardIntro } from "../Leaderboard/BoardChrome";
 
 export function ClimbPanelIntro({ title }: { title: string }) {
   return (
-    <BoardIntro eyebrow="Free climb · no payment" title={title}>
+    <BoardIntro eyebrow="Endless · no payment" title={title}>
       One leaderboard for the free game. Climb the endless stack as high as you
       can before the lava catches you — your best height is your rank.
     </BoardIntro>
@@ -30,11 +30,11 @@ export function ClimbAbout() {
   return (
     <details className="group mt-6 rounded-xl border border-border-subtle bg-surface px-5 py-4 open:border-signal/40">
       <summary className="flex items-center gap-3 cursor-pointer list-none min-h-[44px] text-sm font-semibold text-text-primary [&::-webkit-details-marker]:hidden">
-        <span className="flex-1">About the free climb</span>
+        <span className="flex-1">About Endless</span>
         <Chevron />
       </summary>
       <p className="mt-3 text-sm leading-relaxed text-text-secondary">
-        The free climb is Doomstack&rsquo;s skill-based mode: one global leaderboard, no payment
+        Endless is Doomstack&rsquo;s skill-based mode: one global leaderboard, no payment
         required. Climb an endless procedurally generated stack — ladders, platforms, and rising
         lava — and try to reach the highest point before the lava catches you. Your best peak
         height is saved as your all-time rank. You can play without an account. Sign in to save

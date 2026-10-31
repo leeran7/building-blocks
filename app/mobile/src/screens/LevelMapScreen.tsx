@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLevels } from "../contexts/LevelsContext";
 import { tapHeavy, tapLight } from "../lib/haptics";
-import { Button } from "../components/ui";
+import { Button, RetryPanel } from "../components/ui";
 import { LevelStartSheet, REFUSAL_COPY } from "../components/levels/LevelStartSheet";
 import { LivesSheet } from "../components/levels/LivesSheet";
 import { XpSheet } from "../components/levels/XpSheet";
@@ -285,26 +285,50 @@ export function LevelMapScreen() {
     navigate("/climb");
   }, [navigate]);
 
+  // refresh() clears `error` while it runs; without this the panel unmounted
+  // for "Loading levels…" and Try again lost focus. `retries` re-mounts the
+  // alert after each answer, so a second failure is announced again.
+  const [retrying, setRetrying] = useState(false);
+  const [retries, setRetries] = useState(0);
+  const retryMap = useCallback(() => {
+    setRetrying(true);
+    void refresh().finally(() => {
+      setRetrying(false);
+      setRetries((n) => n + 1);
+    });
+  }, [refresh]);
+
   if (!season) {
+    const failed = (error && !loading) || retrying;
     return (
-      <main className="relative flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
-        {error && !loading ? (
-          <>
-            <p className="text-body text-text-secondary">Couldn&rsquo;t load the level map.</p>
-            <div className="w-full max-w-xs">
-              <Button onPress={() => void refresh()}>Try again</Button>
-            </div>
+      <main
+        className={`relative flex h-full flex-col items-center justify-center gap-4 text-center ${
+          showRail && !failed ? "pl-4 pr-24" : "px-4"
+        }`}
+      >
+        <h1 className="sr-only">Level map</h1>
+        {failed ? (
+          <RetryPanel
+            eyebrow="Offline"
+            title="The map didn’t load"
+            message="Check your connection. Your levels and stars are safe."
+            retrying={retrying}
+            attempts={retries}
+            onRetry={retryMap}
+          >
             <Button variant="ghost" onPress={openPractice}>Play Endless</Button>
-          </>
+          </RetryPanel>
         ) : (
           <p role="status" className="font-mono text-label uppercase tracking-label text-text-muted">
             Loading levels…
           </p>
         )}
         {/* The other modes don't need the level map: keep them reachable while it
-            loads or after it fails. Keyed like the loaded map's, so the same rail
-            (and a matchmaking search in it) carries over when the season lands. */}
-        <BottomStack key="bottom-stack">{showRail && <ModeRail />}</BottomStack>
+            loads. Keyed like the loaded map's, so the same rail (and a
+            matchmaking search in it) carries over when the season lands. Once
+            it has failed the rail goes: the card sits centered where the rail
+            stood, and Daily, 1v1 and Ranks need the same connection anyway. */}
+        <BottomStack key="bottom-stack">{showRail && !failed && <ModeRail />}</BottomStack>
       </main>
     );
   }
@@ -317,6 +341,7 @@ export function LevelMapScreen() {
     // An account's tab bar sits under this screen and clears the home
     // indicator; a guest has no tab bar, so the screen stops above it.
     <main className="relative flex h-full flex-col" style={guest ? { height: "calc(100% - env(safe-area-inset-bottom))" } : undefined}>
+      <h1 className="sr-only">Level map</h1>
       <header ref={headerRef} className="absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-void via-void/80 to-transparent px-4 pb-8 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
         <MapHeader
           seasonName={season.name}

@@ -54,7 +54,7 @@ export type BoardScope = "solo" | "1v1";
 export function BoardScopeNav({ current }: { current: BoardScope }) {
   return (
     <nav aria-label="Leaderboards" className="flex flex-wrap gap-2">
-      <ScopeLink href="/climb" label="Solo" current={current === "solo"} />
+      <ScopeLink href="/climb" label="Endless" current={current === "solo"} />
       <ScopeLink href={DUEL_LEADERBOARD_HREF} label="1v1" current={current === "1v1"} />
     </nav>
   );

@@ -1,6 +1,6 @@
 /**
  * The web-portal shell (CrazyGames): straight onto
- * a menu with one Start button, endless Free Climb only, best height on the
+ * a menu with one Start button, Endless only, best height on the
  * device. No account, API, shop, duels, replays or links out.
  *
  * The target's config comes in as a prop rather than from `@target/config`,

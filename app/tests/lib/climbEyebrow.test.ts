@@ -3,15 +3,19 @@ import { climbEyebrowLabel } from "../../src/lib/climbEyebrow";
 
 /**
  * The lobby eyebrow renders `[ <climbEyebrowLabel(categoryLabel)> ]`. The bug it
- * fixes: "Free climb" (a real caller value from ClimbPlayClient) used to render
- * "[ FREE CLIMB CLIMB ]". These fixtures pin the exact caller labels used in
- * production (ClimbPlayClient: "Free climb"; DailyClimbClient: "Daily";
+ * fixes: "Free climb" (ClimbPlayClient's label before the Endless rename) used
+ * to render "[ FREE CLIMB CLIMB ]". These fixtures pin the caller labels used in
+ * production (ClimbPlayClient: "Endless"; DailyClimbClient: "Daily";
  * GameOverlay: category labels like "Tech"/"Design").
  */
 describe("climbEyebrowLabel", () => {
   it("does NOT append climb when the label already contains it (the bug)", () => {
     // Positive fixture of the string the guard must reject-appending to.
     expect(climbEyebrowLabel("Free climb")).toBe("Free climb");
+  });
+
+  it("reads the Endless lobby as an endless climb", () => {
+    expect(climbEyebrowLabel("Endless")).toBe("Endless climb");
   });
 
   it("appends climb for labels that don't already carry the word", () => {

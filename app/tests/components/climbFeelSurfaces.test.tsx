@@ -110,7 +110,7 @@ describe("FreeStackShell climb chrome (AC-3)", () => {
       const html = render(section);
       expect(html).toMatch(hiddenOnTouch);
       // Tab band navigation still renders on the game sections.
-      expect(html).toContain('aria-label="Free stack sections"');
+      expect(html).toContain('aria-label="Endless and Daily Climb sections"');
     }
     const lbHtml = render("leaderboard");
     expect(lbHtml).toMatch(navMarker);
@@ -246,7 +246,7 @@ describe("FreeLeaderboard (AC-6)", () => {
     // Intro + empty-state /play links are text underlines — not a second primary.
     expect(playLinks.length).toBeLessThanOrEqual(2);
     expect(filledSignalPlayCtas(html)).toHaveLength(0);
-    expect(html).toContain("Play the free climb");
+    expect(html).toContain("Play Endless");
     expect(html).toMatch(/\bclimb-reveal\b/);
   });
 });
@@ -254,11 +254,11 @@ describe("FreeLeaderboard (AC-6)", () => {
 describe("ClimbPanelIntro title (AC-8)", () => {
   it("uses the amplified display title class and mono signal eyebrow", () => {
     const html = renderToStaticMarkup(
-      createElement(ClimbPanelIntro, { title: "Free climb leaderboard" })
+      createElement(ClimbPanelIntro, { title: "Endless leaderboard" })
     );
     expect(html).toContain(CLIMB_PANEL_INTRO_TITLE_CLASS);
     expect(html).toMatch(/font-mono[^"]*text-signal|text-signal[^"]*font-mono/);
-    expect(html).toContain("Free climb · no payment");
+    expect(html).toContain("Endless · no payment");
     expect(html).toMatch(/\bclimb-reveal\b/);
   });
 });

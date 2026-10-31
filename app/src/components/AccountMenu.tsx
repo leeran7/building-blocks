@@ -171,7 +171,7 @@ export function AccountMenu() {
               1v1
             </Link>
             <Link href={FREE_CLIMB_HREF} className={ITEM} onClick={() => setOpen(false)}>
-              Free climb
+              Endless
             </Link>
           </div>
 

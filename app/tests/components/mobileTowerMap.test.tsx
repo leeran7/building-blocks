@@ -374,17 +374,7 @@ describe("tower map", () => {
     expect(container.querySelector('[data-tour="modes"]')).toBeNull();
   });
 
-  it("keeps the mode rail reachable when the level map fails to load", async () => {
-    const client = memoryClient();
-    client.getSeason = async () => {
-      throw new Error("down");
-    };
-    await renderMap(client, (el) => createElement(AppDataProvider, null, el));
-    expect(container.textContent).toContain("Couldn’t load the level map.");
-    expect(railButtons()).toEqual(["Daily Climb", "Versus", "Ranks"]);
-  });
-
-  it("keeps a Quick Play search running when the level map loads behind it", async () => {
+  it("drops the mode rail for the centered offline card, and brings it back with the map", async () => {
     const client = memoryClient();
     const realSeason = client.getSeason.bind(client);
     let down = true;
@@ -392,6 +382,52 @@ describe("tower map", () => {
       if (down) throw new Error("down");
       return realSeason();
     };
+    await renderMap(client, (el) => createElement(AppDataProvider, null, el));
+    expect(container.textContent).toContain("The map didn’t load");
+    expect(railButtons()).toEqual([]);
+
+    down = false;
+    await act(async () => [...container.querySelectorAll("button")].find((b) => b.textContent === "Try again")!.click());
+    await settle();
+    expect(container.querySelector("ol button")).not.toBeNull();
+    expect(railButtons()).toEqual(["Daily Climb", "Versus", "Ranks"]);
+  });
+
+  it("keeps the failed map's Try again mounted and focused while it retries", async () => {
+    const client = memoryClient();
+    let answer: (() => void) | null = null;
+    let calls = 0;
+    client.getSeason = () => {
+      calls++;
+      if (calls === 1) return Promise.reject(new Error("down"));
+      return new Promise((_, reject) => {
+        answer = () => reject(new Error("still down"));
+      });
+    };
+    await renderMap(client, (el) => createElement(AppDataProvider, null, el));
+    const button = (label: string) =>
+      Array.from(container.querySelectorAll("button")).find((b) => b.textContent === label);
+    const retry = button("Try again")!;
+    retry.focus();
+    const firstAlert = container.querySelector('[role="alert"]');
+    await act(async () => retry.click());
+    expect(button("Retrying…")).toBe(retry);
+    expect(document.activeElement).toBe(retry);
+    expect(container.textContent).not.toContain("Loading levels");
+
+    await act(async () => answer!());
+    await settle();
+    expect(button("Try again")).toBe(retry);
+    expect(document.activeElement).toBe(retry);
+    expect(container.querySelector('[role="alert"]')).not.toBe(firstAlert);
+  });
+
+  it("keeps a Quick Play search running when the level map loads behind it", async () => {
+    const client = memoryClient();
+    const realSeason = client.getSeason.bind(client);
+    // The map is still loading: the rail is up, and a search starts from it.
+    let land: (() => void) | null = null;
+    client.getSeason = () => new Promise((resolve) => (land = () => resolve(realSeason())));
     await renderMap(client, (el) => createElement(AppDataProvider, null, el));
     const press = async (el: Element | null | undefined) => {
       if (!el) throw new Error("nothing to press");
@@ -408,8 +444,8 @@ describe("tower map", () => {
     expect(matchmaking()).not.toBeNull();
     expect(joins()).toBe(joinsBefore + 1);
 
-    down = false;
-    await press([...container.querySelectorAll("button")].find((b) => b.textContent === "Try again"));
+    await act(async () => land!());
+    await settle();
     // The map is up, and the same search is still on screen: no new join, no dropped overlay.
     expect(container.querySelector("ol button")).not.toBeNull();
     expect(matchmaking()).not.toBeNull();

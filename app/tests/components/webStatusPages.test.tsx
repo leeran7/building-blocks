@@ -21,11 +21,26 @@ vi.mock("../../src/contexts/AuthContext", () => ({
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({ push: vi.fn() }), usePathname: () => "/" }));
 // The room itself loads Ably; these tests only reach the states before it.
 vi.mock("../../src/components/Duel/DuelRoom", () => ({ DuelRoom: () => null }));
+// The replay draws to a canvas; these tests only need its controls.
+vi.mock("../../src/components/Game/ClimbCanvas", () => ({ ClimbCanvas: () => null }));
+// Counts the replay's sim steps, so a pause can be seen to stop them.
+const sim = vi.hoisted(() => ({ steps: 0 }));
+vi.mock("../../src/game/simulation", async (importActual) => {
+  const actual = await importActual<typeof import("../../src/game/simulation")>();
+  return {
+    ...actual,
+    stepMatch: (...args: Parameters<typeof actual.stepMatch>) => {
+      sim.steps++;
+      return actual.stepMatch(...args);
+    },
+  };
+});
 
 import { DuelRoomLoader } from "../../src/components/Duel/DuelRoomLoader";
 import { PayoutPage } from "../../src/components/Account/PayoutPage";
 import { DuelWatch } from "../../src/components/Duel/DuelWatch";
 import NotFound from "../../app/not-found";
+import ErrorPage from "../../app/error";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -106,6 +121,61 @@ describe("website state pages", () => {
     });
   });
 
+  it("lets a watcher pause and resume a replay", async () => {
+    const replay = {
+      seed: "replay-seed",
+      categorySlug: "tech",
+      player1: { id: "p1", displayName: "Kestrel", peak: 10 },
+      player2: { id: "p2", displayName: "Moth", peak: 8 },
+      log1: [],
+      log2: [],
+      winnerId: "p1",
+      tiebreakRule: null,
+      forfeit: false,
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => replay })));
+    await render(createElement(DuelWatch, { duelId: "d1" }));
+    const control = () =>
+      Array.from(container.querySelectorAll("main button")).find((b) => /^(Pause|Resume|Watch again)$/.test(b.textContent ?? "")) as
+        | HTMLButtonElement
+        | undefined;
+    const wait = () =>
+      act(async () => {
+        await new Promise((r) => setTimeout(r, 120));
+      });
+    // Not full screen: the page keeps its header (the stage mounts after the
+    // loading state, and that once read as full screen).
+    expect(container.querySelector("nav")).not.toBeNull();
+    // The result leads: winner tagged, both peaks, names spaced for readers.
+    const h1 = container.querySelector("h1")!;
+    expect(h1.textContent?.replace(/\s+/g, " ").trim()).toBe("Kestrelwin10ft vs Moth8ft");
+    expect(control()?.textContent).toBe("Pause");
+    await wait();
+    expect(sim.steps).toBeGreaterThan(0);
+
+    act(() => control()!.click());
+    expect(control()?.textContent).toBe("Resume");
+    const atPause = sim.steps;
+    await wait();
+    expect(sim.steps).toBe(atPause);
+
+    expect(container.textContent).toContain("Paused 0:");
+
+    act(() => control()!.click());
+    expect(control()?.textContent).toBe("Pause");
+    await wait();
+    expect(sim.steps).toBeGreaterThan(atPause);
+
+    // Space pauses too (full screen hides the button).
+    act(() => {
+      document.body.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", bubbles: true }));
+    });
+    expect(control()?.textContent).toBe("Resume");
+    const atSpace = sim.steps;
+    await wait();
+    expect(sim.steps).toBe(atSpace);
+  });
+
   it("offers a signed-out visitor a sign-in that returns to payouts", async () => {
     await render(createElement(PayoutPage));
     expect(h1()).toEqual(["Tournament payouts"]);
@@ -117,6 +187,19 @@ describe("website state pages", () => {
     await render(createElement(PayoutPage));
     expect(links().map(([label]) => label)).not.toContain("Sign in");
     expect(container.textContent).toContain("Loading");
+  });
+
+  it("turns a page that throws into a branded error with Try again", async () => {
+    const reset = vi.fn();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await render(createElement(ErrorPage, { error: new Error("boom"), reset }));
+    expect(container.querySelector("nav")).not.toBeNull();
+    expect(h1()).toEqual(["Something went wrong"]);
+    expect(links()).toEqual([["Go home", "/"]]);
+    const tryAgain = Array.from(container.querySelectorAll("main button")).find((b) => b.textContent === "Try again");
+    act(() => (tryAgain as HTMLButtonElement).click());
+    expect(reset).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
   });
 
   it("gives an unknown path the site header and ways back", async () => {

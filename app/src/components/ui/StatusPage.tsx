@@ -9,10 +9,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Navbar } from "../Navbar";
 
-export interface StatusAction {
-  label: string;
-  href: string;
-}
+/** A link onward, or (from a client component) a button such as Try again. */
+export type StatusAction = { label: string; href: string } | { label: string; onClick: () => void };
 
 const BUTTON =
   "inline-flex items-center justify-center whitespace-nowrap rounded-full px-6 min-h-[44px] text-sm font-semibold tracking-tight transition-[filter,transform,scale] active:scale-[0.98] motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void";
@@ -44,19 +42,28 @@ export function StatusPage({
         <div className="mt-3 max-w-md text-text-secondary">{children}</div>
         {(primary || secondary) && (
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            {primary && (
-              <Link href={primary.href} className={`${BUTTON} bg-signal text-void hover:brightness-110`}>
-                {primary.label}
-              </Link>
-            )}
+            {primary && <Action action={primary} className={`${BUTTON} bg-signal text-void hover:brightness-110`} />}
             {secondary && (
-              <Link href={secondary.href} className={`${BUTTON} border border-border-strong text-text-primary hover:border-signal/50`}>
-                {secondary.label}
-              </Link>
+              <Action action={secondary} className={`${BUTTON} border border-border-strong text-text-primary hover:border-signal/50`} />
             )}
           </div>
         )}
       </main>
     </div>
+  );
+}
+
+function Action({ action, className }: { action: StatusAction; className: string }) {
+  if ("href" in action) {
+    return (
+      <Link href={action.href} className={className}>
+        {action.label}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={action.onClick} className={className}>
+      {action.label}
+    </button>
   );
 }

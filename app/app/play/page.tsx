@@ -1,5 +1,5 @@
 /**
- * Free climb play page — /play
+ * Endless play page — /play
  *
  * The standalone free endless climb game. Scores feed the single /climb
  * leaderboard — not any paid category stack.
@@ -13,9 +13,9 @@ import { Chevron } from "../../src/components/Chevron";
 import { buildMetadata } from "../../src/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Play the Free Climb — Doomstack",
+  title: "Play Endless — Doomstack",
   description:
-    "Endless climb — go as high as you can before the rising lava catches you. Your peak height ranks on the free leaderboard.",
+    "Climb an endless tower as high as you can before the rising lava catches you. Your peak height ranks on the Endless leaderboard.",
   path: "/play",
 });
 
@@ -48,16 +48,16 @@ function PlayIntro() {
         <Chevron />
       </summary>
       <p className="mt-3 text-sm leading-relaxed text-text-secondary">
-        This is Doomstack&rsquo;s free climb — an endless, procedurally generated tower of
+        This is Endless, Doomstack&rsquo;s solo mode — an endless, procedurally generated tower of
         ladders, platforms, and rising lava. Climb as high as you can before the lava catches
         you; there&rsquo;s no timer beyond that. Use the on-screen controls on touch devices or
         the keyboard on desktop to move, climb, and jump. Your height at the moment the lava
         reaches you becomes your score for that run. Sign in to save your best run permanently to
-        the free leaderboard at <Link href="/climb" className="text-signal underline underline-offset-2 hover:decoration-2">
+        the Endless leaderboard at <Link href="/climb" className="text-signal underline underline-offset-2 hover:decoration-2">
           /climb
         </Link>{" "}
         — you can also play as a guest, though guest runs aren&rsquo;t recorded. Every run can be
-        shared as a replay link so someone else can watch exactly how you climbed. The free climb
+        shared as a replay link so someone else can watch exactly how you climbed. Endless
         is entirely skill-based: no payment, no way to pay for a better rank. Prefer a head-to-head?
         Race another climber in{" "}
         <Link href="/duel" className="text-signal underline underline-offset-2 hover:decoration-2">1v1 duels</Link> — same tower,

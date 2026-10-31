@@ -19,7 +19,7 @@ export interface FreeClimbData {
 export function FreeClimbCard({ climb }: { climb: FreeClimbData }) {
   return (
     <section
-      aria-label="Free climb rank"
+      aria-label="Endless rank"
       data-climb-chrome
       className="animate-climbEnter mb-8 relative overflow-hidden rounded-2xl border border-signal/30 bg-surface shadow-signal"
     >
@@ -31,7 +31,7 @@ export function FreeClimbCard({ climb }: { climb: FreeClimbData }) {
       <div className="relative p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-signal">
-            Free climb · your rank
+            Endless · your rank
           </p>
           <div className="flex items-baseline gap-3 mt-2">
             <span className={FREE_CLIMB_RANK_CLASS}>
@@ -73,7 +73,7 @@ export function FreeClimbCard({ climb }: { climb: FreeClimbData }) {
 export function FreeClimbEmpty() {
   return (
     <section
-      aria-label="Free climb"
+      aria-label="Endless"
       data-climb-chrome
       className="climb-reveal mb-8 relative overflow-hidden rounded-2xl border border-border-subtle bg-surface p-6 text-center"
     >
@@ -82,16 +82,16 @@ export function FreeClimbEmpty() {
         aria-hidden="true"
       />
       <p className="relative font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
-        Free climb
+        Endless
       </p>
       <p className="relative text-text-secondary text-sm mt-2 max-w-sm mx-auto">
-        No record yet on the free leaderboard. Play the endless climb to set your rank.
+        No record yet on the Endless board. Climb once to set your rank.
       </p>
       <Link
         href="/play"
         className="relative mt-4 inline-flex items-center justify-center rounded-lg border border-border-strong px-5 min-h-[44px] min-w-[44px] text-sm font-semibold text-text-primary hover:border-signal/50 transition"
       >
-        Play free climb
+        Play Endless
       </Link>
     </section>
   );

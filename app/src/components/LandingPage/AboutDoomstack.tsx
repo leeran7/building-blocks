@@ -43,7 +43,7 @@ export function AboutDoomstack() {
           <p>
             Play the{" "}
             <Link href="/play" className="text-signal underline underline-offset-4 hover:decoration-2">
-              free solo climb
+              Endless solo climb
             </Link>{" "}
             for the global leaderboard, or go head-to-head in a{" "}
             <Link href="/duel" className="text-signal underline underline-offset-4 hover:decoration-2">

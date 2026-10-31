@@ -37,7 +37,7 @@ import { hasLeaderboardConsent } from "../lib/consent";
 import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
 import { LeaderboardConsentModal } from "../components/LeaderboardConsentModal";
 import { GuestSignInSheet } from "../components/GuestSignInSheet";
-import { BackButton } from "../components/ui";
+import { BackButton, Button, RetryPanel } from "../components/ui";
 import { GUEST_NUDGE_AFTER_RUNS, recordGuestEndlessRun } from "../lib/guestMode";
 import { tapMedium, tapLight, notifyError, notifySuccess } from "../lib/haptics";
 import { useHapticsSetting } from "../lib/hapticsSetting";
@@ -105,6 +105,11 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const [dailyInfo, setDailyInfo] = useState<DailyInfo | null>(null);
   const [dailyInfoFailed, setDailyInfoFailed] = useState(false);
   const [dailyInfoAttempt, setDailyInfoAttempt] = useState(0);
+  // A Try again is in flight: the offline panel stays up (so its button keeps
+  // focus) until the answer lands, instead of flashing to "Loading…".
+  const [dailyRetrying, setDailyRetrying] = useState(false);
+  // Counts failed answers, so each one re-announces the offline alert.
+  const [dailyFailures, setDailyFailures] = useState(0);
   // When the current answer was requested: it is stale once the server's
   // reset falls between that and a new start (RV-DC-3).
   const dailyRequestedAt = useRef(0);
@@ -118,11 +123,13 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     setDailyInfoFailed(false);
     void fetchDailyInfo().then((info) => {
       if (cancelled) return;
+      setDailyRetrying(false);
       if (info) {
         dailyRequestedAt.current = requestedAt;
         setDailyInfo(info);
       } else {
         setDailyInfoFailed(true);
+        setDailyFailures((n) => n + 1);
         setStartWhenReady(false);
       }
     });
@@ -133,7 +140,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   const seed = isDaily ? dailyInfo?.seed : undefined;
   const dailyLobby: "ready" | "loading" | "offline" = !isDaily || dailyInfo
     ? "ready"
-    : dailyInfoFailed
+    : dailyInfoFailed || dailyRetrying
       ? "offline"
       : "loading";
 
@@ -389,7 +396,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
   }, [isDaily]);
 
   return (
-    <div className="fixed inset-0 z-40 bg-void">
+    <main className="fixed inset-0 z-40 bg-void">
       <div
         ref={canvasBoxRef}
         data-climb-surface
@@ -447,9 +454,9 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             <span className="font-mono text-[11px] uppercase tracking-[0.4em] text-signal">
               {isDaily ? "daily climb" : "endless climb"}
             </span>
-            <h2 className="mt-3 font-display text-5xl font-black uppercase leading-none tracking-tight text-text-primary">
+            <h1 className="mt-3 font-display text-5xl font-black uppercase leading-none tracking-tight text-text-primary">
               {isDaily ? "Today\u2019s tower" : "Climb"}
-            </h2>
+            </h1>
             <span className="mt-4 h-px w-14 bg-border-strong" />
             <p className="mt-4 max-w-[280px] text-center text-sm leading-relaxed text-text-secondary">
               {isDaily
@@ -471,14 +478,14 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
             )}
             {dailyLobby === "offline" && (
               <DailyOffline
+                retrying={dailyRetrying}
+                attempts={dailyFailures}
                 onRetry={() => {
-                  void tapLight();
+                  // RetryPanel already gives the tap its haptic.
+                  setDailyRetrying(true);
                   setDailyInfoAttempt((n) => n + 1);
                 }}
-                onPlayEndless={() => {
-                  void tapLight();
-                  navigate("/climb", { replace: true });
-                }}
+                onPlayEndless={() => navigate("/climb", { replace: true })}
               />
             )}
           </Overlay>
@@ -542,13 +549,19 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
       </div>
 
       {touchActive && <TouchControls active={touchActive} onInput={setTouch} />}
-    </div>
+    </main>
   );
 }
 
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-void/75 px-6 backdrop-blur-md">
+    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6">
+      {/* The scrim fades out above the lava band, so the lava stays bright
+          under the lobby instead of blurring into a brown smear. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 bg-void/75 backdrop-blur-md [mask-image:linear-gradient(to_bottom,black_68%,transparent_80%)]"
+      />
       {children}
     </div>
   );
@@ -558,26 +571,31 @@ function Overlay({ children }: { children: React.ReactNode }) {
  * The daily's seed comes only from the server, so with no connection the
  * daily cannot start. Say so, and offer a retry or an endless run instead.
  */
-function DailyOffline({ onRetry, onPlayEndless }: { onRetry: () => void; onPlayEndless: () => void }) {
+function DailyOffline({
+  retrying,
+  attempts,
+  onRetry,
+  onPlayEndless,
+}: {
+  retrying: boolean;
+  attempts: number;
+  onRetry: () => void;
+  onPlayEndless: () => void;
+}) {
   return (
-    <div role="alert" className="mt-6 flex flex-col items-center gap-3 text-center">
-      <p className="max-w-65 text-meta text-text-secondary">
-        Can&rsquo;t load today&rsquo;s tower. Check your connection and try again.
-      </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="min-h-[44px] rounded-full border-2 border-signal/70 bg-signal/10 px-8 font-display text-body font-black uppercase tracking-chip text-signal transition-transform duration-150 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+    <div className="mt-8 w-full max-w-sm">
+      <RetryPanel
+        variant="banner"
+        title="Can’t load today’s tower"
+        message="Everyone gets the same tower, so it comes from our server. Check your connection and try again."
+        retrying={retrying}
+        attempts={attempts}
+        onRetry={onRetry}
       >
-        Try again
-      </button>
-      <button
-        type="button"
-        onClick={onPlayEndless}
-        className="min-h-[44px] rounded-full px-6 font-mono text-label uppercase tracking-label text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void"
-      >
-        Play endless instead
-      </button>
+        <Button variant="secondary" onPress={onPlayEndless}>
+          Play Endless
+        </Button>
+      </RetryPanel>
     </div>
   );
 }

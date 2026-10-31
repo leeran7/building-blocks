@@ -30,14 +30,11 @@ export const SHEET_MOTION = {
 export function SheetPortal({
   scrim,
   children,
-  centered = true,
 }: {
   /** The tap-to-close layer behind the sheet. */
   scrim: ReactNode;
   /** The sheet panel itself (role="dialog"). */
   children: ReactNode;
-  /** Centre the panel on wide screens (max-w-md). */
-  centered?: boolean;
 }) {
   // Closing: the sheet is on its way out, so nothing in it may be pressed
   // (a Play tapped mid-slide would still start the run) or read as modal.
@@ -47,7 +44,7 @@ export function SheetPortal({
   return createPortal(
     <div
       ref={rootRef}
-      className={`fixed inset-0 z-50 flex items-end ${centered ? "justify-center" : ""} ${present ? "" : "pointer-events-none"}`}
+      className={`fixed inset-0 z-50 flex items-end justify-center ${present ? "" : "pointer-events-none"}`}
       role="presentation"
       inert={!present}
       data-sheet-leaving={present ? undefined : ""}
@@ -57,7 +54,8 @@ export function SheetPortal({
       </motion.div>
       <motion.div
         data-sheet-motion
-        className={`pointer-events-none relative flex h-full w-full flex-col justify-end [&>*]:pointer-events-auto ${centered ? "max-w-md" : ""}`}
+        // Centred and capped on wide screens, like the app column under it.
+        className="pointer-events-none relative flex h-full w-full max-w-md flex-col justify-end [&>*]:pointer-events-auto"
         {...SHEET_MOTION.panel}
       >
         {children}
