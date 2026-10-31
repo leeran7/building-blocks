@@ -149,15 +149,23 @@ export function trainingTower(): TowerSpec {
   return { ...base, goalM: floorHeight(base, TRAINING_SUMMIT_FLOOR) };
 }
 
-export function createTraining(): Training {
-  const tower = trainingTower();
-  const cfg: SimConfig = { hazard: NO_LAVA };
+const PRACTICE_CFG: SimConfig = { hazard: NO_LAVA };
+
+/** A match on the practice tower, already past the 3-2-1, with no orbs of its own. */
+function startPractice(tower: TowerSpec): MatchState {
   const state = createMatch({ seed: tower.seed, mode: "solo", tower, playerIds: [PLAYER_ID] });
-  // Skip the 3-2-1: training starts on the move.
-  while (state.phase === "countdown") stepMatch(state, {}, cfg);
+  // Skip the 3-2-1: practice starts on the move.
+  while (state.phase === "countdown") stepMatch(state, {}, PRACTICE_CFG);
   // Only the orbs training places: switch off the tower's own spawns.
   state.powerUps = [];
   state.powerUpFloorHi = Number.MAX_SAFE_INTEGER;
+  return state;
+}
+
+export function createTraining(): Training {
+  const tower = trainingTower();
+  const cfg = PRACTICE_CFG;
+  const state = startPractice(tower);
 
   let goalIndex = 0;
   let orbsPlaced = 0;
@@ -282,4 +290,41 @@ function floorOf(tower: TowerSpec, p: PlayerState): number {
 function wrappedDist(a: number, b: number, w: number): number {
   const d = Math.abs(a - b) % w;
   return Math.min(d, w - d);
+}
+
+/**
+ * The level intro's try-the-controls window: the practice tower with nothing
+ * to do but move, so a touch player can feel each layout before Start. No
+ * goals, no lava, no orbs. A climb that ends (the summit diamond, or anything
+ * else that stops the climber) starts over on the ground floor, as a fresh
+ * `state` object, so the window never freezes.
+ */
+export interface ControlsPractice {
+  /** The current match; replaced by a fresh one when the climb ends. */
+  readonly state: MatchState;
+  /** How many times the climb has started over. */
+  readonly restarts: number;
+  /** Advance one tick with the player's input. */
+  step(input: PlayerInput): void;
+}
+
+export function createControlsPractice(): ControlsPractice {
+  const tower = trainingTower();
+  let state = startPractice(tower);
+  let restarts = 0;
+  return {
+    get state() {
+      return state;
+    },
+    get restarts() {
+      return restarts;
+    },
+    step(input) {
+      stepMatch(state, { [PLAYER_ID]: input }, PRACTICE_CFG);
+      if (state.players[0].status !== "climbing") {
+        state = startPractice(tower);
+        restarts += 1;
+      }
+    },
+  };
 }
