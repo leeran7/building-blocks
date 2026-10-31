@@ -22,29 +22,47 @@ const ITEM_BASE =
   "flex items-center gap-2.5 rounded-lg px-3 min-h-[44px] text-sm hover:bg-elevated transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal";
 const ITEM_MUTED = `${ITEM_BASE} text-text-secondary hover:text-text-primary`;
 
-/** One row per mode: its name (Play) and its Leaderboard. */
+/**
+ * Two short groups: Play (1v1, Daily, Endless), then Leaderboards (the same
+ * three). Leeran didn't want a Leaderboard button beside each mode name.
+ */
 export function ModeRows({ active, onPick }: { active: GameMode | null; onPick: () => void }) {
   return (
     <div role="group" aria-label="Game modes">
-      <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
-        Modes
-      </p>
-      {GAME_MODES.map(({ mode, href, board, label }) => (
-        <div key={mode} className={"flex items-center rounded-lg " + (mode === active ? "bg-signal/10" : "")}>
-          <Link
-            href={href}
-            aria-current={mode === active ? "true" : undefined}
-            onClick={onPick}
-            className={`${ITEM_BASE} flex-1 font-semibold ${mode === active ? "text-signal" : "text-text-primary"}`}
-          >
-            {label}
-          </Link>
-          <Link href={board} aria-label={`${label} leaderboard`} onClick={onPick} className={ITEM_MUTED}>
-            Leaderboard
-          </Link>
-        </div>
+      <GroupHeading>Play</GroupHeading>
+      {GAME_MODES.map(({ mode, href, label }) => (
+        <Link
+          key={mode}
+          href={href}
+          aria-current={mode === active ? "true" : undefined}
+          onClick={onPick}
+          className={`${ITEM_BASE} font-semibold ${mode === active ? "bg-signal/10 text-signal" : "text-text-primary"}`}
+        >
+          {label}
+        </Link>
+      ))}
+      <div className="my-1.5 border-t border-border-subtle" aria-hidden="true" />
+      <GroupHeading>Leaderboards</GroupHeading>
+      {GAME_MODES.map(({ mode, board, label }) => (
+        <Link
+          key={mode}
+          href={board}
+          aria-label={`${label} leaderboard`}
+          onClick={onPick}
+          className={mode === active ? `${ITEM_BASE} text-signal` : ITEM_MUTED}
+        >
+          {label}
+        </Link>
       ))}
     </div>
+  );
+}
+
+function GroupHeading({ children }: { children: string }) {
+  return (
+    <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+      {children}
+    </p>
   );
 }
 

@@ -7,7 +7,7 @@
  * house the same links".
  *
  * Mounts the real Navbar, signed out and signed in, and drives its dropdown:
- * both menus list each mode's Play and Leaderboard, phone-only.
+ * both menus list the modes to play, then their leaderboards, phone-only.
  *
  * @vitest-environment happy-dom
  */
@@ -62,13 +62,15 @@ const modes = () => host.querySelector('[role="group"][aria-label="Game modes"]'
 const modeLinks = () =>
   [...(modes()?.querySelectorAll("a") ?? [])].map((a) => [a.textContent, a.getAttribute("href")]);
 
+// Play group, then the Leaderboards group (Leeran chose this over a
+// Leaderboard button beside each mode).
 const EVERY_MODE = [
   ["1v1", "/duel"],
-  ["Leaderboard", "/duel/leaderboard"],
   ["Daily", "/daily"],
-  ["Leaderboard", "/daily/leaderboard"],
   ["Endless", "/play"],
-  ["Leaderboard", "/climb"],
+  ["1v1", "/duel/leaderboard"],
+  ["Daily", "/daily/leaderboard"],
+  ["Endless", "/climb"],
 ];
 
 describe("signed-out phone menu", () => {
@@ -81,7 +83,8 @@ describe("signed-out phone menu", () => {
     act(() => trigger.click());
     expect(modeLinks()).toEqual(EVERY_MODE);
     const current = [...modes()!.querySelectorAll("a")].map((a) => a.getAttribute("aria-current"));
-    expect(current).toEqual([null, null, null, null, "true", null]);
+    expect(current).toEqual([null, null, "true", null, null, null]);
+    expect([...modes()!.querySelectorAll("p")].map((p) => p.textContent)).toEqual(["Play", "Leaderboards"]);
 
     const menu = host.querySelector('nav[aria-label="Menu"]')!;
     expect([...menu.querySelectorAll("a")].slice(-2).map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
