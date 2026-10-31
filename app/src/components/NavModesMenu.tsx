@@ -24,7 +24,7 @@ export interface NavMode {
 }
 
 const ITEM =
-  "flex items-center justify-between gap-2.5 rounded-lg px-3 min-h-[44px] text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal";
+  "flex items-center gap-2.5 rounded-lg px-3 min-h-[44px] text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-signal";
 
 export function NavModesMenu({ modes, active }: { modes: readonly NavMode[]; active: GameMode | null }) {
   const [open, setOpen] = useState(false);
@@ -93,9 +93,6 @@ export function NavModesMenu({ modes, active }: { modes: readonly NavMode[]; act
               }
             >
               {label}
-              {mode === active ? (
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em]">You&rsquo;re here</span>
-              ) : null}
             </Link>
           ))}
         </nav>
