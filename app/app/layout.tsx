@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Hanken_Grotesk, Space_Mono } from "next/font/googl
 import "./globals.css";
 import { AuthProvider } from "../src/contexts/AuthContext";
 import { SiteFooter } from "../src/components/SiteFooter";
+import { SoftNavigationFlag } from "../src/components/SoftNavigationFlag";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE_URL, ogImageUrl } from "../src/lib/seo";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -112,6 +113,7 @@ export default function RootLayout({
           {children}
           <SiteFooter />
         </AuthProvider>
+        <SoftNavigationFlag />
         <Analytics />
       </body>
     </html>

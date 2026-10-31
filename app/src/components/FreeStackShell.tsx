@@ -7,7 +7,7 @@
  * so it never paints over ClimbScene's `fixed inset-0` fullscreen HUD.
  */
 
-import type { ReactNode } from "react";
+import { ViewTransition, type ReactNode } from "react";
 import { Navbar } from "./Navbar";
 import { NavTab } from "./ui/NavTab";
 import { FREE_CLIMB_HREF, DAILY_HREF } from "./navLinks";
@@ -52,11 +52,11 @@ export function FreeStackShell({
             don't shift horizontally when switching Leaderboard / Play / Daily. */}
         <div className="relative z-10 border-b border-border-subtle shrink-0">
           <div className="max-w-5xl mx-auto w-full px-4 py-2">
-            <div
-              className="climb-reveal inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
-              role="tablist"
-              aria-label="Free stack sections"
-            >
+            {/* The band stays put while the page under it changes, so it gets
+                no entrance animation and one shared view-transition name: a tab
+                switch crossfades the pill in place (and glides it over to the
+                1v1 band, which uses the same name) instead of re-entering. */}
+            <StackTabs label="Free stack sections">
               <NavTab
                 href="/climb"
                 label="Leaderboard"
@@ -64,7 +64,7 @@ export function FreeStackShell({
               />
               <NavTab href={FREE_CLIMB_HREF} label="Play" active={section === "play"} />
               <NavTab href={DAILY_HREF} label="Daily" active={section === "daily"} />
-            </div>
+            </StackTabs>
           </div>
         </div>
 
@@ -87,3 +87,22 @@ export function FreeStackShell({
 }
 
 export type FreeStackSection = "leaderboard" | "play" | "daily";
+
+/**
+ * The pill tablist both stack shells share. `stack-tabs` is its
+ * view-transition name (styled in globals.css); `default="none"` keeps it out of
+ * every transition except the one between two pages that both render it.
+ */
+export function StackTabs({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <ViewTransition name="stack-tabs" share="auto" default="none">
+      <div
+        className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
+        role="tablist"
+        aria-label={label}
+      >
+        {children}
+      </div>
+    </ViewTransition>
+  );
+}

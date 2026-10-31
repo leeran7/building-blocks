@@ -477,6 +477,36 @@ button:focus-visible,
   animation: climbEnter 0.56s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Page entrances play on a fresh load only. After an in-app navigation
+   (SoftNavigationFlag) the view transition below is the motion; a rise that
+   starts at opacity 0 would crossfade the page into a blank frame first. */
+html[data-soft-nav] .climb-reveal {
+  animation: none;
+}
+
+/* ── Page switches (React <ViewTransition> on Next navigations) ──────────────
+   The page crossfades quickly; the stack tab band (`stack-tabs`, StackTabs)
+   stays on top and only its pill changes, gliding when the band moves between
+   the free and 1v1 stacks. Snapshots keep their natural size, anchored left,
+   so a two-tab band never stretches into a three-tab one. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: ease-out;
+}
+::view-transition-group(stack-tabs) {
+  animation-duration: 260ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+::view-transition-old(stack-tabs),
+::view-transition-new(stack-tabs) {
+  width: auto;
+  height: 100%;
+  object-fit: none;
+  object-position: left center;
+  animation-duration: 180ms;
+}
+
 /* Fine measurement grid — used behind data-dense panels. */
 .survey-grid {
   background-image:
@@ -579,6 +609,11 @@ button:focus-visible,
     animation: none !important;
   }
   .ground-gradient { transform: none !important; }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 
 /* ═════════════════════════════════════════════════════════════════════════

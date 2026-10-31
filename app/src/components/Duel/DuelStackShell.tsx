@@ -12,6 +12,7 @@
 import type { ReactNode } from "react";
 import { Navbar } from "../Navbar";
 import { NavTab } from "../ui/NavTab";
+import { StackTabs } from "../FreeStackShell";
 import { DUEL_HREF, DUEL_LEADERBOARD_HREF } from "../navLinks";
 
 /**
@@ -42,11 +43,7 @@ export function DuelStackShell({
       {/* Tab band — pinned to DUEL_STACK_WIDTH so it never shifts between routes. */}
       <div className="border-b border-border-subtle">
         <div className={`${DUEL_STACK_WIDTH} mx-auto w-full px-4 py-2`}>
-          <div
-            className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
-            role="tablist"
-            aria-label="1v1 sections"
-          >
+          <StackTabs label="1v1 sections">
             {/* Order matches the free-climb shell: Leaderboard, then Play. */}
             <NavTab
               href={DUEL_LEADERBOARD_HREF}
@@ -54,7 +51,7 @@ export function DuelStackShell({
               active={section === "leaderboard"}
             />
             <NavTab href={DUEL_HREF} label="Play" active={section === "play"} />
-          </div>
+          </StackTabs>
         </div>
       </div>
 

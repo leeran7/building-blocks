@@ -21,6 +21,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ClimbScene } from "./ClimbScene";
 import { ClimbControlsGuide } from "./ClimbControlsGuide";
+import { useCanvasSize } from "../../hooks/useCanvasSize";
+import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { buildFreeTower } from "../../game/freeStack";
 import { ALTITUDE_UNIT } from "../../lib/units";
 import Link from "next/link";
@@ -145,13 +147,15 @@ export function DailyClimbClient() {
   if (!seed) {
     return (
       <DailyShell today={today} reset={reset} streak={streak} week={week} result={null}>
-        {dailyFailed ? (
-          <DailyOffline onRetry={() => setDailyAttempt((n) => n + 1)} />
-        ) : (
-          <p role="status" className="text-text-muted text-sm text-center font-mono">
-            Loading today&rsquo;s climb…
-          </p>
-        )}
+        <StagePlaceholder>
+          {dailyFailed ? (
+            <DailyOffline onRetry={() => setDailyAttempt((n) => n + 1)} />
+          ) : (
+            <p role="status" className="text-text-muted text-sm text-center font-mono">
+              Loading today&rsquo;s climb…
+            </p>
+          )}
+        </StagePlaceholder>
       </DailyShell>
     );
   }
@@ -207,6 +211,40 @@ export function DailyClimbClient() {
 }
 
 // ────────────────────────────── Presentational ─────────────────────────────
+
+/**
+ * Holds the stage's place until today's seed arrives: the same box ClimbScene
+ * will draw (measured by the same hook, from the same spot), so the streak strip
+ * and controls below don't jump up and then get shoved down when the tower
+ * lands. On touch it takes the screen like the stage does.
+ */
+function StagePlaceholder({ children }: { children: React.ReactNode }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const touchDevice = useCoarsePointer();
+  const size = useCanvasSize(boxRef, { fill: touchDevice });
+  return (
+    <div
+      className={
+        touchDevice
+          ? "fixed inset-0 z-40 flex items-center justify-center bg-void px-4"
+          : "flex w-full flex-col items-center"
+      }
+    >
+      <div
+        ref={boxRef}
+        data-testid="daily-stage-placeholder"
+        className={
+          touchDevice
+            ? "flex flex-col items-center"
+            : "flex items-center justify-center rounded-xl border border-border-subtle bg-surface/40 px-4"
+        }
+        style={touchDevice ? undefined : { width: size.width, height: size.height }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Today's seed comes only from the server, so with no connection the daily
