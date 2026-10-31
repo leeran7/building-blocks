@@ -805,3 +805,35 @@ html[data-soft-nav] .scroll-cue {
   }
   .tower-ember { display: none; }
 }
+
+/* InfoDialog (the tab band's Controls / About modals): a short rise on open.
+   Phones show it as a bottom sheet, so it slides up from the edge instead. */
+@keyframes infoDialogIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes infoSheetIn {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes infoBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.info-dialog[open] {
+  animation: infoDialogIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.info-dialog[open]::backdrop {
+  animation: infoBackdropIn 200ms ease-out;
+}
+@media (max-width: 639.98px) {
+  .info-dialog[open] {
+    animation: infoSheetIn 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .info-dialog[open],
+  .info-dialog[open]::backdrop {
+    animation: none;
+  }
+}

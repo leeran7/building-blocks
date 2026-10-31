@@ -80,6 +80,7 @@ const WEB_PAGES: [route: string, h1: RegExp][] = [
   ["/duel", /^1v1 arena$/i],
   ["/duel/chips", /^chip duels$/i],
   ["/duel/leaderboard", /^1v1 leaderboard$/i],
+  ["/daily/leaderboard", /^daily leaderboard$/i],
   ["/tournaments", /^tournaments$/i],
   ["/rules", /^rules$/i],
   ["/terms", /^terms of service$/i],

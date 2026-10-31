@@ -113,3 +113,22 @@ describe("ClimbScene start gate", () => {
     expect(onBeforeStart).not.toHaveBeenCalled();
   });
 });
+
+describe("ClimbScene lobby controls (Leeran, 2026-10-31, mockup C)", () => {
+  // The overlay card names each control on its own row ("Move", "Jump",
+  // "Climb" labels); the hint is one line naming all three.
+  const cardLabels = () =>
+    [...container!.querySelectorAll("li span")].map((s) => s.textContent).filter((t) => t === "Move" || t === "Jump");
+
+  it("shows the full keyboard card by default (the landing demo has no tab bar)", async () => {
+    await render({});
+    expect(cardLabels().length).toBeGreaterThan(0);
+  });
+
+  it('shows only the one-line hint with lobbyControls="hint" (/play, /daily)', async () => {
+    await render({ lobbyControls: "hint" });
+    expect(cardLabels()).toEqual([]);
+    expect(container!.textContent).toMatch(/jump/i);
+    expect(container!.textContent).toMatch(/ladders/i);
+  });
+});

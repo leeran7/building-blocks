@@ -28,21 +28,19 @@ export default async function FreePlayPage({
   const replayToken = typeof sp.r === "string" && sp.r.length > 0 ? sp.r : null;
 
   return (
-    <FreeStackShell section="play" title="Play the climb">
+    <FreeStackShell section="play" title="Play the climb" tools={<PlayNotes />}>
       <ClimbPlayClient replayToken={replayToken} />
-      <PlayIntro />
     </FreeStackShell>
   );
 }
 
 /**
- * Collapsed by default (same pattern as the landing FAQ) so it sits below the
- * canvas instead of competing with it — still fully server-rendered, unique
- * crawlable copy, not client-only or hidden-from-users text.
+ * Opens from the tab band (GameNotes) so it never competes with the canvas —
+ * still fully server-rendered, unique crawlable copy, not client-only text.
  */
-function PlayIntro() {
+function PlayNotes() {
   return (
-    <GameNotes aboutTitle="About this game">
+    <GameNotes stack="Endless" aboutTitle="About this game">
       <p className="text-sm leading-relaxed text-text-secondary">
         This is Endless, Doomstack&rsquo;s solo mode — an endless, procedurally generated tower of
         ladders, platforms, and rising lava. Climb as high as you can before the lava catches

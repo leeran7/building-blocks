@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 import { FreeStackShell } from "../../src/components/FreeStackShell";
 import { ClimbBoard } from "../../src/components/Climb/ClimbBoard";
 import { ClimbAbout, ClimbPanelIntro } from "../../src/components/Climb/ClimbPanelIntro";
+import { GameNotes } from "../../src/components/Game/GameNotes";
 import { topFreeClimbers } from "../../src/db/climb";
 import { buildMetadata } from "../../src/lib/seo";
 
@@ -34,14 +35,21 @@ export default async function FreeClimbPage() {
   });
 
   return (
-    <FreeStackShell section="leaderboard" title="Global leaderboard">
+    <FreeStackShell
+      section="leaderboard"
+      title="Global leaderboard"
+      tools={
+        <GameNotes stack="Endless" aboutTitle="About Endless">
+          <ClimbAbout />
+        </GameNotes>
+      }
+    >
       {/* H1 drops "Endless": the navbar breadcrumb and the eyebrow already
           carry it, so repeating it a third time in the top ~100px was
           redundant. The <title> metadata keeps the full "Endless Leaderboard"
           phrase for search. */}
       <ClimbPanelIntro title="Global leaderboard" />
       <ClimbBoard climbers={climbers ?? []} unavailable={climbers === null} />
-      <ClimbAbout />
     </FreeStackShell>
   );
 }

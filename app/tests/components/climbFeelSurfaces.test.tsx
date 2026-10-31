@@ -98,7 +98,7 @@ describe("FreeStackShell climb chrome (AC-3)", () => {
     // Navbar renders a top-level <nav class="sticky top-0 z-30 …">.
     const navMarker = /<nav\b[^>]*\bsticky\b[^>]*\btop-0\b/;
     const hiddenOnTouch = /<div class="[^"]*\bpointer-coarse:hidden\b[^"]*"><nav\b[^>]*\bsticky\b/;
-    const render = (section: "play" | "daily" | "leaderboard") =>
+    const render = (section: "play" | "daily" | "leaderboard" | "daily-leaderboard") =>
       renderToStaticMarkup(
         createElement(FreeStackShell, {
           section,
@@ -110,13 +110,15 @@ describe("FreeStackShell climb chrome (AC-3)", () => {
       const html = render(section);
       expect(html).toMatch(hiddenOnTouch);
       // Tab band navigation still renders on the game sections.
-      expect(html).toContain('aria-label="Endless and Daily Climb sections"');
+      expect(html).toMatch(/role="tablist" aria-label="(Endless|Daily Climb) sections"/);
     }
-    const lbHtml = render("leaderboard");
-    expect(lbHtml).toMatch(navMarker);
-    expect(lbHtml).not.toMatch(hiddenOnTouch);
+    for (const section of ["leaderboard", "daily-leaderboard"] as const) {
+      const lbHtml = render(section);
+      expect(lbHtml).toMatch(navMarker);
+      expect(lbHtml).not.toMatch(hiddenOnTouch);
+    }
     // The header is the page banner, not part of the main landmark.
-    for (const section of ["play", "daily", "leaderboard"] as const) {
+    for (const section of ["play", "daily", "leaderboard", "daily-leaderboard"] as const) {
       const html = render(section);
       const main = html.indexOf('<main id="main-content"');
       expect(main).toBeGreaterThan(html.search(navMarker));

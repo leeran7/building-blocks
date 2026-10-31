@@ -15,12 +15,21 @@ import { ALTITUDE_UNIT } from "../../lib/units";
 /** DOM id of the viewer's row — the anchor "Find me" scrolls to. */
 export const YOUR_ROW_ID = "your-climb-row";
 
+/** One row: the Endless board's ClimberRank, or a Daily row (no wins). */
+export type HeightRow = Omit<ClimberRank, "wins"> & { wins?: number };
+
 export function ClimbLeaderboard({
   climbers,
   unavailable = false,
   highlightUserId = null,
+  label = "Skill climb leaderboard",
+  emptyText = "Be the first to set a height record in Endless.",
 }: {
-  climbers: ClimberRank[];
+  climbers: HeightRow[];
+  /** The list's accessible name. */
+  label?: string;
+  /** What an empty board says. */
+  emptyText?: string;
   /**
    * True when the standings could not be read. Kept separate from an empty
    * list so a failed query never renders as "nobody has played yet" — which
@@ -52,7 +61,7 @@ export function ClimbLeaderboard({
           [ no climbers yet ]
         </p>
         <p className="relative text-text-secondary text-sm mt-3">
-          Be the first to set a height record in Endless.
+          {emptyText}
         </p>
       </div>
     );
@@ -61,7 +70,7 @@ export function ClimbLeaderboard({
   const top = Math.max(1, climbers[0].peakY);
 
   return (
-    <ol className="flex flex-col gap-1.5" aria-label="Skill climb leaderboard">
+    <ol className="flex flex-col gap-1.5" aria-label={label}>
       {climbers.map((c) => {
         const pct = Math.max(4, Math.round((c.peakY / top) * 100));
         const isFirst = c.rank === 1;
@@ -120,7 +129,7 @@ export function ClimbLeaderboard({
                   You
                 </span>
               )}
-              {c.wins > 0 && (
+              {(c.wins ?? 0) > 0 && (
                 <span className="font-mono text-xs text-text-secondary tabular-nums">
                   {c.wins}★
                 </span>
