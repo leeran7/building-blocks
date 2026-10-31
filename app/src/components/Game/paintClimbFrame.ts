@@ -537,7 +537,7 @@ export function paintClimbFrame(
       drawJumpChevron(ctx, pxScreen, pFeetY - (2.4 * pS + 12 * ui) + bob, 7 * ui, ACCENT, 3 * ui);
     }
 
-    const knownName = opts.playerNames && Object.hasOwn(opts.playerNames, p.id)
+    const knownName = opts.playerNames && Object.prototype.hasOwnProperty.call(opts.playerNames, p.id)
       ? opts.playerNames[p.id]
       : null;
     const nameLabel = knownName ?? "Guest";
