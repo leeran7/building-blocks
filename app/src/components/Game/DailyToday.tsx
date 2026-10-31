@@ -74,6 +74,7 @@ export function DailyTodayLabel() {
         </span>
       ) : null}
       <span
+        data-info-detail
         className="inline-block min-w-[6ch] text-right font-mono text-xs tabular-nums text-text-muted"
         aria-label={reset ? `next tower in ${reset}` : undefined}
       >

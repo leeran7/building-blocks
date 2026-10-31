@@ -101,6 +101,13 @@ export interface ClimbSceneProps {
   startBlockedLabel?: string | null;
   /** Extra content rendered in the lobby overlay (e.g. daily streak card). */
   lobbyExtra?: ReactNode;
+  /**
+   * How the lobby shows the controls on a wider screen: "full" (the keyboard
+   * card) or "hint" (one line). Pages whose tab bar has a Controls button
+   * (/play, /daily) pass "hint" so the start card isn't a second copy of it.
+   * Phones always get the hint.
+   */
+  lobbyControls?: "full" | "hint";
   /** Extra content rendered in the results overlay (e.g. daily streak result). */
   resultExtra?: ReactNode;
 }
@@ -154,6 +161,7 @@ export function ClimbScene({
   onBeforeStart,
   startBlockedLabel = null,
   lobbyExtra,
+  lobbyControls = "full",
   resultExtra,
 }: ClimbSceneProps) {
   const router = useRouter();
@@ -564,13 +572,22 @@ export function ClimbScene({
               </>
             )}
             {/* Below sm the card would push Start out of the panel, so a phone
-                gets the one-line hint instead. */}
-            <div className="hidden sm:block">
-              <ClimbControlsGuide variant="overlay" />
-            </div>
-            <div className="sm:hidden">
-              <ClimbControlsGuide variant="hint" />
-            </div>
+                gets the one-line hint instead; so does a page whose tab bar
+                already has the full Controls (lobbyControls="hint"). */}
+            {lobbyControls === "full" ? (
+              <>
+                <div className="hidden sm:block">
+                  <ClimbControlsGuide variant="overlay" />
+                </div>
+                <div className="sm:hidden">
+                  <ClimbControlsGuide variant="hint" />
+                </div>
+              </>
+            ) : (
+              <div className="mt-4">
+                <ClimbControlsGuide variant="hint" />
+              </div>
+            )}
             <StartButton onClick={handleStart} label="Start climb" blockedLabel={startBlockedLabel} />
           </Overlay>
         )}

@@ -188,6 +188,7 @@ export function DailyClimbClient({
         onFinish={handleFinish}
         onBeforeStart={beforeStart}
         startBlockedLabel={refreshingDaily ? "Loading today\u2019s tower\u2026" : null}
+        lobbyControls="hint"
         lobbyExtra={
           <>
             <h2 className="font-display text-4xl text-text-primary mt-2">
@@ -203,9 +204,6 @@ export function DailyClimbClient({
                 {streak}-day streak
               </p>
             ) : null}
-            <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.16em] text-text-muted">
-              Resets in {reset}
-            </p>
           </>
         }
         resultExtra={

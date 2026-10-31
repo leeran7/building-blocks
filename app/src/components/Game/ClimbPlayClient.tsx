@@ -80,6 +80,7 @@ export function ClimbPlayClient({ replayToken }: ClimbPlayClientProps) {
         tower={tower}
         categoryLabel={replay ? "Shared replay" : "Endless"}
         replay={replay}
+        lobbyControls="hint"
       />
     </PlayShell>
   );
@@ -95,8 +96,8 @@ function PlayShell({
   // side-by-side layout that width-constrains the canvas column collapses it to a
   // short, narrow strip. So the canvas stays centered here at its full,
   // height-derived size, identical to the pre-layout-pass baseline (never shrunk,
-  // lobby overlay still fits with no HUD overlap). The controls card lives below it
-  // in the page's GameNotes column rather than squeezed beside the stage.
+  // lobby overlay still fits with no HUD overlap). The full controls live in the
+  // tab bar's Controls dialog (GameNotes) rather than squeezed beside the stage.
   // Touch is unaffected: ClimbScene goes `fixed inset-0` on coarse pointers.
   return <div className="flex flex-col items-center gap-6">{children}</div>;
 }

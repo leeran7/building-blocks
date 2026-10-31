@@ -15,6 +15,10 @@
  * never changes the height of the tab band it sits in. Under 400px wide its
  * text collapses to the icon (kept for screen readers), and under 340px the
  * icon button narrows to 36px, so the band still fits a 320px window.
+ *
+ * A dialog given an `infoId` can also be opened from elsewhere on the page
+ * (openInfoDialog): on a touch screen the game stage covers the tab bar, so
+ * the in-game ⚙ menu lists these dialogs (listInfoDialogs) and opens them.
  */
 
 import { useId, useRef, type ReactNode } from "react";
@@ -24,6 +28,8 @@ export function InfoDialog({
   title,
   icon,
   text,
+  infoId,
+  className = "",
   children,
 }: {
   /** Tooltip for the trigger, and its accessible name (prefixed to `text`). */
@@ -33,6 +39,10 @@ export function InfoDialog({
   icon: ReactNode;
   /** What the button says. Defaults to `label`. */
   text?: ReactNode;
+  /** Lists the dialog for listInfoDialogs / openInfoDialog. One per page. */
+  infoId?: string;
+  /** Extra classes for the trigger button (e.g. hiding it at a breakpoint). */
+  className?: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -44,8 +54,9 @@ export function InfoDialog({
         type="button"
         title={label}
         aria-haspopup="dialog"
+        data-info-id={infoId}
         onClick={() => ref.current?.showModal()}
-        className="inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-border-strong bg-surface px-4 text-sm font-semibold text-text-secondary transition-colors hover:border-signal/50 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void max-[399px]:w-11 max-[399px]:px-0 max-[339px]:w-9"
+        className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-border-strong bg-surface px-4 text-sm font-semibold text-text-secondary transition-colors hover:border-signal/50 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void max-[399px]:w-11 max-[399px]:px-0 max-[339px]:w-9 ${className}`}
       >
         <span className="inline-flex h-5 w-5 shrink-0" aria-hidden="true">
           {icon}
@@ -56,6 +67,8 @@ export function InfoDialog({
       <dialog
         ref={ref}
         aria-labelledby={titleId}
+        data-info-id={infoId}
+        data-info-title={infoId ? title : undefined}
         // A click whose target is the <dialog> itself landed on the backdrop
         // (the content fills the box, so inside clicks hit a child).
         onClick={(e) => {
@@ -95,6 +108,38 @@ export function InfoDialog({
       </dialog>
     </>
   );
+}
+
+export interface InfoEntry {
+  id: string;
+  title: string;
+  /** Live text the trigger marks with data-info-detail (Today's countdown). */
+  detail: string;
+}
+
+/** The page's openable info dialogs, in page order. */
+export function listInfoDialogs(root: ParentNode = document): InfoEntry[] {
+  return [...root.querySelectorAll<HTMLDialogElement>("dialog[data-info-id]")].map((d) => {
+    const id = d.dataset.infoId ?? "";
+    const trigger = [...root.querySelectorAll<HTMLElement>("button[data-info-id]")].find(
+      (b) => b.dataset.infoId === id,
+    );
+    return {
+      id,
+      title: d.dataset.infoTitle ?? "",
+      detail: trigger?.querySelector("[data-info-detail]")?.textContent?.trim() ?? "",
+    };
+  });
+}
+
+/** Opens the info dialog with this id; false when the page has none. */
+export function openInfoDialog(id: string, root: ParentNode = document): boolean {
+  const dialog = [...root.querySelectorAll<HTMLDialogElement>("dialog[data-info-id]")].find(
+    (d) => d.dataset.infoId === id,
+  );
+  if (!dialog || dialog.open) return false;
+  dialog.showModal();
+  return true;
 }
 
 /** Game controller, for the Controls & power-ups dialog. */

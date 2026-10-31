@@ -8,11 +8,17 @@
  *
  * The run keeps going while the panel is open (live climbs and duels have no
  * pause), so it is a popover under the cog, not a full-screen sheet.
+ *
+ * On a touch screen the game covers the website's tab bar, so the panel also
+ * lists the page's info dialogs (Today's tower, Controls, About; see
+ * GameNotes) and opens them. Pages without any (the app, the landing demo)
+ * show no extra rows.
  */
 
 import { useEffect, useId, useRef, useState } from "react";
 import { ControlSchemePicker } from "../ControlSchemePicker";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
+import { listInfoDialogs, openInfoDialog, type InfoEntry } from "../ui/InfoDialog";
 
 /** An on/off preference the host app owns, such as vibration on native. */
 export interface GameToggle {
@@ -40,6 +46,8 @@ export function GameSettingsButton({
   // Which edge the panel hangs from: the cog sits top-left in some HUD layouts
   // and top-right in others, and the panel must open toward the screen.
   const [side, setSide] = useState<"left" | "right">("right");
+  // Read when the panel opens: the dialogs live outside the game's tree.
+  const [info, setInfo] = useState<InfoEntry[]>([]);
   const touch = useCoarsePointer();
   const wrapRef = useRef<HTMLDivElement>(null);
   const cogRef = useRef<HTMLButtonElement>(null);
@@ -74,6 +82,7 @@ export function GameSettingsButton({
         onClick={() => {
           const r = cogRef.current?.getBoundingClientRect();
           if (r) setSide(r.left + r.width / 2 < window.innerWidth / 2 ? "left" : "right");
+          if (!open) setInfo(listInfoDialogs());
           setOpen((o) => !o);
         }}
         onContextMenu={(e) => e.preventDefault()}
@@ -97,6 +106,26 @@ export function GameSettingsButton({
                 Controls
               </p>
               <ControlSchemePicker labelledBy={controlsLabelId} />
+            </div>
+          )}
+          {touch && info.length > 0 && (
+            <div className="mt-2 border-t border-white/10 pt-2">
+              {info.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    openInfoDialog(entry.id);
+                  }}
+                  className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-1 text-left text-sm font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal"
+                >
+                  {entry.title}
+                  <span aria-hidden="true" className="font-mono text-xs tabular-nums text-text-secondary">
+                    {entry.detail ? `${entry.detail} ›` : "›"}
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </div>
