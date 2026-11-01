@@ -19,7 +19,12 @@ import { authedFetch } from "../../lib/authedFetch";
 import { readSessionCache, writeSessionCache } from "../../lib/sessionCache";
 import type { DailyClimberRank } from "../../db/dailyClimb";
 import { ALTITUDE_UNIT } from "../../lib/units";
-import { DAILY_HREF, DAILY_LEADERBOARD_HREF, SIGNIN_HREF } from "../navLinks";
+import {
+  DAILY_HREF,
+  DAILY_LEADERBOARD_HREF,
+  LAUNCH_TRANSITION,
+  SIGNIN_HREF,
+} from "../navLinks";
 import {
   BoardCta,
   BoardFindMe,
@@ -220,7 +225,7 @@ function TodaysBestPanel({ viewer }: { viewer: ViewerState }) {
           "Your standing couldn’t be loaded right now."
         )
       }
-      cta={<BoardCta href={DAILY_HREF}>Climb today&rsquo;s tower</BoardCta>}
+      cta={<BoardCta href={DAILY_HREF} transitionTypes={LAUNCH_TRANSITION}>Climb today&rsquo;s tower</BoardCta>}
     />
   );
 }

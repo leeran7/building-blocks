@@ -112,8 +112,12 @@ export default function RootLayout({
         </a>
         <AuthProvider>
           {/* Every navigation crossfades the page instead of cutting to it
-              (`.page` in globals.css). */}
-          <ViewTransition default="page">{children}</ViewTransition>
+              (`.page` in globals.css). A link that starts a game stage tags
+              its navigation `launch` (LAUNCH_TRANSITION), which runs the
+              `.page-launch` crossfade instead. */}
+          <ViewTransition default={{ launch: "page-launch", default: "page" }}>
+            {children}
+          </ViewTransition>
           <SiteFooter />
         </AuthProvider>
         <SoftNavigationFlag />
