@@ -184,10 +184,20 @@ export function BoardNoMatch({ query, noun, onClear }: { query: string; noun: st
 }
 
 /** The board page's one primary action, full width under the standing. */
-export function BoardCta({ href, children }: { href: string; children: ReactNode }) {
+export function BoardCta({
+  href,
+  transitionTypes,
+  children,
+}: {
+  href: string;
+  /** View-transition types for this navigation (e.g. LAUNCH_TRANSITION). */
+  transitionTypes?: string[];
+  children: ReactNode;
+}) {
   return (
     <Link
       href={href}
+      transitionTypes={transitionTypes}
       className="inline-flex w-full items-center justify-center rounded-full bg-signal text-void font-semibold px-6 min-h-[44px] shadow-signal hover:brightness-110 focus-visible:ring-2 focus-visible:ring-signal focus-visible:ring-offset-2 focus-visible:ring-offset-void active:scale-[0.98] motion-reduce:active:scale-100 transition-[filter,transform,scale] whitespace-nowrap"
     >
       {children}

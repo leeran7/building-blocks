@@ -4,14 +4,18 @@ export function NavTab({
   href,
   label,
   active,
+  transitionTypes,
 }: {
   href: string;
   label: string;
   active: boolean;
+  /** View-transition types for this navigation (e.g. LAUNCH_TRANSITION). */
+  transitionTypes?: string[];
 }) {
   return (
     <Link
       href={href}
+      transitionTypes={transitionTypes}
       role="tab"
       aria-selected={active}
       aria-current={active ? "page" : undefined}

@@ -24,7 +24,7 @@ import { authedFetch } from "../../lib/authedFetch";
 import { readSessionCache, writeSessionCache } from "../../lib/sessionCache";
 import type { ClimberRank } from "../../db/climb";
 import { ALTITUDE_UNIT } from "../../lib/units";
-import { SIGNIN_HREF } from "../navLinks";
+import { FREE_CLIMB_HREF, LAUNCH_TRANSITION, SIGNIN_HREF } from "../navLinks";
 import {
   BoardCta,
   BoardFindMe,
@@ -224,7 +224,7 @@ function YourBestPanel({ viewer }: { viewer: ViewerState }) {
           "Your standing couldn’t be loaded right now."
         )
       }
-      cta={<BoardCta href="/play">Play the climb</BoardCta>}
+      cta={<BoardCta href={FREE_CLIMB_HREF} transitionTypes={LAUNCH_TRANSITION}>Play the climb</BoardCta>}
     />
   );
 }

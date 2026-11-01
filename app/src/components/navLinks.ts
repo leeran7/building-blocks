@@ -8,6 +8,12 @@ export const FREE_CLIMB_HREF = "/play";
 
 /** Daily Climb — same tower for everyone each day, with a local streak. */
 export const DAILY_HREF = "/daily";
+/**
+ * Transition type for a link that starts a game stage (/play, /daily) from a
+ * board. app/layout.tsx maps it to the `.page-launch` crossfade in globals.css:
+ * the board fades out before the stage fades in, so the two never overlap.
+ */
+export const LAUNCH_TRANSITION = ["launch"];
 
 /** Daily Climb standings for today's tower (same board as the mobile Ranks → Today tab). */
 export const DAILY_LEADERBOARD_HREF = "/daily/leaderboard";
