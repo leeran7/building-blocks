@@ -17,14 +17,14 @@ describe("interstitial pacing", () => {
     expect(answers).toEqual([false, false, true]);
   });
 
-  it("starts counting again after an ad plays", () => {
+  it("starts counting again after a break is tried", () => {
     const pacer = createInterstitialPacer(START);
     presses(pacer, INTERSTITIAL_EVERY_RUNS, AFTER_GRACE);
-    pacer.adShown();
+    pacer.breakTried();
     expect(presses(pacer, INTERSTITIAL_EVERY_RUNS, AFTER_GRACE)).toEqual([false, false, true]);
   });
 
-  it("keeps asking when the requested ad never played (no fill)", () => {
+  it("keeps asking until a break is tried", () => {
     const pacer = createInterstitialPacer(START);
     presses(pacer, INTERSTITIAL_EVERY_RUNS, AFTER_GRACE);
     expect(pacer.playAgain(AFTER_GRACE, false)).toBe(true);

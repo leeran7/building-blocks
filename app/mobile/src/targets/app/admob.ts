@@ -20,7 +20,7 @@
 
 import type { AdCallbacks, AdOutcome, AdsAdapter } from "../types";
 
-/** How long loading an ad may take before the request gives up. */
+/** How long loading an ad, or one SDK start step, may take before the request gives up. */
 export const AD_LOAD_TIMEOUT_MS = 8_000;
 /** A loaded ad that has not appeared on screen by then is treated as an error. */
 export const AD_START_TIMEOUT_MS = 8_000;
@@ -79,11 +79,19 @@ export function createAdMobAds(opts: AdMobAdsOptions): AdsAdapter {
   function start(): Promise<AdMobLike | null> {
     ready ??= (async () => {
       try {
-        const sdk = await opts.load();
-        await sdk.initialize({ initializeForTesting: opts.testing });
-        const tracking = await sdk.trackingAuthorizationStatus().catch(() => null);
+        // Each SDK step is capped, except the two prompts the player answers
+        // themselves (Apple's tracking prompt and Google's consent form).
+        const sdk = await withTimeout(opts.load(), AD_LOAD_TIMEOUT_MS);
+        if (!sdk) return null;
+        const started = await withTimeout(
+          sdk.initialize({ initializeForTesting: opts.testing }).then(() => true),
+          AD_LOAD_TIMEOUT_MS,
+        );
+        if (started !== true) return null;
+        const tracking = await withTimeout(sdk.trackingAuthorizationStatus(), AD_LOAD_TIMEOUT_MS);
         if (tracking?.status === "notDetermined") await sdk.requestTrackingAuthorization().catch(() => {});
-        let consent = await sdk.requestConsentInfo();
+        let consent = await withTimeout(sdk.requestConsentInfo(), AD_LOAD_TIMEOUT_MS);
+        if (!consent) return null;
         if (consent.status === "REQUIRED" && consent.isConsentFormAvailable) {
           consent = await sdk.showConsentForm();
         }

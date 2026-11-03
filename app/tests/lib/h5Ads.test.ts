@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AD_BREAK_MAX_MS, createH5Ads, outcomeOf, parseAdsenseClient } from "../../src/lib/ads/h5Ads";
+import { AD_BREAK_MAX_MS, AD_BREAK_START_MS, createH5Ads, outcomeOf, parseAdsenseClient } from "../../src/lib/ads/h5Ads";
 import { GET as adsTxt } from "../../app/ads.txt/route";
 
 type AdsWindow = Window & { adBreak?: (o: Record<string, unknown>) => void; adsbygoogle?: unknown[] };
@@ -65,14 +65,39 @@ describe("createH5Ads", () => {
     expect(onStart).toHaveBeenCalledTimes(1);
   });
 
-  it("settles a break that never calls back", async () => {
+  it("gives up quickly on a break whose ad never appears (blocked script, no fill)", async () => {
     vi.useFakeTimers();
     const ads = createH5Ads("ca-pub-1234567890123456");
     ads.preload();
     (window as AdsWindow).adBreak = () => {};
     const p = ads.interstitial();
+    await vi.advanceTimersByTimeAsync(AD_BREAK_START_MS);
+    expect(await p).toBe("unavailable");
+  });
+
+  it("settles a started break that never calls back", async () => {
+    vi.useFakeTimers();
+    const ads = createH5Ads("ca-pub-1234567890123456");
+    ads.preload();
+    (window as AdsWindow).adBreak = (o) => (o.beforeAd as () => void)();
+    const p = ads.interstitial();
+    await vi.advanceTimersByTimeAsync(AD_BREAK_START_MS);
+    let done = false;
+    void p.then(() => (done = true));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(false);
     await vi.advanceTimersByTimeAsync(AD_BREAK_MAX_MS);
     expect(await p).toBe("error");
+  });
+
+  it("asks for no break once the script failed to load", async () => {
+    const ads = createH5Ads("ca-pub-1234567890123456");
+    ads.preload();
+    document.querySelector("script")!.dispatchEvent(new Event("error"));
+    const adBreak = vi.fn();
+    (window as AdsWindow).adBreak = adBreak;
+    expect(await ads.interstitial()).toBe("unavailable");
+    expect(adBreak).not.toHaveBeenCalled();
   });
 });
 

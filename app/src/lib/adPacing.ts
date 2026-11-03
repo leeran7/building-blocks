@@ -19,12 +19,15 @@ export const INTERSTITIAL_EVERY_RUNS = 3;
 export interface InterstitialPacer {
   /**
    * Count one press of Play again and say whether to show an ad before the
-   * next run. A true answer is a request, not a show: report what happened
-   * with `adShown`.
+   * next run. After a true answer, call `breakTried` once the ad settles.
    */
   playAgain(now: number, adFree: boolean): boolean;
-  /** An ad actually played (finished or skipped): start counting again. */
-  adShown(): void;
+  /**
+   * An ad break was tried, whatever came of it: start counting again. A
+   * break with no fill or a blocked SDK is not retried on the very next run,
+   * so a player is never kept waiting on every press.
+   */
+  breakTried(): void;
 }
 
 export function createInterstitialPacer(sessionStart: number): InterstitialPacer {
@@ -36,7 +39,7 @@ export function createInterstitialPacer(sessionStart: number): InterstitialPacer
       if (now - sessionStart < INTERSTITIAL_GRACE_MS) return false;
       return presses >= INTERSTITIAL_EVERY_RUNS;
     },
-    adShown() {
+    breakTried() {
       presses = 0;
     },
   };

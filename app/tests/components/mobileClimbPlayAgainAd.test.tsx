@@ -16,6 +16,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
 const auth = vi.hoisted(() => ({ uid: null as string | null }));
+const game = vi.hoisted(() => ({ start: vi.fn() }));
+const shopApi = vi.hoisted(() => ({ adFree: false }));
+vi.mock("../../mobile/src/lib/shop", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../mobile/src/lib/shop")>()),
+  fetchShop: async () => ({ gems: 0, ownedIds: [], appleAccountToken: null, webCheckout: false, adFree: shopApi.adFree }),
+  settleUnfinishedPurchases: async () => null,
+  watchAppleTransactions: () => () => {},
+}));
 vi.mock("../../mobile/src/contexts/AuthContext", () => ({
   useAuth: () => ({ user: auth.uid ? { uid: auth.uid } : null, isAnonymous: false, loading: false }),
 }));
@@ -44,7 +52,7 @@ vi.mock("../../src/game/useClimb", async () => {
         state,
         simRef: { current: state },
         renderFeed: {},
-        start: () => {},
+        start: game.start,
         finished: true,
         setTouch: () => {},
         runId: 1,
@@ -73,6 +81,7 @@ vi.mock("../../src/hooks/useSafeAreaInsets", () => ({
 
 import { AppDataProvider } from "../../mobile/src/contexts/AppDataContext";
 import { AdsProvider } from "../../mobile/src/contexts/AdsContext";
+import { ShopProvider } from "../../mobile/src/contexts/ShopContext";
 import { ClimbScreen } from "../../mobile/src/screens/ClimbScreen";
 import { INTERSTITIAL_GRACE_MS } from "../../src/lib/adPacing";
 import type { AdOutcome, AdsAdapter } from "../../mobile/src/targets/types";
@@ -84,6 +93,8 @@ const T0 = 1_800_000_000_000;
 beforeEach(() => {
   localStorage.clear();
   auth.uid = null;
+  shopApi.adFree = false;
+  game.start.mockClear();
   vi.spyOn(Date, "now").mockReturnValue(T0);
 });
 
@@ -95,19 +106,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function mount(ads: AdsAdapter) {
+async function mount(ads: AdsAdapter, path = "/climb") {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
     root!.render(
-      <MemoryRouter initialEntries={["/climb"]}>
+      <MemoryRouter initialEntries={[path]}>
         <AppDataProvider>
-          <AdsProvider ads={ads}>
-            <Routes>
-              <Route path="/climb" element={<ClimbScreen />} />
-            </Routes>
-          </AdsProvider>
+          <ShopProvider>
+            <AdsProvider ads={ads}>
+              <Routes>
+                <Route path="/climb" element={<ClimbScreen />} />
+              </Routes>
+            </AdsProvider>
+          </ShopProvider>
         </AppDataProvider>
       </MemoryRouter>,
     );
@@ -170,6 +183,39 @@ describe("interstitial before Endless Play again", () => {
       await new Promise((r) => setTimeout(r, 0));
     });
     expect(playAgain()?.disabled).toBe(false);
+    // Every press started a run, the third one only once the ad settled.
+    expect(game.start).toHaveBeenCalledTimes(3);
+  });
+
+  it("starts no run while the ad is still up", async () => {
+    const ads = fakeAds();
+    ads.midgame.mockImplementationOnce(() => new Promise<AdOutcome>(() => {}));
+    await mount(ads);
+    vi.mocked(Date.now).mockReturnValue(T0 + INTERSTITIAL_GRACE_MS);
+    await press();
+    await press();
+    await press();
+    expect(game.start).toHaveBeenCalledTimes(2);
+  });
+
+  it("never shows one to a signed-in player who has bought gems", async () => {
+    auth.uid = "buyer";
+    shopApi.adFree = true;
+    const ads = fakeAds();
+    await mount(ads);
+    vi.mocked(Date.now).mockReturnValue(T0 + INTERSTITIAL_GRACE_MS);
+    for (let i = 0; i < 6; i++) await press();
+    expect(ads.midgame).not.toHaveBeenCalled();
+    expect(game.start).toHaveBeenCalledTimes(6);
+  });
+
+  it("still shows one to a signed-in player who has not", async () => {
+    auth.uid = "player";
+    const ads = fakeAds();
+    await mount(ads);
+    vi.mocked(Date.now).mockReturnValue(T0 + INTERSTITIAL_GRACE_MS);
+    for (let i = 0; i < 3; i++) await press();
+    expect(ads.midgame).toHaveBeenCalledTimes(1);
   });
 
   it("never asks when the target serves no ads", async () => {

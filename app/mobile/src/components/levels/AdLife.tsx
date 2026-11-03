@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AD_LIVES_PER_DAY } from "@app/levels/rules";
 import { useAds } from "../../contexts/AdsContext";
 import { useOptionalLevels } from "../../contexts/LevelsContext";
@@ -33,7 +33,9 @@ export function useAdLifeOffer(): AdLifeOffer | null {
       const outcome = await ads.rewarded();
       if (outcome === "skipped") return "skipped";
       if (outcome !== "finished") return "failed";
-      const res = await claim();
+      // The ad is watched: a dropped request must not cost the player it.
+      let res = await claim();
+      if (!res.ok && res.code === "NETWORK") res = await claim();
       if (res.ok) return "granted";
       return res.code === "AD_LIVES_USED" ? "used" : res.code === "LIVES_AVAILABLE" ? "granted" : "failed";
     },
@@ -49,12 +51,17 @@ const OUTCOME_COPY: Record<Exclude<AdLifeOutcome, "granted">, string> = {
 /** The button and today's count. On a grant the card redraws with the life. */
 export function WatchAdForLife({ offer }: { offer: AdLifeOffer }) {
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [note, setNote] = useState<string | null>(null);
 
   const watch = async () => {
+    // A second tap in the same frame must not ask for a second ad.
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setNote(null);
     const outcome = await offer.watch();
+    busyRef.current = false;
     setBusy(false);
     if (outcome === "granted") void notifySuccess();
     else setNote(OUTCOME_COPY[outcome]);

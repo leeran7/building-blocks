@@ -46,6 +46,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        <!-- The AdMob plugin links the Google Mobile Ads SDK into this build too,
+             and it refuses to start without an app id. Android serves no ads
+             (mobile/src/targets/app/admob.ts), so Google's public TEST id is enough. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
     </application>
 
     <!-- Permissions -->

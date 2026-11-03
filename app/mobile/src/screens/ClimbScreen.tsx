@@ -268,18 +268,22 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     handleStart();
   }, [startWhenReady, dailyInfo, handleStart]);
 
-  /** The results card's Play again while a daily tower is (re)loading. */
   // Placement A: an interstitial before some Endless "Play again" presses,
   // paced by src/lib/adPacing.ts (every 3rd press, not in the first 3
   // minutes, never for a player who has bought gems). Daily never shows one.
   const { ads, pacer } = useAds();
   const shop = useOptionalShop();
   const shopState = shop?.shop ?? null;
-  const shopIdle = shop !== null && shop.shop === null && !shop.loading && shop.error === null;
-  // Learn whether a signed-in player has bought gems before their next run.
+  const shopRef = useRef(shop);
+  shopRef.current = shop;
+  // Learn whether a signed-in player has bought gems before their next run:
+  // once per finished Endless run while the Shop is unknown, so a failed
+  // fetch is tried again after the next run rather than never.
   useEffect(() => {
-    if (finished && isAuthed && ads.enabled && shopIdle) void shop?.refresh();
-  }, [finished, isAuthed, ads.enabled, shopIdle, shop]);
+    const s = shopRef.current;
+    if (!finished || isDaily || !isAuthed || !ads.enabled || !s || s.shop !== null || s.loading) return;
+    void s.refresh();
+  }, [finished, isDaily, isAuthed, ads.enabled]);
   const [adBreak, setAdBreak] = useState(false);
   const adBreakRef = useRef(false);
   const handlePlayAgain = useCallback(async () => {
@@ -288,14 +292,15 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
       adBreakRef.current = true;
       setAdBreak(true);
       // Input stays blocked until the ad settles; the run starts whatever it did.
-      const outcome = await ads.midgame();
-      if (outcome === "finished" || outcome === "skipped") pacer.adShown();
+      await ads.midgame();
+      pacer.breakTried();
       adBreakRef.current = false;
       setAdBreak(false);
     }
     handleStart();
   }, [isDaily, ads, pacer, shopState, handleStart]);
 
+  /** The results card's Play again while a daily tower is (re)loading. */
   const playAgainState: PlayAgainState = adBreak
     ? "ad"
     : !isDaily || dailyInfo

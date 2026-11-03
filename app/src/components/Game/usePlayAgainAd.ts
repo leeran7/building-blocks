@@ -57,8 +57,8 @@ export function usePlayAgainAd(): (() => Promise<void>) | undefined {
         ? async () => {
             const p = sessionPacer();
             if (!p.playAgain(Date.now(), adFree.current)) return;
-            const outcome = await h5.interstitial();
-            if (outcome === "finished" || outcome === "skipped") p.adShown();
+            await h5.interstitial();
+            p.breakTried();
           }
         : undefined,
     [],

@@ -6,8 +6,9 @@
  *
  * Off unless NEXT_PUBLIC_ADSENSE_CLIENT holds an AdSense publisher id
  * ("ca-pub-" and digits). Nothing loads, and no request leaves the page, when
- * it is off. Every call resolves: a blocked script, no fill or a lost
- * callback settles within AD_BREAK_MAX_MS, so the game is never stuck.
+ * it is off. Every call resolves: a blocked script or no fill settles within
+ * AD_BREAK_START_MS, a lost callback within AD_BREAK_MAX_MS, so the game is
+ * never stuck.
  */
 
 /** How an ad break ended. "finished" and "skipped" mean an ad played. */
@@ -22,6 +23,8 @@ export interface H5Ads {
 }
 
 export const ADSENSE_SCRIPT = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js";
+/** A break whose ad has not appeared by then is given up (blocked script, no fill). */
+export const AD_BREAK_START_MS = 5_000;
 /** Hard cap on one ad break, so a lost callback cannot block the game. */
 export const AD_BREAK_MAX_MS = 60_000;
 
@@ -58,6 +61,8 @@ export function outcomeOf(status: string | undefined): H5AdOutcome {
 
 export function createH5Ads(client: string | null, opts: { testMode?: boolean } = {}): H5Ads {
   let loaded = false;
+  // The script failed to load (ad blocker, CSP, offline): no break can play.
+  let failed = false;
 
   function preload(): void {
     if (!client || loaded || typeof document === "undefined") return;
@@ -73,6 +78,9 @@ export function createH5Ads(client: string | null, opts: { testMode?: boolean } 
     s.src = `${ADSENSE_SCRIPT}?client=${encodeURIComponent(client)}`;
     s.crossOrigin = "anonymous";
     if (opts.testMode) s.setAttribute("data-adbreak-test", "on");
+    s.onerror = () => {
+      failed = true;
+    };
     document.head.appendChild(s);
     w.adConfig({ preloadAdBreaks: "on", sound: "on" });
   }
@@ -80,13 +88,16 @@ export function createH5Ads(client: string | null, opts: { testMode?: boolean } 
   function interstitial(onStart?: () => void): Promise<H5AdOutcome> {
     if (!client) return Promise.resolve("unavailable");
     preload();
+    if (failed) return Promise.resolve("unavailable");
     const w = window as AdsWindow;
     return new Promise((resolve) => {
       let settled = false;
+      const startTimer = setTimeout(() => settle("unavailable"), AD_BREAK_START_MS);
       const cap = setTimeout(() => settle("error"), AD_BREAK_MAX_MS);
       function settle(outcome: H5AdOutcome): void {
         if (settled) return;
         settled = true;
+        clearTimeout(startTimer);
         clearTimeout(cap);
         resolve(outcome);
       }
@@ -95,6 +106,7 @@ export function createH5Ads(client: string | null, opts: { testMode?: boolean } 
           type: "next",
           name: "climb-again",
           beforeAd: () => {
+            clearTimeout(startTimer);
             try {
               onStart?.();
             } catch {
@@ -103,7 +115,6 @@ export function createH5Ads(client: string | null, opts: { testMode?: boolean } 
           },
           adBreakDone: (info) => settle(outcomeOf(info?.breakStatus)),
         });
-        if (!w.adBreak) settle("unavailable");
       } catch {
         settle("error");
       }
