@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 /**
  * Web ads (src/lib/ads/h5Ads.ts): off without a valid AdSense id, Google's
  * break statuses mapped to outcomes, and a break that never calls back still
@@ -34,6 +34,9 @@ describe("outcomeOf", () => {
 
 describe("createH5Ads", () => {
   beforeEach(() => {
+    // happy-dom loads no scripts and would fire "error" on its own; a test that
+    // wants a blocked script dispatches the error itself.
+    (window as unknown as { happyDOM: { settings: { handleDisabledFileLoadingAsSuccess: boolean } } }).happyDOM.settings.handleDisabledFileLoadingAsSuccess = true;
     document.head.innerHTML = "";
     delete (window as AdsWindow).adBreak;
     delete (window as AdsWindow).adsbygoogle;

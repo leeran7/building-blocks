@@ -96,7 +96,7 @@ describe("gem pack payoff", () => {
     await press(document.querySelector("[data-gem-pack-buy]"));
     expect(reveal()?.getAttribute("aria-label")).toBe("Gems added: +1,200 gems");
     expect(reveal()?.textContent).toContain("1,450 gems");
-    expect(shopState.apply).toHaveBeenCalledWith({ gems: 1450 });
+    expect(shopState.apply).toHaveBeenCalledWith({ gems: 1450, adFree: true });
     await press(buttonNamed("Continue"));
     expect(reveal()).toBeNull();
     expect(onClose).toHaveBeenCalledTimes(1);
