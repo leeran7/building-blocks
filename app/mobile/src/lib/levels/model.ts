@@ -89,6 +89,12 @@ export interface SeasonView {
    * when this client cannot sell one (the device-local mock, an older server).
    */
   refill: LivesRefillPrice | null;
+  /**
+   * Lives the player can still earn from rewarded ads today (server cap).
+   * Null when this client cannot grant one (the device-local mock, an older
+   * server).
+   */
+  adLivesLeft: number | null;
 }
 
 export interface LivesRefillPrice {
@@ -101,6 +107,12 @@ export type BuyLivesResult =
   | { ok: true; player: PlayerStats; gems: number }
   /** LIVES_FULL: already full, nothing charged. NOT_ENOUGH_GEMS: `gems` is the balance. */
   | { ok: false; code: "LIVES_FULL" | "NOT_ENOUGH_GEMS" | "NETWORK"; gems?: number };
+
+/** A life for a rewarded ad: the new lives and what is left today, or why it was refused. */
+export type AdLifeResult =
+  | { ok: true; player: PlayerStats; adLivesLeft: number }
+  /** LIVES_AVAILABLE: the player already has a life. AD_LIVES_USED: today's cap is reached. */
+  | { ok: false; code: "LIVES_AVAILABLE" | "AD_LIVES_USED" | "NETWORK" };
 
 /** Star chests (§6.4): one opens for every 20 lifetime stars. */
 export interface ChestProgress {
@@ -263,6 +275,11 @@ export interface LevelsClient {
   getBoard(level: number): Promise<LevelBoardView>;
   /** Top lives up to full with gems. Absent on clients that cannot sell it. */
   buyLives?(): Promise<BuyLivesResult>;
+  /**
+   * Claim the life a rewarded ad earned (the server decides whether it is
+   * owed). Absent on clients that cannot grant one.
+   */
+  claimAdLife?(): Promise<AdLifeResult>;
 }
 
 /** Every 5th level is a Hard level (§3). */

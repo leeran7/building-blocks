@@ -79,5 +79,18 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>GADApplicationIdentifier</key>
+	<!-- AdMob app id. This is Google's public TEST app id; swap in the real
+	     one from the AdMob console before release (see mobile/src/targets/app/adUnits.ts). -->
+	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Doomstack shows a few ads to stay free. Allowing tracking lets those ads be more relevant to you.</string>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+	</array>
 </dict>
 </plist>

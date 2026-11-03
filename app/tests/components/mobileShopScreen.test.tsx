@@ -32,7 +32,7 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
 }));
 vi.mock("../../mobile/src/lib/shop", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../mobile/src/lib/shop")>()),
-  fetchShop: async () => ({ gems: 1850, ownedIds: ["kestrel-void"], appleAccountToken: null, webCheckout: false }),
+  fetchShop: async () => ({ gems: 1850, ownedIds: ["kestrel-void"], appleAccountToken: null, webCheckout: false, adFree: false }),
   settleUnfinishedPurchases: async () => null,
   watchAppleTransactions: () => () => {},
 }));

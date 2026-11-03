@@ -81,7 +81,7 @@ export function GemPacksSheet({ onClose }: { onClose: () => void }) {
       if (result.kind === "credited") {
         // The reveal plays the success haptic when it bursts.
         setLanded({ gems: pack.gems, from: shop.gems, to: result.gems });
-        apply({ gems: result.gems });
+        apply({ gems: result.gems, adFree: true });
         setMessage({ tone: "ok", text: `${formatGems(pack.gems)} gems added.` });
       } else if (result.kind === "checkout") {
         setMessage({ tone: "ok", text: "Finish paying in the browser. Your gems appear here once it clears." });

@@ -47,7 +47,7 @@ const FIXTURES: Record<string, unknown> = {
       grandfatheredId: null,
     },
   },
-  "/api/shop": { gems: 120, ownedIds: [], appleAccountToken: null, webCheckout: false },
+  "/api/shop": { gems: 120, ownedIds: [], appleAccountToken: null, webCheckout: false, adFree: false },
   "/api/dashboard": {
     user: { id: "ux-user", email: "climber@example.com", username: "climber" },
     freeClimb: { peakY: 412, rank: 37, totalClimbers: 1290, wins: 4, handle: "climber" },

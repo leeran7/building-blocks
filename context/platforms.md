@@ -13,7 +13,7 @@ feature table is checked against each `config.ts` by
 
 | Target | Ships to | Build output | Sign-in | Payments | Ads |
 |--------|----------|--------------|---------|----------|-----|
-| `app` | iOS and Android (Capacitor), web at doomstack.lol | `mobile/dist`, Xcode / Android Studio | Firebase: Apple, Google, email | iOS: StoreKit 2 gem packs. Android and web: Stripe Checkout | none |
+| `app` | iOS and Android (Capacitor), web at doomstack.lol | `mobile/dist`, Xcode / Android Studio | Firebase: Apple, Google, email | iOS: StoreKit 2 gem packs. Android and web: Stripe Checkout | iOS: AdMob interstitial before Endless Play again, rewarded +1 life when out of lives. Web /play (Next site): H5 Games Ads interstitial before Climb again. Android: none |
 | `crazygames` | CrazyGames portal | ZIP via `pnpm portal:package crazygames` | none | none | CrazyGames SDK v3 midgame on Play again |
 
 ## Features
@@ -48,6 +48,15 @@ imports the app's screens, so online features never ship in that bundle.
 **App (iOS, Android, web)**
 - iOS store rules: digital goods go through StoreKit; see
   `skills/mobile-release/SKILL.md` before a version bump or submission.
+- Ads (approved placements only, 2026-11-03): an interstitial before Endless
+  Play again, paced by `src/lib/adPacing.ts` (every 3rd press, none in the
+  first 3 minutes, never for a player who bought gems), and a rewarded
+  "+1 life" on the out-of-lives cards, granted by the server
+  (`POST /api/levels/lives/ad`, only at 0 lives, 3 a day). No ads during a
+  run, in Daily, in duels or on levels' other screens. iOS uses AdMob
+  (`targets/app/admob.ts`; units in `targets/app/adUnits.ts`, app id in
+  `ios/App/App/Info.plist`); the web /play page uses H5 Games Ads
+  (`src/lib/ads/h5Ads.ts`, on when `NEXT_PUBLIC_ADSENSE_CLIENT` is set).
 - The app is the only target with the full experience; new features land
   here first, then each other target turns them on in its `config.ts`.
 
@@ -58,6 +67,7 @@ imports the app's screens, so online features never ship in that bundle.
    CrazyGames adapter (`targets/crazygames/sdk.ts`).
 3. Does it add assets? Check the CrazyGames ZIP limits.
 4. Does it grant gems or anything paid? Every payment path (StoreKit, Stripe)
-   credits server-side only.
+   credits server-side only. Does it add an ad, or a new screen near one?
+   Only the approved placements above show ads.
 5. Run both builds: `pnpm mobile:typecheck` and
    `pnpm portal:package crazygames` (CI builds both).

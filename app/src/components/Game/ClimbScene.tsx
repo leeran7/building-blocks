@@ -110,6 +110,12 @@ export interface ClimbSceneProps {
   lobbyControls?: "full" | "hint";
   /** Extra content rendered in the results overlay (e.g. daily streak result). */
   resultExtra?: ReactNode;
+  /**
+   * Awaited before "Climb again" starts the next run (the /play interstitial,
+   * usePlayAgainAd). The button is disabled until it settles; the run then
+   * starts whatever happened.
+   */
+  beforeAgain?: () => Promise<void>;
 }
 
 interface SaveInfo {
@@ -163,6 +169,7 @@ export function ClimbScene({
   lobbyExtra,
   lobbyControls = "full",
   resultExtra,
+  beforeAgain,
 }: ClimbSceneProps) {
   const router = useRouter();
   const reducedMotion = usePrefersReducedMotion();
@@ -335,6 +342,25 @@ export function ClimbScene({
     },
     []
   );
+
+  const [againBusy, setAgainBusy] = useState(false);
+  const againBusyRef = useRef(false);
+  async function handleAgain() {
+    if (againBusyRef.current) return;
+    if (beforeAgain) {
+      againBusyRef.current = true;
+      setAgainBusy(true);
+      try {
+        await beforeAgain();
+      } catch {
+        // An ad that throws must never keep the player from climbing.
+      } finally {
+        againBusyRef.current = false;
+        setAgainBusy(false);
+      }
+    }
+    handleStart();
+  }
 
   function handleStart() {
     if (startBlockedLabel) return;
@@ -667,7 +693,11 @@ export function ClimbScene({
             ) : null}
 
             {!replaying ? (
-              <StartButton onClick={handleStart} label="Climb again" blockedLabel={startBlockedLabel} />
+              <StartButton
+                onClick={() => void handleAgain()}
+                label="Climb again"
+                blockedLabel={againBusy ? "Ad break\u2026" : startBlockedLabel}
+              />
             ) : (
               <div className="mt-6 flex flex-col items-center gap-2">
                 <StartButton onClick={restartReplay} label="Restart" />

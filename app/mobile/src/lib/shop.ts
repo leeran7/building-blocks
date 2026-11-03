@@ -28,6 +28,8 @@ export interface ShopState {
   appleAccountToken: string | null;
   /** The server allows iOS to link out to web checkout (GET /api/shop). */
   webCheckout: boolean;
+  /** The player has paid for gems, so sees no interstitial ads (GET /api/shop). */
+  adFree: boolean;
 }
 
 /** A refused Shop call: `code` is the server's (INSUFFICIENT_GEMS, OWNED, ...). */
@@ -51,13 +53,14 @@ async function errorOf(res: Response, fallback: string): Promise<ShopError> {
 
 function parseShop(v: unknown): ShopState | null {
   if (typeof v !== "object" || v === null) return null;
-  const o = v as { gems?: unknown; ownedIds?: unknown; appleAccountToken?: unknown; webCheckout?: unknown };
+  const o = v as { gems?: unknown; ownedIds?: unknown; appleAccountToken?: unknown; webCheckout?: unknown; adFree?: unknown };
   if (typeof o.gems !== "number" || !Array.isArray(o.ownedIds)) return null;
   return {
     gems: o.gems,
     ownedIds: o.ownedIds.filter((id): id is string => typeof id === "string"),
     appleAccountToken: typeof o.appleAccountToken === "string" ? o.appleAccountToken : null,
     webCheckout: o.webCheckout === true,
+    adFree: o.adFree === true,
   };
 }
 

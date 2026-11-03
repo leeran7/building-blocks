@@ -16,6 +16,7 @@ import {
   parseLevelBoard,
   parseOpenedChests,
   parseLevelProfile,
+  parseAdLife,
   parseLivesRefill,
   parseServerResult,
   parseStartPowerUp,
@@ -628,6 +629,50 @@ describe("lives refill", () => {
     );
     expect((await client.getSeason()).refill).toBeNull();
     expect(await client.buyLives!()).toEqual({ ok: false, code: "NETWORK" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ad life", () => {
+  const GRANT = { lives: 1, maxLives: 5, nextLifeAt: "2026-11-03T12:30:00.000Z", adLivesLeft: 2 };
+
+  it("reads today's ad lives from the profile, and offers none from an older or malformed one", () => {
+    expect(parseLevelProfile({ ...PROFILE, adLivesLeft: 3 })?.adLivesLeft).toBe(3);
+    expect(parseLevelProfile(PROFILE)?.adLivesLeft).toBeNull();
+    expect(parseLevelProfile({ ...PROFILE, adLivesLeft: -1 })?.adLivesLeft).toBeNull();
+    expect(parseLevelProfile({ ...PROFILE, adLivesLeft: "3" })?.adLivesLeft).toBeNull();
+  });
+
+  it("parses the grant and refuses one that breaks the contract", () => {
+    expect(parseAdLife(GRANT)).toEqual({ ...GRANT, nextLifeAt: Date.parse(GRANT.nextLifeAt) });
+    expect(parseAdLife({ ...GRANT, lives: 6 })).toBeNull();
+    expect(parseAdLife({ ...GRANT, adLivesLeft: -1 })).toBeNull();
+    expect(parseAdLife({ ...GRANT, adLivesLeft: undefined })).toBeNull();
+  });
+
+  it("posts the claim and maps each answer", async () => {
+    const cases: [() => Response, unknown][] = [
+      [() => json(200, GRANT), { ok: true, adLivesLeft: 2, player: expect.objectContaining({ lives: 1, maxLives: 5 }) }],
+      [() => json(409, { code: "LIVES_AVAILABLE", lives: 1 }), { ok: false, code: "LIVES_AVAILABLE" }],
+      [() => json(409, { code: "AD_LIVES_USED", adLivesLeft: 0 }), { ok: false, code: "AD_LIVES_USED" }],
+      [() => json(401, { code: "UNAUTHORIZED" }), { ok: false, code: "NETWORK" }],
+      [() => json(200, { ...GRANT, lives: 9 }), { ok: false, code: "NETWORK" }],
+    ];
+    for (const [route, expected] of cases) {
+      const { fetch, calls } = fakeServer({ "/api/levels/lives/ad": route });
+      expect(await createHttpLevelsClient({ catalog, fetch }).claimAdLife!()).toEqual(expected);
+      expect(calls[0]).toEqual({ path: "/api/levels/lives/ad", body: {} });
+    }
+  });
+
+  it("never grants an ad life from the device-local fallback", async () => {
+    const { fetch } = fakeServer({ "/api/levels/me": () => new Response("Not Found", { status: 404 }) });
+    const client = withMockFallback(
+      createHttpLevelsClient({ catalog, fetch }),
+      () => createMockLevelsClient({ load: () => null, save: () => {} }),
+    );
+    expect((await client.getSeason()).adLivesLeft).toBeNull();
+    expect(await client.claimAdLife!()).toEqual({ ok: false, code: "NETWORK" });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

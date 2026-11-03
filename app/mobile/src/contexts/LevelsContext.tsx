@@ -17,7 +17,7 @@ import { withMockFallback } from "../lib/levels/fallbackClient";
 import { createBestFailStore, type BestFailStore } from "../lib/levels/nearMiss";
 import { createRunNoteStore, type RunNoteStore } from "../lib/levels/runNote";
 import { createSeenFloorStore, type SeenFloorStore } from "../lib/levels/seenFloor";
-import type { BuyLivesResult, LevelsClient, PlayerStats, SeasonView } from "../lib/levels/model";
+import type { AdLifeResult, BuyLivesResult, LevelsClient, PlayerStats, SeasonView } from "../lib/levels/model";
 
 /**
  * The level map's data: the current season, the player's lives and XP, and
@@ -45,6 +45,11 @@ interface LevelsValue {
    * when no refill can be sold (the client or the season has no price).
    */
   buyLives: (() => Promise<BuyLivesResult>) | null;
+  /**
+   * Claim the life a rewarded ad earned; null when the client or the season
+   * cannot grant ad lives (the mock, an older server).
+   */
+  claimAdLife: (() => Promise<AdLifeResult>) | null;
 }
 
 const LevelsContext = createContext<LevelsValue | null>(null);
@@ -140,6 +145,20 @@ export function LevelsProvider({
     return res;
   }, [client, refresh]);
 
+  const canClaimAdLife = Boolean(client.claimAdLife) && season?.adLivesLeft != null;
+  const claimAdLife = useCallback(async (): Promise<AdLifeResult> => {
+    const res = client.claimAdLife ? await client.claimAdLife() : ({ ok: false, code: "NETWORK" } as const);
+    if (res.ok) {
+      setSeason((s) => (s ? { ...s, player: res.player, adLivesLeft: res.adLivesLeft } : s));
+    } else if (res.code === "AD_LIVES_USED") {
+      setSeason((s) => (s ? { ...s, adLivesLeft: 0 } : s));
+    } else if (res.code === "LIVES_AVAILABLE") {
+      // A life came back (the timer, a refund) since the card was drawn.
+      void refresh();
+    }
+    return res;
+  }, [client, refresh]);
+
   const value = useMemo<LevelsValue>(
     () => ({
       client,
@@ -152,10 +171,30 @@ export function LevelsProvider({
       runNotes,
       seenFloors,
       buyLives: canBuyLives ? buyLives : null,
+      claimAdLife: canClaimAdLife ? claimAdLife : null,
     }),
-    [client, season, loading, error, refresh, setPlayer, bestFails, runNotes, seenFloors, canBuyLives, buyLives],
+    [
+      client,
+      season,
+      loading,
+      error,
+      refresh,
+      setPlayer,
+      bestFails,
+      runNotes,
+      seenFloors,
+      canBuyLives,
+      buyLives,
+      canClaimAdLife,
+      claimAdLife,
+    ],
   );
   return <LevelsContext.Provider value={value}>{children}</LevelsContext.Provider>;
+}
+
+/** The levels slice when a LevelsProvider is mounted, else null. */
+export function useOptionalLevels(): LevelsValue | null {
+  return useContext(LevelsContext);
 }
 
 export function useLevels(): LevelsValue {

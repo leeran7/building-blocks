@@ -28,9 +28,13 @@ import { GemError, spendGems } from "./gems";
 import { levelStarsEarned } from "./avatarUnlocks";
 import { avatarsNewlyUnlocked } from "../lib/avatarUnlocks";
 import { levelBoosterTypes } from "../levels/catalog";
+import { utcDayKey } from "../lib/dailyDay";
 import {
+  AD_LIVES_PER_DAY,
   LEVELS_PER_SEASON,
   LIVES_REFILL_GEMS,
+  adLife,
+  adLivesLeft,
   MAX_LIVES,
   buyRefill,
   episodeLevels,
@@ -84,7 +88,9 @@ export type LevelErrorCode =
   | "BOOSTER_NOT_ALLOWED"
   | "BOOSTER_NOT_OWNED"
   | "LIVES_FULL"
-  | "NOT_ENOUGH_GEMS";
+  | "NOT_ENOUGH_GEMS"
+  | "LIVES_AVAILABLE"
+  | "AD_LIVES_USED";
 
 /** A refused level write. The route maps `code` to an HTTP status. */
 export class LevelError extends Error {
@@ -776,6 +782,61 @@ export async function buyLivesRefill(userId: string, now: Date): Promise<LivesRe
   });
 }
 
+// ── Rewarded-ad life ─────────────────────────────────────────────────────────
+
+export interface AdLifeGrant {
+  lives: number;
+  nextLifeAt: Date | null;
+  /** Ad lives still available today after this one. */
+  adLivesLeft: number;
+}
+
+/**
+ * One life for a rewarded ad, under the user's row lock. Only for a player
+ * who is out of lives, at most AD_LIVES_PER_DAY a UTC day; the day and count
+ * are server-derived (users.ad_life_day, ad_lives_today).
+ *
+ * Trust: that the ad was watched is the device's report, like a level
+ * result (see the header). The server bounds what a false report can get:
+ * one life at a time, only at zero lives, three a day.
+ *
+ * @throws LevelError USER_NOT_FOUND | LIVES_AVAILABLE | AD_LIVES_USED
+ */
+export async function grantAdLife(userId: string, now: Date): Promise<AdLifeGrant> {
+  const today = utcDayKey(now);
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { lives: true, lives_updated_at: true, ad_life_day: true, ad_lives_today: true },
+    });
+    if (!user) throw new LevelError("USER_NOT_FOUND", "Player not found");
+    const grant = adLife(lifeOf(user), user.ad_life_day, user.ad_lives_today, today, now);
+    if ("refused" in grant) {
+      if (grant.refused === "LIVES_AVAILABLE") {
+        throw new LevelError("LIVES_AVAILABLE", "You still have a life", {
+          lives: refillLives(lifeOf(user), now).lives,
+        });
+      }
+      throw new LevelError("AD_LIVES_USED", "No more ad lives today", { adLivesLeft: 0 });
+    }
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        lives: grant.life.lives,
+        lives_updated_at: grant.life.updatedAt,
+        ad_life_day: today,
+        ad_lives_today: grant.usedToday,
+      },
+    });
+    return {
+      lives: grant.life.lives,
+      nextLifeAt: nextLifeAt(grant.life, now),
+      adLivesLeft: AD_LIVES_PER_DAY - grant.usedToday,
+    };
+  });
+}
+
 // ── Reads ────────────────────────────────────────────────────────────────────
 
 export interface LevelProfile {
@@ -817,6 +878,8 @@ export interface LevelProfile {
   /** Gem balance, and what a lives refill costs in gems. */
   gems: number;
   livesRefillGems: number;
+  /** Lives the player can still earn from rewarded ads today. */
+  adLivesLeft: number;
 }
 
 /**
@@ -837,9 +900,13 @@ export async function levelProfile(userId: string, season: number, now: Date): P
       level_fail_level: true,
       level_fail_count: true,
       gems: true,
+      ad_life_day: true,
+      ad_lives_today: true,
     },
   })) ?? {
     gems: 0,
+    ad_life_day: null,
+    ad_lives_today: 0,
     lives: MAX_LIVES,
     lives_updated_at: null,
     xp: 0,
@@ -887,6 +954,7 @@ export async function levelProfile(userId: string, season: number, now: Date): P
     chests: { lifetimeStars, ...chestProgress(lifetimeStars) },
     gems: user.gems,
     livesRefillGems: LIVES_REFILL_GEMS,
+    adLivesLeft: adLivesLeft(user.ad_life_day, user.ad_lives_today, utcDayKey(now)),
   };
 }
 

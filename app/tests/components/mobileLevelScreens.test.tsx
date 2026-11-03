@@ -26,7 +26,7 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
 // The map's gem pill reads the Shop: a fixed balance, no server.
 vi.mock("../../mobile/src/lib/shop", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../mobile/src/lib/shop")>()),
-  fetchShop: async () => ({ gems: 300, ownedIds: [], appleAccountToken: null, webCheckout: false }),
+  fetchShop: async () => ({ gems: 300, ownedIds: [], appleAccountToken: null, webCheckout: false, adFree: false }),
   settleUnfinishedPurchases: async () => null,
   watchAppleTransactions: () => () => {},
 }));
@@ -74,8 +74,10 @@ vi.mock("../../mobile/src/components/levels/LevelRun", async () => {
 
 import { LevelsProvider } from "../../mobile/src/contexts/LevelsContext";
 import { ShopProvider } from "../../mobile/src/contexts/ShopContext";
+import { AdsProvider } from "../../mobile/src/contexts/AdsContext";
+import type { AdOutcome, AdsAdapter } from "../../mobile/src/targets/types";
 import { createMockLevelsClient } from "../../mobile/src/lib/levels/mockClient";
-import type { BuyLivesResult, LevelResult, LevelRunReport, LevelsClient } from "../../mobile/src/lib/levels/model";
+import type { AdLifeResult, BuyLivesResult, LevelResult, LevelRunReport, LevelsClient } from "../../mobile/src/lib/levels/model";
 import { LevelMapScreen, MAP_FADE, interruptedFromState, pinBottom } from "../../mobile/src/screens/LevelMapScreen";
 import { LevelPlayScreen, ticketFromState } from "../../mobile/src/screens/LevelPlayScreen";
 import { LevelResultCard, UNLOCK_REVEAL_DELAY_MS } from "../../mobile/src/components/levels/LevelResultCard";
@@ -362,6 +364,99 @@ describe("level map", () => {
       const reveal = document.querySelector("[data-reward-phase]");
       expect(reveal?.getAttribute("aria-label")).toBe("Lives refilled: 5 lives");
       expect(reveal?.textContent).toContain("−50");
+    });
+
+    describe("a life for a rewarded ad (ads placement B)", () => {
+      function fakeAds(outcome: AdOutcome): AdsAdapter {
+        return { enabled: true, midgame: vi.fn(async () => "unavailable" as const), rewarded: vi.fn(async () => outcome) };
+      }
+
+      async function adLifeClient(adLivesLeft: number, claimed: AdLifeResult | null = null) {
+        const { client: base } = await outOfLivesClient(120, 50);
+        const claimAdLife = vi.fn(async (): Promise<AdLifeResult> => {
+          if (claimed) return claimed;
+          const season = await base.getSeason();
+          return { ok: true, player: { ...season.player, lives: 1 }, adLivesLeft: adLivesLeft - 1 };
+        });
+        const client: LevelsClient = {
+          ...base,
+          getSeason: async () => ({ ...(await base.getSeason()), adLivesLeft }),
+          claimAdLife,
+        };
+        return { client, claimAdLife };
+      }
+
+      async function renderMapWithAds(client: LevelsClient, ads: AdsAdapter) {
+        await act(async () => {
+          root.render(
+            <MemoryRouter initialEntries={["/"]}>
+              <LevelsProvider client={client}>
+                <AdsProvider ads={ads}>
+                  <Routes>
+                    <Route path="/" element={<LevelMapScreen />} />
+                  </Routes>
+                </AdsProvider>
+              </LevelsProvider>
+            </MemoryRouter>,
+          );
+        });
+        await flush();
+        await click(pin("Level 11, next to play"));
+      }
+
+      const adButton = () =>
+        [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((b) =>
+          b.textContent?.includes("Watch ad"),
+        );
+
+      it("plays the ad, claims the life from the server and puts Play back", async () => {
+        const { client, claimAdLife } = await adLifeClient(3);
+        const ads = fakeAds("finished");
+        await renderMapWithAds(client, ads);
+        expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain("3 of 3 ad lives left today");
+
+        await click(adButton());
+        expect(ads.rewarded).toHaveBeenCalledTimes(1);
+        expect(claimAdLife).toHaveBeenCalledTimes(1);
+        expect(sheetButton("Play level 11")).toBeTruthy();
+        expect(document.body.querySelector('[role="dialog"]')?.textContent).not.toContain("Out of lives");
+      });
+
+      it("claims nothing when the ad is closed early or never plays", async () => {
+        for (const outcome of ["skipped", "error", "unavailable"] as const) {
+          const { client, claimAdLife } = await adLifeClient(3);
+          await renderMapWithAds(client, fakeAds(outcome));
+          await click(adButton());
+          expect(claimAdLife).not.toHaveBeenCalled();
+          expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain("Out of lives");
+          expect(document.body.querySelector('[role="alert"]:not(.sr-only)')?.textContent).toMatch(
+            outcome === "skipped" ? /whole ad/ : /No ad is available/,
+          );
+        }
+      });
+
+      it("offers no ad life once today's are used, without ads, or on a client that cannot grant one", async () => {
+        const { client } = await adLifeClient(0);
+        await renderMapWithAds(client, fakeAds("finished"));
+        expect(adButton()).toBeUndefined();
+        expect(button("Refill lives for 50 gems")).toBeTruthy();
+
+        const { client: withLives } = await adLifeClient(3);
+        await renderMapWithAds(withLives, { enabled: false, midgame: async () => "unavailable", rewarded: async () => "unavailable" });
+        expect(adButton()).toBeUndefined();
+
+        const { client: noGrant } = await outOfLivesClient(120, 50);
+        await renderMapWithAds(noGrant, fakeAds("finished"));
+        expect(adButton()).toBeUndefined();
+      });
+
+      it("hides the offer when the server says today's ad lives are used", async () => {
+        const { client } = await adLifeClient(1, { ok: false, code: "AD_LIVES_USED" });
+        await renderMapWithAds(client, fakeAds("finished"));
+        await click(adButton());
+        expect(adButton()).toBeUndefined();
+        expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain("Out of lives");
+      });
     });
 
     it("shows the price but cannot be bought without enough gems", async () => {

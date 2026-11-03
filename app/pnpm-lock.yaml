@@ -16,6 +16,9 @@ importers:
 
   .:
     dependencies:
+      '@capacitor-community/admob':
+        specifier: 8.2.1
+        version: 8.2.1
       '@capacitor-firebase/authentication':
         specifier: 8.5.1
         version: 8.5.1(@capacitor/core@8.5.2)(firebase@12.19.0)
@@ -753,6 +756,10 @@ packages:
   '@bramus/specificity@2.4.2':
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
     hasBin: true
+
+  '@capacitor-community/admob@8.2.1':
+    resolution: {integrity: sha512-kJRy6EMNrutDZL0ETChg5pAJ9pQFxkcsinrTRD4wkYp7NGkLZmG0m/YBMyXvUhMkbMIqlCGkNRSjgXi25F9/ww==}
+    engines: {node: '>=22.0.0'}
 
   '@capacitor-firebase/authentication@8.5.1':
     resolution: {integrity: sha512-qOsZ1VmgbdhiNHWxxl3qNEULGhBp1+N3psGq2Bac8lpMsc+gcle/oQGctywEiMJoVyj3wOvngqKJgdyvuZPvsA==}
@@ -1903,6 +1910,11 @@ packages:
   '@protobufjs/utf8@1.1.2':
     resolution: {integrity: sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug==}
 
+  '@rdlabo/capacitor-docgen@0.4.1':
+    resolution: {integrity: sha512-zUB0lwha4Omqyr5URy/QaFjP6Gh2xxTKAFI0MClqrmUxQwmV8c84+wGvqAoWPCzg4jk1MsU6oiRVuTkUV7xseA==}
+    engines: {node: '>=18.0.0'}
+    hasBin: true
+
   '@resvg/resvg-wasm@2.4.1':
     resolution: {integrity: sha512-yi6R0HyHtsoWTRA06Col4WoDs7SvlXU3DLMNP2bdAgs7HK18dTEVl1weXgxRzi8gwLteGUbIg29zulxIB3GSdg==}
     engines: {node: '>= 10'}
@@ -2789,6 +2801,9 @@ packages:
   color-name@1.1.4:
     resolution: {integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==}
 
+  colorette@2.0.20:
+    resolution: {integrity: sha512-IfEDxwoWIjkeXL1eXcDiow4UbKjhLdq6/EuSVR9GMN7KVH3r9gQ83e73hsz1Nd1T3ijd5xv1wcWRYO+D6kCI2w==}
+
   commander@12.1.0:
     resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
     engines: {node: '>=18'}
@@ -3404,6 +3419,9 @@ packages:
   giget@2.0.0:
     resolution: {integrity: sha512-L5bGsVkxJbJgdnwyuheIunkGatUF/zssUoxxjACCseZYAVbaqdh9Tsmmlkl8vYan09H7sbvKt4pS8GqKLBrEzA==}
     hasBin: true
+
+  github-slugger@1.5.0:
+    resolution: {integrity: sha512-wIh+gKBI9Nshz2o46B0B3f5k/W+WI9ZAv6y5Dn5WJ5SK1t0TnDimB4WE5rmTD05ZAIn8HALCZVmCsvj0w0v0lw==}
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
@@ -5002,6 +5020,11 @@ packages:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.1.0'
 
+  typescript@4.2.4:
+    resolution: {integrity: sha512-V+evlYHZnQkaz8TRBuxTA92yZBPotr5H+WhQ7bD3hZUndx5tGOa1fuCgeSjxAzM1RiN5IzvadIXTVefuuwZCRg==}
+    engines: {node: '>=4.2.0'}
+    hasBin: true
+
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
@@ -6069,6 +6092,11 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
     optional: true
+
+  '@capacitor-community/admob@8.2.1':
+    dependencies:
+      '@capacitor/core': 8.5.2
+      '@rdlabo/capacitor-docgen': 0.4.1
 
   '@capacitor-firebase/authentication@8.5.1(@capacitor/core@8.5.2)(firebase@12.19.0)':
     dependencies:
@@ -7218,6 +7246,13 @@ snapshots:
 
   '@protobufjs/utf8@1.1.2': {}
 
+  '@rdlabo/capacitor-docgen@0.4.1':
+    dependencies:
+      colorette: 2.0.20
+      github-slugger: 1.5.0
+      minimist: 1.2.8
+      typescript: 4.2.4
+
   '@resvg/resvg-wasm@2.4.1': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.8':
@@ -8063,6 +8098,8 @@ snapshots:
       color-name: 1.1.4
 
   color-name@1.1.4: {}
+
+  colorette@2.0.20: {}
 
   commander@12.1.0: {}
 
@@ -8930,6 +8967,8 @@ snapshots:
       node-fetch-native: 1.6.7
       nypm: 0.6.9
       pathe: 2.0.3
+
+  github-slugger@1.5.0: {}
 
   glob-parent@5.1.2:
     dependencies:
@@ -10712,6 +10751,8 @@ snapshots:
       typescript: 5.9.3
     transitivePeerDependencies:
       - supports-color
+
+  typescript@4.2.4: {}
 
   typescript@5.9.3: {}
 

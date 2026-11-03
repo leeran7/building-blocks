@@ -83,6 +83,11 @@ model User {
   // UTC day (YYYY-MM-DD) the once-a-day bonus life for finishing a Daily
   // Climb or a duel was last paid (design §5b). Null = never.
   bonus_life_day           String?
+  // Lives earned from rewarded ads (src/levels/rules.ts adLife): the UTC day
+  // of the last one and how many that day. Written under the user row lock
+  // in src/db/levels.ts grantAdLife; the cap is AD_LIVES_PER_DAY.
+  ad_life_day              String?
+  ad_lives_today           Int       @default(0)
   // Shop gems (src/db/gems.ts). SERVER-DERIVED: rises only by a verified
   // gem-pack purchase (gem_purchases) and falls only by a spend, each under
   // the user row lock with one gem_ledger row. A CHECK keeps it >= 0.

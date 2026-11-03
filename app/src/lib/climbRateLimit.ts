@@ -81,7 +81,7 @@ export function checkLevelUserRateLimit(
 export const LEVEL_USER_TOTAL_MAX = 60;
 
 export function checkLevelUserTotalRateLimit(
-  route: "ticket" | "result" | "board" | "lives",
+  route: "ticket" | "result" | "board" | "lives" | "adLife",
   uid: string
 ): Promise<RateLimitResult> {
   return checkRateLimit({

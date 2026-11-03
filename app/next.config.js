@@ -26,17 +26,19 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://apis.google.com",
+      // Google H5 Games Ads on /play (src/lib/ads/h5Ads.ts): adsbygoogle.js and
+      // the ad frames it opens. Loaded only when NEXT_PUBLIC_ADSENSE_CLIENT is set.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://apis.google.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://*.googleadservices.com https://fundingchoicesmessages.google.com https://*.gstatic.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https:",
       // Ably needs both the primary *.ably.io hosts AND the *.ably-realtime.com
       // fallback hosts (used for token requests / regional failover) — otherwise
       // the requestToken XHR is blocked by CSP and the connection never authorises.
-      "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://*.firebaseapp.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com https://realtime.ably.io https://*.ably.io wss://realtime.ably.io wss://*.ably.io https://*.ably-realtime.com wss://*.ably-realtime.com",
+      "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://*.firebaseapp.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com https://realtime.ably.io https://*.ably.io wss://realtime.ably.io wss://*.ably.io https://*.ably-realtime.com wss://*.ably-realtime.com https://*.googlesyndication.com https://*.doubleclick.net https://*.google.com https://fundingchoicesmessages.google.com",
       // 'self' — the auth handler is proxied onto our own domain (/__/auth), so
       // its iframe is same-origin. Plus Stripe, Google, and the Firebase domain.
-      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.google.com https://*.firebaseapp.com https://apis.google.com",
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.google.com https://*.firebaseapp.com https://apis.google.com https://*.googlesyndication.com https://*.doubleclick.net https://*.google.com",
     ].join("; "),
   },
 ];

@@ -27,13 +27,13 @@ vi.mock("../../src/db/deadLetter", () => ({ recordDeadLetter: vi.fn() }));
 vi.mock("../../src/api/appleIap", () => ({ checkAppleGemTransaction: vi.fn(), appleAccountTokenFor: vi.fn() }));
 vi.mock("../../src/db/gems", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../src/db/gems")>();
-  return { GemError: real.GemError, creditGemPack: vi.fn(), buyCharacter: vi.fn(), shopState: vi.fn() };
+  return { GemError: real.GemError, creditGemPack: vi.fn(), buyCharacter: vi.fn(), shopState: vi.fn(), hasBoughtGems: vi.fn(async () => false) };
 });
 
 import { getStripe, verifyWebhookSignature } from "../../src/api/stripe";
 import { recordDeadLetter } from "../../src/db/deadLetter";
 import { appleAccountTokenFor, checkAppleGemTransaction } from "../../src/api/appleIap";
-import { buyCharacter, creditGemPack, GemError, shopState } from "../../src/db/gems";
+import { buyCharacter, creditGemPack, GemError, hasBoughtGems, shopState } from "../../src/db/gems";
 import { gemPackById } from "../../src/lib/gemPacks";
 import { POST as webhook } from "../../app/api/webhook/stripe/route";
 import { POST as appleRoute } from "../../app/api/gems/apple/route";
@@ -194,10 +194,22 @@ describe("GET /api/shop", () => {
   });
 
   it("offers web checkout on iOS unless IOS_WEB_CHECKOUT is off", async () => {
-    expect(await (await get()).json()).toEqual({ gems: 40, ownedIds: [], appleAccountToken: "token", webCheckout: true });
+    expect(await (await get()).json()).toEqual({
+      gems: 40,
+      ownedIds: [],
+      appleAccountToken: "token",
+      webCheckout: true,
+      adFree: false,
+    });
     process.env.IOS_WEB_CHECKOUT = "off";
     expect((await (await get()).json()).webCheckout).toBe(false);
     delete process.env.IOS_WEB_CHECKOUT;
+  });
+
+  it("marks a player who has bought gems as ad-free", async () => {
+    vi.mocked(hasBoughtGems).mockResolvedValueOnce(true);
+    expect((await (await get()).json()).adFree).toBe(true);
+    expect(vi.mocked(hasBoughtGems).mock.lastCall?.[0]).toBe(vi.mocked(shopState).mock.lastCall?.[0]);
   });
 });
 

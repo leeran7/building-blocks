@@ -184,6 +184,42 @@ export function buyRefill(state: LifeState, now: Date): LifeState | null {
   return { lives: MAX_LIVES, updatedAt: current.updatedAt };
 }
 
+/** Lives a player may earn from rewarded ads per UTC day. */
+export const AD_LIVES_PER_DAY = 3;
+
+/** Ad lives already earned on `today`, from the stored day and count. */
+export function adLivesUsed(lastAdDay: string | null, storedCount: number, today: string): number {
+  if (lastAdDay !== today) return 0;
+  return Math.min(AD_LIVES_PER_DAY, Math.max(0, Math.floor(storedCount)));
+}
+
+/** What the player has left of today's ad lives. */
+export function adLivesLeft(lastAdDay: string | null, storedCount: number, today: string): number {
+  return AD_LIVES_PER_DAY - adLivesUsed(lastAdDay, storedCount, today);
+}
+
+export type AdLifeRefusal = "LIVES_AVAILABLE" | "AD_LIVES_USED";
+
+/**
+ * One life for watching a rewarded ad. Offered only to a player who is out
+ * of lives (after the timer refill), at most AD_LIVES_PER_DAY a UTC day.
+ * Refusing a player who already has a life is what makes a retried request
+ * free: the first grant leaves them at 1, so the retry is refused.
+ */
+export function adLife(
+  state: LifeState,
+  lastAdDay: string | null,
+  storedCount: number,
+  today: string,
+  now: Date
+): { life: LifeState; usedToday: number } | { refused: AdLifeRefusal } {
+  const current = refillLives(state, now);
+  if (current.lives > 0) return { refused: "LIVES_AVAILABLE" };
+  const used = adLivesUsed(lastAdDay, storedCount, today);
+  if (used >= AD_LIVES_PER_DAY) return { refused: "AD_LIVES_USED" };
+  return { life: refundLife(current, now), usedToday: used + 1 };
+}
+
 // ── Levels and episodes ──────────────────────────────────────────────────────
 
 /** Levels in a season (§3d). */

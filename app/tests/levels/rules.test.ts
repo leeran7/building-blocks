@@ -6,6 +6,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AD_LIVES_PER_DAY,
+  adLife,
+  adLivesLeft,
   EPISODE_XP,
   LIFE_REFILL_MS,
   MAX_LIVES,
@@ -210,5 +213,42 @@ describe("buyRefill", () => {
   it("refuses a full player, including one the timer has just filled", () => {
     expect(buyRefill({ lives: MAX_LIVES, updatedAt: null }, T)).toBeNull();
     expect(buyRefill({ lives: 4, updatedAt: new Date(T.getTime() - LIFE_REFILL_MS) }, T)).toBeNull();
+  });
+});
+
+describe("adLife", () => {
+  const T = new Date("2026-11-03T12:00:00Z");
+  const TODAY = "2026-11-03";
+  const mins = (m: number) => new Date(T.getTime() + m * 60_000);
+
+  it("gives an out-of-lives player one life and counts it for today", () => {
+    const out = { lives: 0, updatedAt: mins(-10) };
+    expect(adLife(out, null, 0, TODAY, T)).toEqual({ life: { lives: 1, updatedAt: mins(-10) }, usedToday: 1 });
+    expect(adLife(out, TODAY, 2, TODAY, T)).toEqual({ life: { lives: 1, updatedAt: mins(-10) }, usedToday: 3 });
+  });
+
+  it("starts a new day's count from zero", () => {
+    expect(adLife({ lives: 0, updatedAt: mins(-10) }, "2026-11-02", AD_LIVES_PER_DAY, TODAY, T)).toMatchObject({ usedToday: 1 });
+  });
+
+  it("refuses a player who still has a life, including one the timer has just given back", () => {
+    expect(adLife({ lives: 1, updatedAt: mins(-10) }, null, 0, TODAY, T)).toEqual({ refused: "LIVES_AVAILABLE" });
+    expect(adLife({ lives: 0, updatedAt: new Date(T.getTime() - LIFE_REFILL_MS) }, null, 0, TODAY, T)).toEqual({
+      refused: "LIVES_AVAILABLE",
+    });
+  });
+
+  it("refuses once today's ad lives are used, whatever the stored count says", () => {
+    const out = { lives: 0, updatedAt: mins(-10) };
+    expect(adLife(out, TODAY, AD_LIVES_PER_DAY, TODAY, T)).toEqual({ refused: "AD_LIVES_USED" });
+    expect(adLife(out, TODAY, 99, TODAY, T)).toEqual({ refused: "AD_LIVES_USED" });
+  });
+
+  it("reports the lives left today, never below zero or above the cap", () => {
+    expect(adLivesLeft(null, 0, TODAY)).toBe(AD_LIVES_PER_DAY);
+    expect(adLivesLeft("2026-11-02", 3, TODAY)).toBe(AD_LIVES_PER_DAY);
+    expect(adLivesLeft(TODAY, 1, TODAY)).toBe(AD_LIVES_PER_DAY - 1);
+    expect(adLivesLeft(TODAY, 99, TODAY)).toBe(0);
+    expect(adLivesLeft(TODAY, -4, TODAY)).toBe(AD_LIVES_PER_DAY);
   });
 });
