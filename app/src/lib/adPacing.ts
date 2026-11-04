@@ -1,7 +1,7 @@
 /**
  * When an interstitial ad may show before "Play again" in Endless (the ads
- * plan, placement A). Shared by the iOS app (mobile ClimbScreen) and the web
- * /play page, so both pace ads the same way.
+ * plan, placement A), used by the iOS app's ClimbScreen. Kept outside the
+ * mobile tree so any other target that shows this ad paces it the same way.
  *
  * Rules:
  *  - never in the player's first INTERSTITIAL_GRACE_MS of the session;

@@ -13,7 +13,7 @@ feature table is checked against each `config.ts` by
 
 | Target | Ships to | Build output | Sign-in | Payments | Ads |
 |--------|----------|--------------|---------|----------|-----|
-| `app` | iOS and Android (Capacitor), web at doomstack.lol | `mobile/dist`, Xcode / Android Studio | Firebase: Apple, Google, email | iOS: StoreKit 2 gem packs. Android and web: Stripe Checkout | iOS: AdMob interstitial before Endless Play again, rewarded +1 life when out of lives. Web /play (Next site): H5 Games Ads interstitial before Climb again. Android: none |
+| `app` | iOS and Android (Capacitor), web at doomstack.lol | `mobile/dist`, Xcode / Android Studio | Firebase: Apple, Google, email | iOS: StoreKit 2 gem packs. Android and web: Stripe Checkout | iOS: AdMob interstitial before Endless Play again, rewarded +1 life when out of lives. Web and Android: none |
 | `crazygames` | CrazyGames portal | ZIP via `pnpm portal:package crazygames` | none | none | CrazyGames SDK v3 midgame on Play again |
 
 ## Features
@@ -55,10 +55,8 @@ imports the app's screens, so online features never ship in that bundle.
   (`POST /api/levels/lives/ad`, only at 0 lives, 3 a day). No ads during a
   run, in Daily, in duels or on levels' other screens. iOS uses AdMob
   (`targets/app/admob.ts`; units in `targets/app/adUnits.ts`, app id in
-  `ios/App/App/Info.plist`); the web /play page uses H5 Games Ads
-  (`src/lib/ads/h5Ads.ts`, publisher `ca-pub-3923007405625474`, on for the
-  production deploy only; `NEXT_PUBLIC_ADSENSE_CLIENT=off` switches it off).
-  `/ads.txt` and the `google-adsense-account` meta tag are always served.
+  `ios/App/App/Info.plist`). iOS only for now (Leeran, 2026-11-04): the web
+  site shows no ads.
 - The app is the only target with the full experience; new features land
   here first, then each other target turns them on in its `config.ts`.
 

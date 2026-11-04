@@ -15,36 +15,6 @@ function resolveFirebaseAuthBrowserEsm() {
   return path.join(authRoot, "dist/esm/index.js");
 }
 
-/**
- * The site's Content-Security-Policy. `ads` adds the hosts Google's H5 Games
- * Ads use (src/lib/ads/h5Ads.ts), for /play only: no other page shows ads.
- */
-function contentSecurityPolicy(ads = false) {
-  const AD_SCRIPT = ads
-    ? " https://pagead2.googlesyndication.com https://tpc.googlesyndication.com https://googleads.g.doubleclick.net https://*.adtrafficquality.google"
-    : "";
-  const AD_CONNECT = ads
-    ? " https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://*.adtrafficquality.google"
-    : "";
-  const AD_FRAME = ads
-    ? " https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://*.adtrafficquality.google"
-    : "";
-  return [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://apis.google.com" + AD_SCRIPT,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: https:",
-    // Ably needs both the primary *.ably.io hosts AND the *.ably-realtime.com
-    // fallback hosts (used for token requests / regional failover) — otherwise
-    // the requestToken XHR is blocked by CSP and the connection never authorises.
-    "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://*.firebaseapp.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com https://realtime.ably.io https://*.ably.io wss://realtime.ably.io wss://*.ably.io https://*.ably-realtime.com wss://*.ably-realtime.com" + AD_CONNECT,
-    // 'self' — the auth handler is proxied onto our own domain (/__/auth), so
-    // its iframe is same-origin. Plus Stripe, Google, and the Firebase domain.
-    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.google.com https://*.firebaseapp.com https://apis.google.com" + AD_FRAME,
-    ].join("; ");
-}
-
 const securityHeaders = [
   // SAMEORIGIN (not DENY): Firebase's auth handler, proxied onto our own domain
   // via the /__/auth rewrites below, frames /__/auth/iframe same-origin.
@@ -52,16 +22,27 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-  { key: "Content-Security-Policy", value: contentSecurityPolicy() },
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://apis.google.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: https:",
+      // Ably needs both the primary *.ably.io hosts AND the *.ably-realtime.com
+      // fallback hosts (used for token requests / regional failover) — otherwise
+      // the requestToken XHR is blocked by CSP and the connection never authorises.
+      "connect-src 'self' https://api.stripe.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://*.firebaseapp.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com https://realtime.ably.io https://*.ably.io wss://realtime.ably.io wss://*.ably.io https://*.ably-realtime.com wss://*.ably-realtime.com",
+      // 'self' — the auth handler is proxied onto our own domain (/__/auth), so
+      // its iframe is same-origin. Plus Stripe, Google, and the Firebase domain.
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.google.com https://*.firebaseapp.com https://apis.google.com",
+    ].join("; "),
+  },
 ];
 
 const nextConfig = {
   experimental: {},
-  // Web ads run on the production deploy only (src/lib/ads/h5Ads.ts
-  // adsenseClientFor). Vercel sets VERCEL_ENV at build time.
-  env: {
-    NEXT_PUBLIC_VERCEL_ENV: process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.VERCEL_ENV || "",
-  },
   // Mark ably as a server external so Next.js never bundles it on the server
   // webpack pass. Ably is a browser-only WebSocket client; it must not appear
   // in the RSC bundle. Client components that import it are loaded only in the
@@ -109,11 +90,6 @@ const nextConfig = {
       {
         source: "/(.*)",
         headers: securityHeaders,
-      },
-      // /play adds the ad hosts (the last matching entry wins for a key).
-      {
-        source: "/play",
-        headers: [{ key: "Content-Security-Policy", value: contentSecurityPolicy(true) }],
       },
     ];
   },

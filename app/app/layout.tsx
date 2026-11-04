@@ -7,7 +7,6 @@ import { SiteFooter } from "../src/components/SiteFooter";
 import { SoftNavigationFlag } from "../src/components/SoftNavigationFlag";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE_URL, ogImageUrl } from "../src/lib/seo";
 import { Analytics } from "@vercel/analytics/next";
-import { DOOMSTACK_ADSENSE_CLIENT } from "../src/lib/ads/h5Ads";
 
 // ── ASCENT type system ────────────────────────────────────────────────────
 // Display: Bricolage Grotesque — architectural, contemporary, characterful.
@@ -62,8 +61,6 @@ export async function generateMetadata(): Promise<Metadata> {
     title: DEFAULT_TITLE,
     description: DEFAULT_DESCRIPTION,
     alternates: { canonical: SITE_URL },
-    // AdSense site verification (public publisher id; src/lib/ads/h5Ads.ts).
-    other: { "google-adsense-account": DOOMSTACK_ADSENSE_CLIENT },
     ...(googleVerification || bingVerification
       ? {
           verification: {

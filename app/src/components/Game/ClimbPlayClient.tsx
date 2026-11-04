@@ -9,7 +9,6 @@ import Link from "next/link";
 import { ClimbScene } from "../../components/Game/ClimbScene";
 import { decodeRunReplay, type RunReplay } from "../../game/runReplay";
 import { buildFreeTower } from "../../game/freeStack";
-import { usePlayAgainAd } from "./usePlayAgainAd";
 
 interface ClimbPlayClientProps {
   replayToken: string | null;
@@ -20,7 +19,6 @@ export function ClimbPlayClient({ replayToken }: ClimbPlayClientProps) {
   const [replay, setReplay] = useState<RunReplay | null>(null);
   const [replayError, setReplayError] = useState(false);
   const [loadingReplay, setLoadingReplay] = useState(Boolean(replayToken));
-  const beforeAgain = usePlayAgainAd();
 
   useEffect(() => {
     if (!replayToken) {
@@ -83,7 +81,6 @@ export function ClimbPlayClient({ replayToken }: ClimbPlayClientProps) {
         categoryLabel={replay ? "Shared replay" : "Endless"}
         replay={replay}
         lobbyControls="hint"
-        beforeAgain={replay ? undefined : beforeAgain}
       />
     </PlayShell>
   );
