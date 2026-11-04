@@ -16,6 +16,7 @@ import {
   DAILY_LEADERBOARD_HREF,
   ENDLESS_LEADERBOARD_HREF,
   FREE_CLIMB_HREF,
+  LAUNCH_TRANSITION,
 } from "./navLinks";
 
 /** Each solo stack's two tabs, in the order the 1v1 band uses. */
@@ -95,13 +96,18 @@ export function FreeStackShell({
                 no entrance animation and one shared view-transition name: a tab
                 switch crossfades the pill in place (and glides it over to the
                 1v1 band, which uses the same name) instead of re-entering. */}
-            <StackTabs label={stack.tabsLabel}>
+            <StackTabs label={stack.tabsLabel} underStage={gameSection}>
               <NavTab
                 href={stack.leaderboard.href}
                 label="Leaderboard"
                 active={section === stack.leaderboard.section}
               />
-              <NavTab href={stack.play.href} label="Play" active={section === stack.play.section} />
+              <NavTab
+                href={stack.play.href}
+                label="Play"
+                active={section === stack.play.section}
+                transitionTypes={LAUNCH_TRANSITION}
+              />
             </StackTabs>
             {/* Same 44px height as the tabs, so the band is the same height on
                 every section whether or not it has tools. */}
@@ -135,11 +141,26 @@ export type FreeStackSection = "leaderboard" | "play" | "daily" | "daily-leaderb
  * The pill tablist both stack shells share. `stack-tabs` is its
  * view-transition name (styled in globals.css); `default="none"` keeps it out of
  * every transition except the one between two pages that both render it.
+ *
+ * `underStage` marks the band on the game sections (/play, /daily). On a touch
+ * screen ClimbScene covers the whole viewport there, so the pill is never
+ * seen; globals.css drops its view-transition name under `pointer: coarse`, or
+ * a switch from a leaderboard would glide the pill up over the game HUD and
+ * then make it vanish when the transition ends.
  */
-export function StackTabs({ label, children }: { label: string; children: ReactNode }) {
+export function StackTabs({
+  label,
+  underStage = false,
+  children,
+}: {
+  label: string;
+  underStage?: boolean;
+  children: ReactNode;
+}) {
   return (
     <ViewTransition name="stack-tabs" share="auto" default="none">
       <div
+        data-under-stage={underStage ? "" : undefined}
         className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1"
         role="tablist"
         aria-label={label}
