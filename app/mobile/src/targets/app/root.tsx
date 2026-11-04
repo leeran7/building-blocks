@@ -6,6 +6,8 @@ import { AuthProvider } from "../../contexts/AuthContext";
 import { AppDataProvider } from "../../contexts/AppDataContext";
 import { LevelsProvider } from "../../contexts/LevelsContext";
 import { ShopProvider } from "../../contexts/ShopContext";
+import { AdsProvider } from "../../contexts/AdsContext";
+import { targetConfig } from "./config";
 
 /** The full app: signed-in data, levels and the shop around the App shell. */
 export function TargetRoot() {
@@ -14,7 +16,9 @@ export function TargetRoot() {
       <AppDataProvider>
         <LevelsProvider>
           <ShopProvider>
-            <App />
+            <AdsProvider ads={targetConfig.ads}>
+              <App />
+            </AdsProvider>
           </ShopProvider>
         </LevelsProvider>
       </AppDataProvider>

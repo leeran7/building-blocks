@@ -33,5 +33,12 @@ export function withMockFallback(server: LevelsClient, mock: () => LevelsClient)
     ...(server.buyLives
       ? { buyLives: () => (active.buyLives ? active.buyLives() : Promise.resolve({ ok: false as const, code: "NETWORK" as const })) }
       : {}),
+    // Ad lives likewise: the mock's season has adLivesLeft null.
+    ...(server.claimAdLife
+      ? {
+          claimAdLife: () =>
+            active.claimAdLife ? active.claimAdLife() : Promise.resolve({ ok: false as const, code: "NETWORK" as const }),
+        }
+      : {}),
   };
 }

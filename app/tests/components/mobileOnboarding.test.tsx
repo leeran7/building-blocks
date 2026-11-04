@@ -33,7 +33,7 @@ vi.mock("../../mobile/src/lib/haptics", () => ({
 // The map's gem pill reads the Shop: a fixed balance, no server.
 vi.mock("../../mobile/src/lib/shop", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../mobile/src/lib/shop")>()),
-  fetchShop: async () => ({ gems: 300, ownedIds: [], appleAccountToken: null, webCheckout: false }),
+  fetchShop: async () => ({ gems: 300, ownedIds: [], appleAccountToken: null, webCheckout: false, adFree: false }),
   settleUnfinishedPurchases: async () => null,
   watchAppleTransactions: () => () => {},
 }));

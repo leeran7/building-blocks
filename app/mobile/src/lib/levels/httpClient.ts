@@ -13,6 +13,7 @@ import {
 import { apiFetch } from "../api";
 import { starsForTime } from "./model";
 import type {
+  AdLifeResult,
   BuyLivesResult,
   ChestProgress,
   LevelBoardEntry,
@@ -190,6 +191,7 @@ export interface LevelProfile {
   boosters: BoosterInventory;
   chests: ChestProgress | null;
   refill: LivesRefillPrice | null;
+  adLivesLeft: number | null;
 }
 
 /**
@@ -221,6 +223,8 @@ export function parseLevelProfile(v: unknown): LevelProfile | null {
   const boosters = parseBoosterInventory(v.boosters);
   const chests = parseChestProgress(v.chests);
   const refill = parseRefillPrice(v.gems, v.livesRefillGems);
+  // Absent on an older server: no ad lives offered. Malformed: the same.
+  const adLivesLeft = isCount(v.adLivesLeft) ? v.adLivesLeft : null;
   if (
     boosters === undefined ||
     chests === undefined ||
@@ -266,7 +270,26 @@ export function parseLevelProfile(v: unknown): LevelProfile | null {
     boosters: boosters ?? {},
     chests,
     refill,
+    adLivesLeft,
   };
+}
+
+/** POST /api/levels/lives/ad 200 body, or null when it breaks the contract. */
+export function parseAdLife(
+  v: unknown,
+): { lives: number; maxLives: number; nextLifeAt: number | null; adLivesLeft: number } | null {
+  if (!isObject(v)) return null;
+  const nextLifeAt = parseWhen(v.nextLifeAt);
+  if (
+    !isCount(v.lives) ||
+    !isPositive(v.maxLives) ||
+    v.lives > v.maxLives ||
+    nextLifeAt === undefined ||
+    !isCount(v.adLivesLeft)
+  ) {
+    return null;
+  }
+  return { lives: v.lives, maxLives: v.maxLives, nextLifeAt, adLivesLeft: v.adLivesLeft };
 }
 
 /** POST /api/levels/lives 200 body, or null when it breaks the contract. */
@@ -498,6 +521,29 @@ export function createHttpLevelsClient(opts: HttpClientOptions): LevelsClient {
         boosters: profile.boosters,
         chests: profile.chests,
         refill: profile.refill,
+        adLivesLeft: profile.adLivesLeft,
+      };
+    },
+
+    async claimAdLife(): Promise<AdLifeResult> {
+      let res: Response;
+      try {
+        res = await post("/api/levels/lives/ad", {});
+      } catch {
+        return { ok: false, code: "NETWORK" };
+      }
+      const body = await readJson(res);
+      if (!res.ok) {
+        const code = errorCode(body);
+        if (res.status === 409 && (code === "LIVES_AVAILABLE" || code === "AD_LIVES_USED")) return { ok: false, code };
+        return { ok: false, code: "NETWORK" };
+      }
+      const grant = parseAdLife(body);
+      if (!grant) return { ok: false, code: "NETWORK" };
+      return {
+        ok: true,
+        player: statsFor(lastXp, grant.lives, grant.nextLifeAt, grant.maxLives),
+        adLivesLeft: grant.adLivesLeft,
       };
     },
 

@@ -19,6 +19,7 @@ import {
 import { Accordion, HeartIcon, StarRow, livesLabel, useNow } from "./LevelBits";
 import { ArrowRight, TowerIcon } from "./LevelIcons";
 import { GemIcon } from "../store/GemIcon";
+import { WatchAdForLife, useAdLifeOffer } from "./AdLife";
 
 /** What a refused start or retry says, in the player's words. */
 export const REFUSAL_COPY: Record<Exclude<StartRefusal, "OUT_OF_LIVES">, string> = {
@@ -326,8 +327,9 @@ const REFILL_ERROR: Record<Exclude<BuyLivesResult, { ok: true }>["code"], string
 };
 
 /**
- * Out of lives: when the next one comes, a paid refill when the player can
- * buy one, and what to play meanwhile.
+ * Out of lives: when the next one comes, a life for a rewarded ad when one
+ * can be had, a paid refill when the player can buy one, and what to play
+ * meanwhile.
  */
 export function OutOfLives({
   wait,
@@ -340,6 +342,7 @@ export function OutOfLives({
   onPracticeLevel: () => void;
   refill?: RefillOffer | null;
 }) {
+  const adLife = useAdLifeOffer();
   return (
     <div className="flex flex-col gap-2.5">
       {/* Announced once; the ticking countdown below is not a live region. */}
@@ -352,7 +355,8 @@ export function OutOfLives({
           <span className="font-display text-lead font-black tabular-nums">{wait}</span>
         </p>
       </div>
-      {refill && <RefillLives offer={refill} />}
+      {adLife && <WatchAdForLife offer={adLife} />}
+      {refill && <RefillLives offer={refill} variant={adLife ? "secondary" : "primary"} />}
       <Button variant="secondary" onPress={onPracticeLevel} className="min-h-[52px] text-cta">
         Practice this level
       </Button>
@@ -376,7 +380,14 @@ export function OutOfLives({
  * and refuses a full player, so a double tap never pays twice. Without enough
  * gems the price and balance still show, so the player knows what it costs.
  */
-export function RefillLives({ offer }: { offer: RefillOffer }) {
+export function RefillLives({
+  offer,
+  variant = "primary",
+}: {
+  offer: RefillOffer;
+  /** Secondary when a free ad life is the card's main action. */
+  variant?: "primary" | "secondary";
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const affordable = offer.gems >= offer.cost;
@@ -403,16 +414,17 @@ export function RefillLives({ offer }: { offer: RefillOffer }) {
       </div>
       {affordable ? (
         <Button
+          variant={variant}
           busy={busy}
           onPress={() => void buy()}
           aria-label={`Refill lives for ${offer.cost} gems`}
           className="min-h-[52px] text-cta"
         >
-          <HeartIcon size={16} className="text-void" /> Refill lives · {formatGems(offer.cost)} gems
+          <HeartIcon size={16} className={variant === "primary" ? "text-void" : "text-signal"} /> Refill lives · {formatGems(offer.cost)} gems
         </Button>
       ) : (
         offer.onGetGems && (
-          <Button onPress={offer.onGetGems} className="min-h-[52px] text-cta">
+          <Button variant={variant} onPress={offer.onGetGems} className="min-h-[52px] text-cta">
             Get gems
           </Button>
         )

@@ -13,8 +13,8 @@ interface ShopContextValue {
   error: string | null;
   /** Fetch from the server (also on first use). */
   refresh: () => Promise<void>;
-  /** Apply a server-confirmed balance and, when given, owned ids. */
-  apply: (next: { gems: number; ownedIds?: string[] }) => void;
+  /** Apply a server-confirmed balance and, when given, owned ids or a gem purchase (adFree). */
+  apply: (next: { gems: number; ownedIds?: string[]; adFree?: true }) => void;
 }
 
 const ShopContext = createContext<ShopContextValue | null>(null);
@@ -43,7 +43,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (uid === null) return;
     return watchAppleTransactions((gems) => {
-      if (uidRef.current === uid) setShop((s) => (s ? { ...s, gems } : s));
+      // A pack delivered here was paid for: the player is ad-free from now on.
+      if (uidRef.current === uid) setShop((s) => (s ? { ...s, gems, adFree: true } : s));
     });
   }, [uid]);
 
@@ -77,8 +78,10 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     return run;
   }, []);
 
-  const apply = useCallback((next: { gems: number; ownedIds?: string[] }) => {
-    setShop((s) => (s ? { ...s, gems: next.gems, ownedIds: next.ownedIds ?? s.ownedIds } : s));
+  const apply = useCallback((next: { gems: number; ownedIds?: string[]; adFree?: true }) => {
+    setShop((s) =>
+      s ? { ...s, gems: next.gems, ownedIds: next.ownedIds ?? s.ownedIds, adFree: next.adFree ?? s.adFree } : s,
+    );
   }, []);
 
   const value = useMemo(() => ({ shop, loading, error, refresh, apply }), [shop, loading, error, refresh, apply]);

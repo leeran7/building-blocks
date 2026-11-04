@@ -49,7 +49,7 @@ import { GEM_PACKS } from "../../src/lib/gemPacks";
 
 const PACK = GEM_PACKS[1];
 const TOKEN = "0a1b2c3d-4e5f-5a6b-8c7d-9e0f1a2b3c4d";
-const SHOP = { gems: 0, ownedIds: [], appleAccountToken: TOKEN, webCheckout: true };
+const SHOP = { gems: 0, ownedIds: [], appleAccountToken: TOKEN, webCheckout: true, adFree: false };
 const tx = (id: string, productIdentifier = PACK.appleProductId) => ({
   transactionId: id,
   productIdentifier,

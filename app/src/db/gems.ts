@@ -158,6 +158,15 @@ export interface ShopState {
   ownedIds: string[];
 }
 
+/**
+ * Whether the player has ever paid for a gem pack (any provider). A paying
+ * player sees no interstitial ads (the ads plan, placement A).
+ */
+export async function hasBoughtGems(userId: string): Promise<boolean> {
+  const row = await prisma.gemPurchase.findFirst({ where: { user_id: userId }, select: { id: true } });
+  return row !== null;
+}
+
 /** The player's gems and what they have bought. */
 export async function shopState(userId: string): Promise<ShopState> {
   const [gems, ownedIds] = await Promise.all([gemBalance(userId), ownedCharacterIds(userId)]);

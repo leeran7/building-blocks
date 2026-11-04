@@ -26,6 +26,7 @@ vi.mock("../../src/db/levels", async (importOriginal) => {
     submitLevelResult: vi.fn(),
     levelProfile: vi.fn(),
     buyLivesRefill: vi.fn(),
+    grantAdLife: vi.fn(),
   };
 });
 
@@ -38,12 +39,14 @@ import { POST as postResult } from "../../app/api/levels/result/route";
 import { GET as getMe } from "../../app/api/levels/me/route";
 import { GET as getSeason } from "../../app/api/levels/season/route";
 import { POST as postLives } from "../../app/api/levels/lives/route";
+import { POST as postAdLife } from "../../app/api/levels/lives/ad/route";
 import { verifyIdToken } from "../../src/lib/firebaseAdmin";
 import { checkRateLimit } from "../../src/lib/rateLimit";
 import {
   LevelError,
   activeLevelSeason,
   buyLivesRefill,
+  grantAdLife,
   issueLevelTicket,
   levelProfile,
   openTicketLevel,
@@ -470,6 +473,7 @@ describe("GET /api/levels/me", () => {
       chests: { lifetimeStars: 27, starsIntoChest: 7, perChest: 20, earned: 1 },
       gems: 120,
       livesRefillGems: 50,
+      adLivesLeft: 3,
     });
     const res = await getMe(req("/api/levels/me?season=1"));
     expect(await res.json()).toMatchObject({
@@ -638,5 +642,58 @@ describe("POST /api/levels/lives", () => {
     const res = await lives();
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("gem_ledger");
+  });
+});
+
+describe("POST /api/levels/lives/ad", () => {
+  const adLife = (token: string | null = "tok") => postAdLife(req("/api/levels/lives/ad", {}, token));
+
+  it("grants and returns lives, the next life time and the ad lives left today", async () => {
+    const next = new Date("2026-11-03T12:30:00Z");
+    vi.mocked(grantAdLife).mockResolvedValueOnce({ lives: 1, nextLifeAt: next, adLivesLeft: 2 });
+    const res = await adLife();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(await res.json()).toEqual({ lives: 1, maxLives: 5, nextLifeAt: next.toISOString(), adLivesLeft: 2 });
+    expect(grantAdLife).toHaveBeenCalledWith("u1", expect.any(Date));
+  });
+
+  it("maps a player with lives and a used-up day to 409 with their details", async () => {
+    vi.mocked(grantAdLife).mockRejectedValueOnce(new LevelError("LIVES_AVAILABLE", "has one", { lives: 1 }));
+    let res = await adLife();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "LIVES_AVAILABLE", lives: 1 });
+
+    vi.mocked(grantAdLife).mockRejectedValueOnce(new LevelError("AD_LIVES_USED", "used", { adLivesLeft: 0 }));
+    res = await adLife();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "AD_LIVES_USED", adLivesLeft: 0 });
+  });
+
+  it("requires a signed-in, non-anonymous player", async () => {
+    expect((await adLife(null)).status).toBe(401);
+    vi.mocked(verifyIdToken).mockResolvedValue({ uid: "anon" } as never);
+    expect((await adLife()).status).toBe(401);
+    expect(grantAdLife).not.toHaveBeenCalled();
+  });
+
+  it("uses the shared climb IP bucket and its own per-user cap", async () => {
+    vi.mocked(grantAdLife).mockResolvedValue({ lives: 1, nextLifeAt: null, adLivesLeft: 2 });
+    await adLife();
+    const namespaces = vi.mocked(checkRateLimit).mock.calls.map(([o]) => o.namespace);
+    expect(namespaces).toEqual(["climb", "climb:level:adLife:total"]);
+
+    vi.mocked(checkRateLimit).mockImplementation(async (o) => ({ allowed: o.namespace !== "climb:level:adLife:total", degraded: false }));
+    vi.mocked(grantAdLife).mockClear();
+    expect((await adLife()).status).toBe(429);
+    expect(grantAdLife).not.toHaveBeenCalled();
+    vi.mocked(checkRateLimit).mockImplementation(async () => ({ allowed: true, degraded: false }));
+  });
+
+  it("never leaks a raw database error", async () => {
+    vi.mocked(grantAdLife).mockRejectedValueOnce(new Error("column ad_lives_today does not exist"));
+    const res = await adLife();
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("ad_lives_today");
   });
 });

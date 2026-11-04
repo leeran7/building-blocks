@@ -293,6 +293,8 @@ export function createMockLevelsClient(opts: MockClientOptions = {}): LevelsClie
         chests: mockChestProgress(state),
         // Gems are server-only: the mock never offers a paid refill.
         refill: null,
+        // Ad lives are server-granted only: the mock never offers one.
+        adLivesLeft: null,
       });
     },
 

@@ -33,6 +33,8 @@ import { ALTITUDE_UNIT } from "@app/lib/units";
 
 import { API_BASE, postClimbResult, type ClimbSaveResult } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
+import { useAds } from "../contexts/AdsContext";
+import { useOptionalShop } from "../contexts/ShopContext";
 import { useInvalidateAppData, useSettings, type SliceKey } from "../contexts/AppDataContext";
 import { hasLeaderboardConsent } from "../lib/consent";
 import { useAcceptLeaderboardConsent } from "../hooks/useAcceptLeaderboardConsent";
@@ -65,8 +67,11 @@ interface RunPayload {
 
 const CONSENT_SAVE_FAILED = "Couldn\u2019t save that. Check your connection and try again.";
 
-/** Play again on the results card: ready, refetching the daily, or unreachable. */
-type PlayAgainState = "ready" | "loading" | "offline";
+/**
+ * Play again on the results card: ready, refetching the daily, unreachable,
+ * or waiting on the ad break before an Endless run.
+ */
+type PlayAgainState = "ready" | "loading" | "offline" | "ad";
 
 /** Daily save lifecycle on the results card: null = not a daily save. */
 type DailySaveState = DailySaveResult | { status: "pending" } | null;
@@ -263,8 +268,42 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
     handleStart();
   }, [startWhenReady, dailyInfo, handleStart]);
 
+  // Placement A: an interstitial before some Endless "Play again" presses,
+  // paced by src/lib/adPacing.ts (every 3rd press, not in the first 3
+  // minutes, never for a player who has bought gems). Daily never shows one.
+  const { ads, pacer } = useAds();
+  const shop = useOptionalShop();
+  const shopState = shop?.shop ?? null;
+  const shopRef = useRef(shop);
+  shopRef.current = shop;
+  // Learn whether a signed-in player has bought gems before their next run:
+  // once per finished Endless run while the Shop is unknown, so a failed
+  // fetch is tried again after the next run rather than never.
+  useEffect(() => {
+    const s = shopRef.current;
+    if (!finished || isDaily || !isAuthed || !ads.enabled || !s || s.shop !== null || s.loading) return;
+    void s.refresh();
+  }, [finished, isDaily, isAuthed, ads.enabled]);
+  const [adBreak, setAdBreak] = useState(false);
+  const adBreakRef = useRef(false);
+  const handlePlayAgain = useCallback(async () => {
+    if (adBreakRef.current) return;
+    if (!isDaily && ads.enabled && pacer.playAgain(Date.now(), shopState?.adFree === true)) {
+      adBreakRef.current = true;
+      setAdBreak(true);
+      // Input stays blocked until the ad settles; the run starts whatever it did.
+      await ads.midgame();
+      pacer.breakTried();
+      adBreakRef.current = false;
+      setAdBreak(false);
+    }
+    handleStart();
+  }, [isDaily, ads, pacer, shopState, handleStart]);
+
   /** The results card's Play again while a daily tower is (re)loading. */
-  const playAgainState: PlayAgainState = !isDaily || dailyInfo
+  const playAgainState: PlayAgainState = adBreak
+    ? "ad"
+    : !isDaily || dailyInfo
     ? "ready"
     : dailyInfoFailed
       ? "offline"
@@ -513,7 +552,7 @@ export function ClimbScreen({ onSignIn }: { onSignIn?: () => void } = {}) {
               }
               shareable={shareReady}
               isGuest={!isAuthed}
-              onPlayAgain={handleStart}
+              onPlayAgain={() => void handlePlayAgain()}
               playAgainState={playAgainState}
               onShare={share}
               onHome={() => {
@@ -640,6 +679,7 @@ const PLAY_AGAIN_LABEL: Record<PlayAgainState, string> = {
   ready: "Play again",
   loading: "Loading today\u2019s tower\u2026",
   offline: "Can\u2019t reach today\u2019s tower \u00b7 retry",
+  ad: "Ad break\u2026",
 };
 
 /** Why a daily run is not on today's board, in the player's words. */
@@ -787,8 +827,8 @@ function ResultsCard({
       <div className="mt-7 flex flex-col gap-3">
         <button
           onClick={onPlayAgain}
-          disabled={playAgainState === "loading"}
-          aria-busy={playAgainState === "loading" || undefined}
+          disabled={playAgainState === "loading" || playAgainState === "ad"}
+          aria-busy={playAgainState === "loading" || playAgainState === "ad" || undefined}
           className="min-h-[52px] rounded-full bg-signal font-display text-base font-black uppercase tracking-widest text-void shadow-signal transition-transform duration-150 active:scale-[0.97] disabled:opacity-60"
         >
           {PLAY_AGAIN_LABEL[playAgainState]}
