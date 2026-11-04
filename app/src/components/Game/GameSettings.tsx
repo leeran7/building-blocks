@@ -14,10 +14,13 @@
  * GameNotes) and opens them, plus the band's other tab (the Leaderboard),
  * so a phone can reach the board from inside the game. Pages without any
  * (the app, the landing demo) show no extra rows.
+ *
+ * This file is also bundled into the Vite app and the portal builds, where
+ * nothing from `next/*` may load (it reads `process`, so the app never
+ * renders). The tab rows are therefore plain anchors, not next/link.
  */
 
 import { useEffect, useId, useRef, useState } from "react";
-import Link from "next/link";
 import { ControlSchemePicker } from "../ControlSchemePicker";
 import { useCoarsePointer } from "../../hooks/useCoarsePointer";
 import { listInfoDialogs, openInfoDialog, type InfoEntry } from "../ui/InfoDialog";
@@ -134,7 +137,7 @@ export function GameSettingsButton({
           {touch && (info.length > 0 || tabs.length > 0) && (
             <div className="mt-2 border-t border-white/10 pt-2">
               {tabs.map((tab) => (
-                <Link
+                <a
                   key={tab.href}
                   href={tab.href}
                   onClick={() => setOpen(false)}
@@ -144,7 +147,7 @@ export function GameSettingsButton({
                   <span aria-hidden="true" className="font-mono text-xs text-text-secondary">
                     ›
                   </span>
-                </Link>
+                </a>
               ))}
               {info.map((entry) => (
                 <button
