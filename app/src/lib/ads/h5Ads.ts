@@ -4,9 +4,10 @@
  * interstitial before "Climb again" on /play (the ads plan, placement A),
  * paced by src/lib/adPacing.ts.
  *
- * Off unless NEXT_PUBLIC_ADSENSE_CLIENT holds an AdSense publisher id
- * ("ca-pub-" and digits). Nothing loads, and no request leaves the page, when
- * it is off. Every call resolves: a blocked script or no fill settles within
+ * On for the production site with Doomstack's publisher id
+ * (DOOMSTACK_ADSENSE_CLIENT), off on previews and locally; see
+ * adsenseClientFor. Nothing loads, and no request leaves the page, when it is
+ * off. Every call resolves: a blocked script or no fill settles within
  * AD_BREAK_START_MS, a lost callback within AD_BREAK_MAX_MS, so the game is
  * never stuck.
  */
@@ -28,9 +29,26 @@ export const AD_BREAK_START_MS = 5_000;
 /** Hard cap on one ad break, so a lost callback cannot block the game. */
 export const AD_BREAK_MAX_MS = 60_000;
 
+/**
+ * Doomstack's AdSense publisher id. Public, not a secret: it is in ads.txt
+ * and in every ad request.
+ */
+export const DOOMSTACK_ADSENSE_CLIENT = "ca-pub-3923007405625474";
+
 /** The publisher id, or null when it is missing or not an AdSense id. */
 export function parseAdsenseClient(raw: string | undefined): string | null {
   return typeof raw === "string" && /^ca-pub-\d{10,20}$/.test(raw) ? raw : null;
+}
+
+/**
+ * Which publisher id the web site serves ads for. NEXT_PUBLIC_ADSENSE_CLIENT,
+ * when set, decides: another valid id, or anything else (e.g. "off") to turn
+ * web ads off. Unset, only the production deploy shows ads, with ours, so
+ * previews and local dev never send traffic to the live AdSense account.
+ */
+export function adsenseClientFor(env: { override?: string; vercelEnv?: string }): string | null {
+  if (env.override !== undefined) return parseAdsenseClient(env.override);
+  return env.vercelEnv === "production" ? DOOMSTACK_ADSENSE_CLIENT : null;
 }
 
 interface AdBreakDoneInfo {

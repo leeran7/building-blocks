@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AD_BREAK_MAX_MS, AD_BREAK_START_MS, createH5Ads, outcomeOf, parseAdsenseClient } from "../../src/lib/ads/h5Ads";
+import { AD_BREAK_MAX_MS, AD_BREAK_START_MS, adsenseClientFor, createH5Ads, outcomeOf, parseAdsenseClient } from "../../src/lib/ads/h5Ads";
 import { GET as adsTxt } from "../../app/ads.txt/route";
 
 type AdsWindow = Window & { adBreak?: (o: Record<string, unknown>) => void; adsbygoogle?: unknown[] };
@@ -104,17 +104,27 @@ describe("createH5Ads", () => {
   });
 });
 
-describe("GET /ads.txt", () => {
-  afterEach(() => {
-    delete process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
+describe("adsenseClientFor", () => {
+  it("serves our publisher id on the production deploy only", () => {
+    expect(adsenseClientFor({ vercelEnv: "production" })).toBe("ca-pub-3923007405625474");
+    for (const vercelEnv of ["preview", "development", "", undefined]) {
+      expect(adsenseClientFor({ vercelEnv })).toBeNull();
+    }
   });
 
-  it("names the publisher as a direct Google seller, and is absent while web ads are off", async () => {
-    process.env.NEXT_PUBLIC_ADSENSE_CLIENT = "ca-pub-1234567890123456";
+  it("lets NEXT_PUBLIC_ADSENSE_CLIENT swap the id or switch ads off, never falling back to ours", () => {
+    expect(adsenseClientFor({ override: "ca-pub-1234567890123456", vercelEnv: "preview" })).toBe("ca-pub-1234567890123456");
+    for (const override of ["off", "", "pub-3923007405625474"]) {
+      expect(adsenseClientFor({ override, vercelEnv: "production" })).toBeNull();
+    }
+  });
+});
+
+describe("GET /ads.txt", () => {
+  it("names Doomstack's publisher as a direct Google seller, whether or not ads are on", async () => {
     const res = adsTxt();
     expect(res.status).toBe(200);
-    expect(await res.text()).toBe("google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0\n");
-    process.env.NEXT_PUBLIC_ADSENSE_CLIENT = "not-an-id";
-    expect(adsTxt().status).toBe(404);
+    expect(res.headers.get("content-type")).toContain("text/plain");
+    expect(await res.text()).toBe("google.com, pub-3923007405625474, DIRECT, f08c47fec0942fa0\n");
   });
 });

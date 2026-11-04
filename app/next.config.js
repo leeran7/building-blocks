@@ -57,6 +57,11 @@ const securityHeaders = [
 
 const nextConfig = {
   experimental: {},
+  // Web ads run on the production deploy only (src/lib/ads/h5Ads.ts
+  // adsenseClientFor). Vercel sets VERCEL_ENV at build time.
+  env: {
+    NEXT_PUBLIC_VERCEL_ENV: process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.VERCEL_ENV || "",
+  },
   // Mark ably as a server external so Next.js never bundles it on the server
   // webpack pass. Ably is a browser-only WebSocket client; it must not appear
   // in the RSC bundle. Client components that import it are loaded only in the

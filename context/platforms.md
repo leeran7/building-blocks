@@ -56,7 +56,9 @@ imports the app's screens, so online features never ship in that bundle.
   run, in Daily, in duels or on levels' other screens. iOS uses AdMob
   (`targets/app/admob.ts`; units in `targets/app/adUnits.ts`, app id in
   `ios/App/App/Info.plist`); the web /play page uses H5 Games Ads
-  (`src/lib/ads/h5Ads.ts`, on when `NEXT_PUBLIC_ADSENSE_CLIENT` is set).
+  (`src/lib/ads/h5Ads.ts`, publisher `ca-pub-3923007405625474`, on for the
+  production deploy only; `NEXT_PUBLIC_ADSENSE_CLIENT=off` switches it off).
+  `/ads.txt` and the `google-adsense-account` meta tag are always served.
 - The app is the only target with the full experience; new features land
   here first, then each other target turns them on in its `config.ts`.
 

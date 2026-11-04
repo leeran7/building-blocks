@@ -3,18 +3,25 @@
 /**
  * The web /play page's interstitial before "Climb again" (the ads plan,
  * placement A): H5 Games Ads, paced like the iOS app by src/lib/adPacing.ts.
- * Returns undefined when web ads are off (no NEXT_PUBLIC_ADSENSE_CLIENT), so
+ * Returns undefined when web ads are off (previews, dev, or the
+ * NEXT_PUBLIC_ADSENSE_CLIENT kill switch; see adsenseClientFor), so
  * the page then behaves exactly as before.
  */
 
 import { useEffect, useMemo, useRef } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { createInterstitialPacer, type InterstitialPacer } from "../../lib/adPacing";
-import { createH5Ads, parseAdsenseClient } from "../../lib/ads/h5Ads";
+import { adsenseClientFor, createH5Ads } from "../../lib/ads/h5Ads";
 
-const h5 = createH5Ads(parseAdsenseClient(process.env.NEXT_PUBLIC_ADSENSE_CLIENT), {
-  testMode: process.env.NODE_ENV !== "production",
-});
+const h5 = createH5Ads(
+  adsenseClientFor({
+    override: process.env.NEXT_PUBLIC_ADSENSE_CLIENT,
+    vercelEnv: process.env.NEXT_PUBLIC_VERCEL_ENV,
+  }),
+  {
+    testMode: process.env.NODE_ENV !== "production",
+  },
+);
 
 // One pacer per page session, started the first time /play mounts.
 let pacer: InterstitialPacer | null = null;
