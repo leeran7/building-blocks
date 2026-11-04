@@ -516,6 +516,22 @@ html[data-soft-nav] .scroll-cue {
   animation-duration: 180ms;
   animation-timing-function: ease-out;
 }
+/* Into a game stage (`launch`, LAUNCH_TRANSITION): a board and a game share
+   almost nothing, so a straight crossfade double-exposes the board's text over
+   the HUD. The board fades out first and the stage fades in behind it. */
+::view-transition-old(.page-launch) {
+  animation-duration: 110ms;
+  animation-timing-function: ease-in;
+}
+::view-transition-new(.page-launch) {
+  animation-duration: 170ms;
+  animation-delay: 60ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+::view-transition-group(.page-launch) {
+  animation-duration: 230ms;
+}
 ::view-transition-group(stack-tabs) {
   animation-duration: 260ms;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
@@ -527,6 +543,16 @@ html[data-soft-nav] .scroll-cue {
   object-fit: none;
   object-position: left center;
   animation-duration: 180ms;
+}
+/* On a touch screen the game sections (/play, /daily) are a full-viewport
+   stage that covers the band, so their pill takes no part in the switch: the
+   page crossfade carries it. Shared, it would glide up over the game HUD and
+   then vanish when the transition ends. !important beats the inline name
+   React's <ViewTransition> sets. */
+@media (pointer: coarse) {
+  [data-under-stage] {
+    view-transition-name: none !important;
+  }
 }
 
 /* Fine measurement grid — used behind data-dense panels. */
